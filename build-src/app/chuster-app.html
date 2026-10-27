@@ -3688,7 +3688,14 @@ const SYNC = (function () {
   const cfg = (REAL && REAL.sync) || null;
   const lsGet = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
   if (cfg && /^#db=/.test(location.hash)) { try { localStorage.setItem('chuster-db-url', decodeURIComponent(location.hash.slice(4))); } catch (e) { /* storage blocked */ } history.replaceState(null, '', location.pathname + location.search + '#home'); }
-  const url0 = () => String(lsGet('chuster-db-url') || (cfg && cfg.url) || '').trim().replace(/\/+$/, '');
+  const urlSet = () => String(lsGet('chuster-db-url') || (cfg && cfg.url) || '').trim().replace(/\/+$/, '');
+  // a phone whose internet filter blocks firebaseio.com reaches the same database through chuster.netlify.app/db
+  let viaApp = (function () { try { return localStorage.getItem('chuster-db-via-app') === '1'; } catch (e) { return false; } })();
+  const onNetlify = /netlify\.app$/.test(location.hostname);
+  const url0 = () => { const u = urlSet(); return viaApp && onNetlify && /firebaseio\.com|firebasedatabase\.app/.test(u) ? location.origin + '/db' : u; };
+  function netFail(e) {
+    if (!viaApp && onNetlify && e && e.name === 'TypeError') { viaApp = true; try { localStorage.setItem('chuster-db-via-app', '1'); } catch (x) { /* ignore */ } setTimeout(() => tick(), 500); }
+  }
   const st = { ok: null, err: '', last: 0, since: loadLS('chuster-sync-since', {}), out: loadLS('chuster-sync-out', {}), seen: {}, key: null, flushing: false, pulling: false, started: false };
   const COLLS = ['ds', 'rd', 'll', 'do', 'sc', 'tr', 'lq', 'ls', 'lm', 'lx', 'lh', 'qi', 'qo', 'qc', 'qs', 'qp', 'qh', 'qw', 'qr'];
   const h = s => { let a = 0x811c9dc5, b = 0x9e3779b9; for (let i = 0; i < s.length; i++) { const c = s.charCodeAt(i); a = Math.imul(a ^ c, 16777619) >>> 0; b = Math.imul(b ^ c, 2246822519) >>> 0; } return a.toString(36) + b.toString(36); };
@@ -3739,7 +3746,7 @@ const SYNC = (function () {
         st.seen[id] = v; if (st.out[id] === r) delete st.out[id];
       }
       st.ok = true; st.err = '';
-    } catch (e) { st.ok = false; st.err = String(e.message || e); }
+    } catch (e) { st.ok = false; st.err = String(e.message || e); netFail(e); }
     saveOut(); st.flushing = false; badge();
   }
   async function pull() {
@@ -3758,7 +3765,7 @@ const SYNC = (function () {
         st.since[c] = max;
       }
       saveLS('chuster-sync-since', st.since); st.ok = true; st.err = ''; st.last = Date.now();
-    } catch (e) { st.ok = false; st.err = String(e.message || e); }
+    } catch (e) { st.ok = false; st.err = String(e.message || e); netFail(e); }
     st.pulling = false; badge();
     if (changed) refresh();
   }
