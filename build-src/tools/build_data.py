@@ -325,7 +325,7 @@ cases_y = {str(AS_OF.year - 1): int(cases(prev_start, dt.date(AS_OF.year - 1, 12
 
 data = {
     'asOf': iso(AS_OF),
-    'source': os.environ.get('CHUSTER_SOURCE', 'QuickBooks export, Oct 23, 2026'), 'from': iso(FROM),
+    'source': os.environ.get('CHUSTER_SOURCE', 'QuickBooks export, Oct 23, 2026'), 'from': iso(FROM), 'nightly': bool(os.environ.get('CHUSTER_NIGHTLY')),
     'lastDay': {'date': iso(last_day), 'count': daily[last_day][0], 'amount': r2(daily[last_day][1])},
     'prevDay': {'date': iso(prev_day), 'count': daily[prev_day][0], 'amount': r2(daily[prev_day][1])},
     'paidLast7': r2(sum(v for d, v in pay_daily.items() if (AS_OF - d).days < 7)),

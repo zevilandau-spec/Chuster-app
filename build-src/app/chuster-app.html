@@ -3877,7 +3877,7 @@ function qbApply() {
   if (!qbLive()) return;
 
   const today = QB.status.at.slice(0, 10);
-  const from = QB.status.from || today;
+  const from0 = QB.status.from || today; const from = REAL.nightly && B.asOf > from0 ? B.asOf : from0; // the nightly rebuild already has everything before its day
   const ci = new Map(REAL.customers.map((c, i) => [c.name, i]));
   const custIdx = name => {
     if (ci.has(name)) return ci.get(name);
