@@ -3693,6 +3693,14 @@ const SYNC = (function () {
   let viaApp = (function () { try { return localStorage.getItem('chuster-db-via-app') === '1'; } catch (e) { return false; } })();
   const onNetlify = /netlify\.app$/.test(location.hostname);
   const url0 = () => { const u = urlSet(); return viaApp && onNetlify && /firebaseio\.com|firebasedatabase\.app/.test(u) ? location.origin + '/db' : u; };
+  async function dbErr(res) { // say what really answered: Firebase, or something in between (like a phone filter)
+    let t = ''; try { t = (await res.text()).slice(0, 300); } catch (e) { /* ignore */ }
+    const fb = /^\s*\{\s*"error"/.test(t);
+    if (fb && /permission/i.test(t)) return 'the database rules are not set yet';
+    if (fb && /index/i.test(t)) return 'the database rules need the newest version';
+    if (fb) return 'Firebase said: ' + t.replace(/[{}"]/g, '').slice(0, 120);
+    return `blocked (${res.status}) by something between this phone and the database${/filter|block|categor|netspark|gentech|jnet|koshernet|techloq|meshimer/i.test(t) ? ', looks like an internet filter' : ''}: ` + t.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80);
+  }
   function netFail(e) {
     if (!viaApp && onNetlify && e && e.name === 'TypeError') { viaApp = true; try { localStorage.setItem('chuster-db-via-app', '1'); } catch (x) { /* ignore */ } setTimeout(() => tick(), 500); }
   }
@@ -3742,7 +3750,7 @@ const SYNC = (function () {
       while ((ids = Object.keys(st.out).filter(id => !sentNow.has(st.out[id]))).length) for (const id of ids) {
         const r = st.out[id]; sentNow.add(r); const v = r.coll === 'qw' ? await encC1({ k: r.key, val: r.val, by: r.by }) : await enc({ k: r.key, val: r.val, by: r.by });
         const res = await fetch(r.coll === 'p' ? pPath(r.key) : `${base()}/${id}.json`, { method: 'PUT', body: JSON.stringify({ v, t: { '.sv': 'timestamp' } }) });
-        if (!res.ok) throw new Error(res.status === 401 || res.status === 403 ? 'the database rules are not set yet' : 'error ' + res.status);
+        if (!res.ok) throw new Error(await dbErr(res));
         st.seen[id] = v; if (st.out[id] === r) delete st.out[id];
       }
       st.ok = true; st.err = '';
@@ -3755,7 +3763,7 @@ const SYNC = (function () {
       for (const c of COLLS) {
         const since = st.since[c] || 0;
         const res = await fetch(`${base()}/${c}.json?orderBy=%22t%22&startAt=${since}`);
-        if (!res.ok) throw new Error(res.status === 401 || res.status === 403 ? 'the database rules are not set yet' : res.status === 400 ? 'the database rules need the newest version' : 'error ' + res.status);
+        if (!res.ok) throw new Error(await dbErr(res));
         const j = (await res.json()) || {}; let max = since;
         for (const id of Object.keys(j)) {
           const r = j[id]; if (!r || !r.v) continue; if (r.t > max) max = r.t;
