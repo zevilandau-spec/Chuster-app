@@ -6,7 +6,7 @@ cd "$(dirname "$0")/.."
 python3 - <<'PY'
 import json, os
 s = json.loads(os.environ['CHUSTER_SECRETS'])
-json.dump(s['sync'], open('sync.json', 'w')); json.dump(s['passcodes'], open('passcodes.json', 'w'))
+s['sync']['url'] = os.environ['CHUSTER_DB_URL'].strip().rstrip('/'); json.dump(s['sync'], open('sync.json', 'w')); json.dump(s['passcodes'], open('passcodes.json', 'w'))
 PY
 cleanup() { rm -rf raw export build netlify sync.json passcodes.json; }
 trap cleanup EXIT
@@ -17,7 +17,7 @@ python3 -I tools/convert_raw.py raw export
 ASOF=$(python3 -c "import json;print(json.load(open('raw/meta.json'))['asOf'])")
 FROM=$(python3 -c "import json;print(json.load(open('raw/meta.json'))['from'])")
 mkdir -p build
-sh tools/build_from.sh export build/data.json "$ASOF" "$FROM"
+CHUSTER_NIGHTLY=1 sh tools/build_from.sh export build/data.json "$ASOF" "$FROM"
 python3 -I tools/add_sync.py build/data.json sync.json build/data_sync.json
 node tools/lock.js build/data_sync.json passcodes.json build/locked.json
 python3 -I tools/build_locked.py .
