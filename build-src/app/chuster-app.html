@@ -3978,7 +3978,7 @@ function qbToolsCard() {
   const st = QB.status;
   return `<section class="card stack"><div class="card-head" style="margin:0"><h2>QuickBooks live</h2>${qbTag()}</div>
     <p class="sub" style="margin:0">${st ? `Last sync from ${esc(st.pc || 'the office PC')}: ${esc(new Date(st.at).toLocaleString())}. ${st.counts ? `${fn(Object.keys(QB.inv).length)} invoices and credits since ${fmtShort(isoRd(st.from || st.at.slice(0, 10)))}, ${fn(Object.keys(QB.cust).length)} stores, ${fn(Object.keys(QB.stock).length)} items.` : ''}` : 'Not connected yet. Put the "Chuster QB Sync" folder on the QuickBooks computer and run Install.cmd. It needs the shared database first.'}</p>
-    <p class="sub" style="margin:0;font-size:12px">It only reads QuickBooks, every 15 minutes while that computer is on. LetSync and other programs keep working as before.</p></section>`;
+    <p class="sub" style="margin:0;font-size:12px">New invoices, payments, balances and stock come in every 15 minutes, and orders from the app go into QuickBooks within a minute, while that computer is on. Every night it also reads the full history from 2020. LetSync and other programs keep working as before.</p></section>`;
 }
 qbApply();
 const nowHM = () => { const n = new Date(); return String(n.getHours()).padStart(2, '0') + ':' + String(n.getMinutes()).padStart(2, '0'); };
