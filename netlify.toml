@@ -11,3 +11,10 @@
   for = "/"
   [headers.values]
     Cache-Control = "no-cache"
+
+# The shared database through the app's own address, for phones whose internet filter blocks firebaseio.com
+[[redirects]]
+  from = "/db/*"
+  to = "https://chuster-afb77-default-rtdb.firebaseio.com/:splat"
+  status = 200
+  force = true
