@@ -1,0 +1,41 @@
+name: Rebuild the app from QuickBooks
+on:
+  schedule:
+    - cron: '45 9 * * *'   # every morning, after the office PC sent last night's QuickBooks history
+  push:
+    branches: [main]
+    paths: ['build-src/**']
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: rebuild
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: pip install cryptography==43.0.3
+      - name: Build
+        env:
+          CHUSTER_DB_URL: ${{ secrets.CHUSTER_DB_URL }}
+          CHUSTER_SECRETS: ${{ secrets.CHUSTER_SECRETS }}
+        run: |
+          if [ -z "$CHUSTER_DB_URL" ] || [ -z "$CHUSTER_SECRETS" ]; then echo "Secrets not set yet"; exit 0; fi
+          sh build-src/ci/nightly.sh
+      - name: Publish
+        run: |
+          git config user.name "Chuster rebuild"
+          git config user.email "actions@users.noreply.github.com"
+          git add index.html
+          if git diff --cached --quiet; then echo "nothing new"; exit 0; fi
+          git commit -m "App rebuilt from QuickBooks history"
+          git pull --rebase origin main && git push origin HEAD:main
