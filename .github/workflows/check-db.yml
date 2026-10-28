@@ -10,7 +10,13 @@ jobs:
             code=$(curl -s -o body.txt -w '%{http_code} %{content_type}' "$u")
             echo "::notice::$u -> $code :: $(head -c 120 body.txt | tr -d '\n\r')"
           done
+      - name: The AI door
+        run: |
+          code=$(curl -s -o body.txt -w '%{http_code}' -X POST -H 'content-type: application/json' -d '{}' https://chuster.netlify.app/ai/msg)
+          echo "::notice::ai -> $code :: $(head -c 200 body.txt | tr -d '\n\r')"
+          echo "::notice::version $(curl -s https://chuster.netlify.app/version.json)"
       - name: How the other app talks to its server
+        if: false
         run: |
           curl -s https://chusternoodle.netlify.app/ -o page.html
           echo "::notice::page: $(head -c 900 page.html | tr -d '\n\r')"
