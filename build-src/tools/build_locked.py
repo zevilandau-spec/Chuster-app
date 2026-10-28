@@ -4,6 +4,8 @@ Usage: python3 -I build_locked.py <scratchpad>   (needs build/locked.json from l
 import json, os, sys, zipfile
 
 root = sys.argv[1]
+import datetime as _dt, zoneinfo as _zi
+VERSION = os.environ.get('CHUSTER_VERSION') or _dt.datetime.now(_zi.ZoneInfo('America/New_York')).strftime('%Y-%m-%d %H:%M')
 tpl = open(os.path.join(root, 'app/chuster-app.html'), encoding='utf-8').read()
 locked = open(os.path.join(root, 'build/locked.json'), encoding='utf-8').read()
 
@@ -23,7 +25,7 @@ lock_ui = '''<div id="lock" style="position:fixed;inset:0;z-index:100;background
     <p id="lock-err" class="sub" style="margin:0;color:var(--bad-text);font-weight:700" hidden>That passcode is not right. Try again.</p>
   </form>
 </div>
-<script>window.CHUSTER_LOCKED = ''' + locked + ''';</script>
+<script>window.CHUSTER_VERSION = ''' + json.dumps(VERSION) + '''; window.CHUSTER_LOCKED = ''' + locked + ''';</script>
 <script>
 (function () {
   "use strict";
@@ -91,6 +93,7 @@ assert 'window.CHUSTER_DATA=' not in doc and 'ROSENFELD' not in doc and 'Aron' n
 out = os.path.join(root, 'netlify')
 os.makedirs(out, exist_ok=True)
 open(os.path.join(out, 'index.html'), 'w', encoding='utf-8').write(doc)
+open(os.path.join(out, 'version.json'), 'w').write(json.dumps({'v': VERSION}))
 zp = os.path.join(out, 'chuster-app.zip')
 if os.path.exists(zp):
     os.remove(zp)

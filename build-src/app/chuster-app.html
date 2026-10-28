@@ -622,6 +622,9 @@ select.sel, input.inp { min-height: 46px; border-radius: 10px; border: 1px solid
 .qw-cmlines { display: flex; flex-direction: column; gap: 6px; }
 .qw-cmlines > div { display: grid; grid-template-columns: 1fr 64px 80px; gap: 6px; align-items: center; font-size: 14px; }
 .qw-cmlines .inp { padding: 8px; text-align: right; }
+
+.ver-banner { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(76px + env(safe-area-inset-bottom, 0px)); z-index: 70; display: flex; align-items: center; gap: 12px; background: var(--fg); color: var(--bg); border-radius: 14px; padding: 10px 12px 10px 16px; box-shadow: 0 10px 30px rgba(0,0,0,.25); width: max-content; max-width: calc(100vw - 32px); font-size: 14px; }
+@media (min-width: 960px) { .ver-banner { bottom: 20px; } }
 </style>
 
 <div class="app" id="app">
@@ -632,7 +635,7 @@ select.sel, input.inp { min-height: 46px; border-radius: 10px; border: 1px solid
       <button class="icon-btn menu-close" data-act="menu-close" aria-label="Close menu"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
     </div>
     <nav class="nav" id="nav" aria-label="Main"></nav>
-    <div class="side-foot"><b id="data-title">Sample data</b><span id="data-note">Not connected to QuickBooks yet. Numbers come from your screenshots; names and counts are examples.</span>
+    <div class="side-foot"><b id="data-title">Sample data</b><span id="data-note">Not connected to QuickBooks yet. Numbers come from your screenshots; names and counts are examples.</span><span id="app-ver" style="display:block;margin-top:6px;font-size:11px;opacity:.8"></span>
       <div id="role-box"><label for="role" style="display:block;margin-top:10px;color:var(--side-ink);font-weight:700">Try the app as</label>
       <select id="role" class="sel" style="margin-top:4px;min-height:40px"><option>Owner</option><option>Office</option><option value="Sales">Salesman</option><option value="SalesDriver">Salesman + driver</option><option>Warehouse</option><option>Driver</option></select></div>
       <button class="btn ghost sm full" id="lang-btn" data-act="lang" style="margin-top:10px;color:#FFFFFF;border-color:rgba(255,255,255,.4)">אידיש (Yiddish)</button>
@@ -1767,6 +1770,7 @@ function renderTools() {
   if (t === 'team') body = `
     ${SYNC.toolsCard()}
     ${qbToolsCard()}
+    <section class="card stack"><h2>App version</h2><p class="sub" style="margin:0">This device has the version from <b>${typeof appVersionText === 'function' ? appVersionText() : ''}</b>. When a newer one is out, a banner with <b>Update now</b> shows up by itself.</p></section>
     <div class="grid-2">
       <section class="card stack"><h2>Trucks</h2>
         <form id="f-truck" class="form-grid" autocomplete="off"><div><label class="lbl" for="t-name">Truck name</label><input class="inp" id="t-name" required placeholder="Truck 5"></div><div><label class="lbl" for="t-driver">Driver</label><input class="inp" id="t-driver"></div><div class="wide"><button class="btn primary" type="submit">Add truck</button></div></form>
@@ -4500,6 +4504,33 @@ document.addEventListener('change', e => {
 });
 document.addEventListener('click', e => { const el = e.target.closest('[data-act="qwgo-pay"]'); if (!el) return; S.payForm = { c: el.dataset.c || '', amt: '', d: isoOf(TODAY), method: 'Check', ref: '', memo: '', pick: {} }; S.qbSheet = 'pay'; go('toqb'); });
 
+
+/* ================= app version: show it, and offer the newest one ================= */
+(function () {
+  const mine = window.CHUSTER_VERSION || '';
+  const nice = v => { if (!v) return 'preview'; const d = new Date(v.replace(' ', 'T')); return isNaN(d) ? v : d.toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }); };
+  const show = () => { const el = document.getElementById('app-ver'); if (el) el.textContent = 'App version: ' + nice(mine); };
+  show(); setInterval(show, 60000);
+  window.appVersionText = () => nice(mine);
+  if (!mine || !/^https?:/.test(location.protocol)) return;
+  let shown = false;
+  async function check() {
+    if (document.hidden || shown) return;
+    try {
+      const r = await fetch('version.json?t=' + Date.now(), { cache: 'no-store' }); if (!r.ok) return;
+      const v = (await r.json()).v;
+      if (v && v > mine) {
+        shown = true;
+        const b = document.createElement('div'); b.className = 'ver-banner'; b.setAttribute('role', 'status');
+        b.innerHTML = '<span><b>New version of the app</b> · ' + nice(v) + '</span><button class="btn gold sm" type="button">Update now</button>';
+        b.querySelector('button').onclick = () => location.reload();
+        document.body.appendChild(b);
+      }
+    } catch (e) { /* offline: try later */ }
+  }
+  setTimeout(check, 4000); setInterval(check, 5 * 60000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) check(); });
+})();
 document.addEventListener('click', e => {
   const goEl = e.target.closest('[data-go]');
   if (goEl) { e.preventDefault(); go(goEl.dataset.go); return; }
