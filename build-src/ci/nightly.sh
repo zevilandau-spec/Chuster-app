@@ -22,4 +22,5 @@ python3 -I tools/add_sync.py build/data.json sync.json build/data_sync.json
 node tools/lock.js build/data_sync.json passcodes.json build/locked.json
 python3 -I tools/build_locked.py .
 cp netlify/index.html ../index.html
+cp netlify/version.json ../version.json
 echo "built from QuickBooks history $FROM to $ASOF"
