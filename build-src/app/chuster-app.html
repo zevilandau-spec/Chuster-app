@@ -345,25 +345,34 @@ select.sel, input.inp { min-height: 46px; border-radius: 10px; border: 1px solid
 .dash-row input[type="checkbox"] { width: 22px; height: 22px; }
 @media (max-width: 1099px) { .detail { order: -1; } }
 .order-bar, .order-spacer { display: none; }
-.o2-bar { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px; border-bottom: 1px solid var(--line); }
-.o2-sel { flex: 1 1 140px; max-width: 200px; min-height: 46px; padding: 0 12px; border: 1.5px solid var(--line-strong, var(--line)); border-radius: 12px; background: var(--surface); color: var(--fg); font: inherit; font-size: 15px; }
-@media (max-width: 600px) { .o2-sel { max-width: none; } }
-.o2-day { display: flex; justify-content: space-between; padding: 14px 16px 6px; font-size: 13px; font-weight: 700; color: var(--muted); }
-.o2-row { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; background: none; border: none; border-top: 1px solid var(--line); padding: 12px 16px; font: inherit; color: var(--fg); cursor: pointer; }
+.o2-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+.o2-head h1 { font-size: 26px; margin: 0; line-height: 1.1; }
+.o2-head .o2-in { display: block; font-size: 13px; font-weight: 700; color: var(--brand-text); margin-top: 2px; }
+.o2-new { min-height: 38px; padding: 0 14px; font-size: 14px; }
+@media (max-width: 959px) { .o2-head h1 { display: none; } .o2-head { margin: -6px 0 8px; } .o2-bar .field, .o2-sel { min-height: 40px; height: 40px; } }
+.o2-bar { display: flex; gap: 6px; padding: 8px; border-bottom: 1px solid var(--line); }
+.o2-bar .field { flex: 1 1 auto; min-width: 0; min-height: 38px; }
+.o2-bar .field input { font-size: 15px; }
+.o2-sel { flex: 0 0 auto; width: 104px; min-height: 38px; padding: 0 6px; border: 1.5px solid var(--line-strong, var(--line)); border-radius: 10px; background: var(--surface); color: var(--fg); font: inherit; font-size: 14px; }
+@media (min-width: 700px) { .o2-sel { width: 150px; } }
+.o2-day { display: flex; justify-content: space-between; padding: 8px 12px 4px; font-size: 12px; font-weight: 700; color: var(--muted); background: var(--surface-2); border-top: 1px solid var(--line); }
+.o2-row { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; background: none; border: none; border-top: 1px solid var(--line); padding: 7px 12px; font: inherit; color: var(--fg); cursor: pointer; }
+.o2-day + .o2-row { border-top: none; }
 .o2-row:hover, .o2-row.on { background: var(--surface-2); }
-.o2-store { flex: 1; min-width: 0; font-weight: 700; font-size: 15px; overflow: hidden; text-overflow: ellipsis; }
-.o2-sub { display: block; font-weight: 500; font-size: 13px; color: var(--muted); margin-top: 2px; }
-.o2-amt { font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.o2-store { flex: 1; min-width: 0; font-weight: 700; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.o2-sub { flex: none; font-size: 12px; color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.o2-amt { flex: none; width: 92px; text-align: right; font-weight: 700; font-size: 14px; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .o2-amt.cm { color: var(--bad-text); }
-.o2-detail { padding: 4px 16px 14px; background: var(--surface-2); }
-.o2-line { display: flex; gap: 10px; align-items: baseline; padding: 7px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
-.o2-code { width: 34px; flex: none; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
-.o2-lname { flex: 1; min-width: 0; }
+.o2-detail { padding: 2px 12px 10px; background: var(--surface-2); }
+.o2-line { display: flex; gap: 8px; align-items: baseline; padding: 4px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
+.o2-code { width: 30px; flex: none; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.o2-lname { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .o2-muted { color: var(--muted); }
-.o2-q { width: 44px; text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; }
+.o2-q { width: 40px; text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; }
 .o2-q::before { content: '× '; }
-.o2-la { width: 86px; text-align: right; font-variant-numeric: tabular-nums; }
-.o2-acts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.o2-la { width: 80px; text-align: right; font-variant-numeric: tabular-nums; }
+.o2-acts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.o2-acts .btn { min-height: 34px; padding: 0 12px; font-size: 13px; }
 .oday { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 10px 14px; background: var(--surface-2); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); font-size: 13px; font-weight: 800; letter-spacing: 0.04em; position: sticky; top: calc(60px + env(safe-area-inset-top, 0px)); z-index: 2; }
 @media (min-width: 960px) { .oday { top: 0; } }
 .oday .cnt { color: var(--bad-text); }
@@ -2447,7 +2456,7 @@ function ordList() {
     return head + os.map(o => {
       const open = S.ordOpen === o.n; const bx = ordBoxes(o); const cm = o.t === 'cm';
       return `<button class="o2-row${open ? ' on' : ''}" data-act="ord-open" data-n="${esc(o.n)}" aria-expanded="${open}">
-        <span class="o2-store">${esc(o.c)}<span class="o2-sub">${cm ? 'Credit' : 'Invoice'} ${esc(o.n)}${bx ? ` · ${fn(bx)} cases` : ''}</span></span>
+        <span class="o2-store">${esc(o.c)}</span><span class="o2-sub">${cm ? 'Credit ' : '#'}${esc(o.n)}${bx ? ` · ${fn(bx)} cs` : ''}</span>
         <span class="o2-amt${cm ? ' cm' : ''}">${cm ? '−' : ''}${money(Math.abs(o.a))}</span>
       </button>${open ? ordDetail(o) : ''}`;
     }).join('');
@@ -2461,10 +2470,10 @@ function renderOrders() {
   const actions = `<a class="btn primary" href="#order" data-go="order">+ New order</a>`;
   if (!OR) return head('Orders', '', actions) + `<section class="card stack"><h2>Your orders show here</h2><p class="sub" style="margin:0">Once the app has your QuickBooks data, every invoice shows here by day.</p></section>`;
   const areas = [...new Set(OR.list.map(o => areaOf(o.c)))].sort((x, y) => (AREA_ORDER.indexOf(x) < 0 ? 99 : AREA_ORDER.indexOf(x)) - (AREA_ORDER.indexOf(y) < 0 ? 99 : AREA_ORDER.indexOf(y)));
-  return `${head('Orders', nIn ? `<a href="#inbox" data-go="inbox" style="color:var(--brand-text);font-weight:700">${nIn} incoming order${nIn === 1 ? '' : 's'} waiting →</a>` : '', actions)}
+  return `<div class="o2-head"><div><h1>${tr('Orders')}</h1>${nIn ? `<a class="o2-in" href="#inbox" data-go="inbox">${nIn} incoming waiting →</a>` : ''}</div><a class="btn primary o2-new" href="#order" data-go="order">+ New order</a></div>
   <section class="card o2" style="padding:0;overflow:hidden">
     <div class="o2-bar">
-      <div class="field" style="flex:1 1 200px">${ic('search')}<label class="sr" for="ord-q">Search orders</label><input id="ord-q" value="${esc(S.ordQ)}" placeholder="Search store or invoice #" autocomplete="off"></div>
+      <div class="field">${ic('search')}<label class="sr" for="ord-q">Search orders</label><input id="ord-q" value="${esc(S.ordQ)}" placeholder="Search" autocomplete="off"></div>
       <label class="sr" for="ord-area-sel">Area</label><select class="inp o2-sel" id="ord-area-sel"><option value="All">All areas</option>${areas.map(a => `<option${S.ordArea === a ? ' selected' : ''}>${esc(a)}</option>`).join('')}</select>
       <label class="sr" for="ord-type-sel">Show</label><select class="inp o2-sel" id="ord-type-sel"><option value="all">All</option><option value="inv"${S.ordType === 'inv' ? ' selected' : ''}>Invoices</option><option value="cm"${S.ordType === 'cm' ? ' selected' : ''}>Credits</option></select>
     </div>
