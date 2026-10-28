@@ -3809,7 +3809,8 @@ const SYNC = (function () {
   function tick() { if (document.hidden) return; flush(); pull(); if (st.pend) refresh(); }
   function start() {
     if (st.started || !ready()) return; st.started = true; tick();
-    setInterval(() => { if (LIVE.includes(S.view) || Date.now() - st.last > 60000) tick(); }, 10000);
+    let n = 0; setInterval(() => { n++; const busy = typeof qwState === 'function' && S.qw && Object.values(S.qw).some(r => qwState(r) === 'sending');
+      if (busy || n % 5 === 0) { if (busy || LIVE.includes(S.view) || Date.now() - st.last > 60000) tick(); } }, 2000);
     document.addEventListener('visibilitychange', () => { if (!document.hidden) tick(); });
     window.addEventListener('online', tick);
     if (S.baseRole === 'Owner') setTimeout(prune, 20000);
@@ -4002,7 +4003,7 @@ function qbToolsCard() {
   const st = QB.status;
   return `<section class="card stack"><div class="card-head" style="margin:0"><h2>QuickBooks live</h2>${qbTag()}</div>
     <p class="sub" style="margin:0">${st ? `Last sync from ${esc(st.pc || 'the office PC')}: ${esc(new Date(st.at).toLocaleString())}. ${st.counts ? `${fn(Object.keys(QB.inv).length)} invoices and credits since ${fmtShort(isoRd(st.from || st.at.slice(0, 10)))}, ${fn(Object.keys(QB.cust).length)} stores, ${fn(Object.keys(QB.stock).length)} items.` : ''}` : 'Not connected yet. Put the "Chuster QB Sync" folder on the QuickBooks computer and run Install.cmd. It needs the shared database first.'}</p>
-    <p class="sub" style="margin:0;font-size:12px">New invoices, payments, balances and stock come in every 15 minutes, and orders from the app go into QuickBooks within a minute, while that computer is on. Every night it also reads the full history from 2020. LetSync and other programs keep working as before.</p></section>`;
+    <p class="sub" style="margin:0;font-size:12px">New invoices, payments, balances and stock come in every 15 minutes, and orders from the app go into QuickBooks within seconds, while that computer is on. Every night it also reads the full history from 2020. LetSync and other programs keep working as before.</p></section>`;
 }
 qbApply();
 const nowHM = () => { const n = new Date(); return String(n.getHours()).padStart(2, '0') + ':' + String(n.getMinutes()).padStart(2, '0'); };
@@ -4400,7 +4401,7 @@ function qwFromOrder() {
 }
 function qwCard(rec) {
   const s = qwState(rec); const r = S.qr[rec.id] || {};
-  const tag = { wait: '<span class="tag gold">Waiting for OK</span>', sending: '<span class="tag blue">Sending… the office PC makes it within a minute or two</span>', done: `<span class="tag green">✓ In QuickBooks${r.num ? ' #' + esc(r.num) : ''}</span>`, error: '<span class="tag red">Problem</span>', cancel: '<span class="tag grey">Deleted</span>' }[s];
+  const tag = { wait: '<span class="tag gold">Waiting for OK</span>', sending: '<span class="tag blue">Sending… in QuickBooks in a few seconds</span>', done: `<span class="tag green">✓ In QuickBooks${r.num ? ' #' + esc(r.num) : ''}</span>`, error: '<span class="tag red">Problem</span>', cancel: '<span class="tag grey">Deleted</span>' }[s];
   const amt = rec.kind === 'pay' ? rec.amt : rec.total;
   const lines = (rec.lines || []).slice(0, 6).map(l => `<div class="qw-line"><span class="num">${fnu(l[1])}</span><span>${esc(l[3] || nameOfFull(l[0]))}</span><span class="num">${l[2] ? money(l[2]) : ''}</span></div>`).join('') + ((rec.lines || []).length > 6 ? `<div class="sub" style="margin:0">+ ${(rec.lines.length - 6)} more</div>` : '');
   const pay = rec.kind === 'pay' ? `<div class="sub" style="margin:0">${esc(rec.method || '')}${rec.ref ? ' #' + esc(rec.ref) : ''} · ${rec.apply && rec.apply.length ? 'applied to ' + rec.apply.map(a => '#' + esc(a[2] || '') + ' ' + money(a[1])).join(', ') : 'QuickBooks applies it to the oldest invoices'}</div>` : '';
@@ -4429,14 +4430,14 @@ function renderToQB() {
   const shorts = qwShorts();
   const tabs = [['wait', 'Waiting for OK'], ['sending', 'Sending'], ['error', 'Problems'], ['done', 'Done']];
   return `${head('To QuickBooks', 'Orders, payments and credits the app sends into QuickBooks', `${S.role === 'Owner' || S.role === 'Office' ? '<button class="btn gold" data-act="qw-pay-new">Record a payment</button>' : ''}${S.role === 'Owner' ? '<button class="btn ghost" data-act="qw-cm-new">New credit memo</button>' : ''}`)}
-  <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">${qbTag()}<span class="sub" style="margin:0;font-size:13px">Orders go straight in. The office PC makes each one in QuickBooks within a minute or two and the QuickBooks number shows here.</span></div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">${qbTag()}<span class="sub" style="margin:0;font-size:13px">Orders go straight in. The office PC makes each one in QuickBooks in a few seconds and the QuickBooks number shows here.</span></div>
   ${SYNC.ready() ? '' : `<div class="note">The shared database isn't set up on this phone yet, so nothing here can reach the office PC. Set it up in <a href="#tools" data-go="tools">Tools</a>.</div>`}
   <div class="chips">${tabs.map(([id, n]) => `<button class="chip" data-act="qw-tab" data-t="${id}" aria-pressed="${S.qbTab === id}">${n} · ${by[id].length}</button>`).join('')}</div>
   <div class="split"><div class="stack" style="gap:12px">${by[S.qbTab].map(qwCard).join('') || `<section class="card"><p class="sub" style="margin:0">${{ wait: 'Nothing is waiting. New orders from the app and payments you record show up here.', sending: 'Nothing is on the way right now.', error: 'No problems.', done: 'Nothing sent yet.' }[S.qbTab]}</p></section>`}</div>
   <aside class="stack" style="gap:12px">${S.role === 'Owner' ? `<section class="card stack"><div class="card-head" style="margin:0"><h2>Shorts from drivers</h2><span class="sub" style="margin:0">${shorts.length}</span></div>
       <p class="sub" style="margin:0;font-size:13px">Boxes a driver marked short. Only you can turn them into credit memos.</p>
       ${shorts.map(x => `<div class="qw-short"><div style="min-width:0"><b>${esc(x.stop.o.c)}</b><div class="sub" style="margin:0;font-size:12px">${esc(fmtShort(isoRd(x.date)))} · #${esc((x.stop.o.nums || [x.stop.o.n]).join(', #'))} · ${esc(x.v.shortTxt || '')}</div></div><div class="actions" style="flex:none"><button class="btn primary sm" data-act="qw-cm-short" data-k="${esc(x.k)}">Make credit</button><button class="btn ghost sm" data-act="qw-cm-skip" data-k="${esc(x.k)}">No credit</button></div></div>`).join('') || '<p class="sub" style="margin:0">No shorts waiting.</p>'}</section>` : ''}
-    <section class="card stack"><h2>How it works</h2><p class="sub" style="margin:0;font-size:13px">Orders saved in the app go straight into QuickBooks as invoices. Payments from Zevi and the office go straight in; payments a salesman records wait here until the office taps <b>Send</b>. Credit memos are only made by Zevi. The office PC makes each one within a minute or two and its QuickBooks number shows up here. If QuickBooks says no, it shows under Problems with the reason.</p></section></aside></div>
+    <section class="card stack"><h2>How it works</h2><p class="sub" style="margin:0;font-size:13px">Orders saved in the app go straight into QuickBooks as invoices. Payments from Zevi and the office go straight in; payments a salesman records wait here until the office taps <b>Send</b>. Credit memos are only made by Zevi. The office PC makes each one in a few seconds and its QuickBooks number shows up here. If QuickBooks says no, it shows under Problems with the reason.</p></section></aside></div>
   ${qwSheet()}`;
 }
 function qwSheet() {
@@ -4476,7 +4477,7 @@ function qwAction(a, d) {
     case 'qw-tab': S.qbTab = d.t; break;
     case 'qw-close': S.qbSheet = null; break;
     case 'qw-send': { const r = S.qw[d.id]; if (!r || !canSend(r.kind)) return; if (!SYNC.ready()) return toast('Set up the shared database first (Tools).');
-      const s = qwState(r); const nr = Object.assign({}, r, { st: 'ok', try: (r.try || 0) + (s === 'error' ? 1 : 0), okBy: byName(), okAt: nowIso() }); qwSave(nr); S.qbTab = 'sending'; toast('Sent. The office PC makes it in QuickBooks within a minute or two.'); break; }
+      const s = qwState(r); const nr = Object.assign({}, r, { st: 'ok', try: (r.try || 0) + (s === 'error' ? 1 : 0), okBy: byName(), okAt: nowIso() }); qwSave(nr); S.qbTab = 'sending'; toast('Sent. The office PC makes it in QuickBooks in a few seconds.'); break; }
     case 'qw-del': { const r = S.qw[d.id]; if (!r) return; qwSave(Object.assign({}, r, { st: 'cancel' })); toast('Deleted. Nothing went into QuickBooks.'); break; }
     case 'qw-pay-new': S.payForm = { c: '', amt: '', d: isoOf(TODAY), method: 'Check', ref: '', memo: '', pick: {} }; S.qbSheet = 'pay'; break;
     case 'qw-pay-save': {
@@ -4485,7 +4486,7 @@ function qwAction(a, d) {
       const open = (c.open || []).slice().sort((x, y) => mdy(x.date) - mdy(y.date)).filter(o => f.pick[o.num] && o.id); let left = amt;
       const apply = open.map(o => { const p = Math.min(o.amt, Math.max(0, left)); left -= p; return [o.id, Math.round(p * 100) / 100, o.num]; }).filter(x => x[1] > 0);
       qwSave({ id: qwId(), kind: 'pay', st: canSend('pay') ? 'ok' : 'wait', okBy: canSend('pay') ? byName() : undefined, try: 0, c: c.name, d: f.d || isoOf(TODAY), amt, method: f.method, ref: f.ref.trim(), memo: f.memo.trim(), apply, by: byName(), at: nowIso() });
-      S.qbSheet = null; S.qbTab = canSend('pay') ? 'sending' : 'wait'; toast(canSend('pay') ? 'Sent. The payment goes into QuickBooks within a minute or two.' : 'Saved. The office sends it to QuickBooks.'); break;
+      S.qbSheet = null; S.qbTab = canSend('pay') ? 'sending' : 'wait'; toast(canSend('pay') ? 'Sent. The payment goes into QuickBooks in a few seconds.' : 'Saved. The office sends it to QuickBooks.'); break;
     }
     case 'qw-cm-new': S.cmForm = { c: '', lines: [], memo: '', inv: [] }; S.qbSheet = 'cm'; break;
     case 'qw-cm-short': { const v = S.dstat[d.k]; const x = Object.values(dayStops(d.k.slice(0, 10))).flat().find(y => y.k === d.k); if (!v || !x) return;
@@ -4498,7 +4499,7 @@ function qwAction(a, d) {
       if (!SYNC.ready()) return toast('Set up the shared database first (Tools).');
       const total = Math.round(lines.reduce((t, l) => t + l[1] * l[2], 0) * 100) / 100;
       qwSave({ id: qwId(), kind: 'cm', st: 'ok', try: 0, c: c.name, d: isoOf(TODAY), lines, total, memo: f.memo.trim(), from: f.from || null, by: byName(), at: nowIso(), okBy: byName(), okAt: nowIso() });
-      S.qbSheet = null; S.qbTab = 'sending'; toast('Sent. The credit memo goes into QuickBooks within a minute or two.'); break;
+      S.qbSheet = null; S.qbTab = 'sending'; toast('Sent. The credit memo goes into QuickBooks in a few seconds.'); break;
     }
     default: return;
   }
