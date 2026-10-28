@@ -383,20 +383,16 @@ select.sel, input.inp { min-height: 46px; border-radius: 10px; border: 1px solid
 .iv-store { font-size: 18px; font-weight: 800; }
 .iv-meta { font-size: 13px; color: var(--muted); margin-top: 2px; }
 .iv-owe { font-size: 12px; font-weight: 700; color: var(--bad-text); background: var(--bad-soft); padding: 4px 8px; border-radius: 999px; white-space: nowrap; }
-.iv-group { text-align: center; padding: 12px 10px; font-size: 13px; font-weight: 800; letter-spacing: .1em; color: var(--fg); background: color-mix(in srgb, var(--gt) 42%, var(--surface)); }
-.iv-row { display: grid; grid-template-columns: 38px 1fr auto 84px; gap: 8px; align-items: center; padding: 9px 10px; background: var(--gs); }
-.iv-row.alt { background: color-mix(in srgb, var(--gt) 24%, var(--surface)); }
-.iv-q { font-size: 17px; font-weight: 800; color: var(--gt); font-variant-numeric: tabular-nums; }
-.iv-name { font-weight: 700; font-size: 15px; line-height: 1.25; min-width: 0; }
-.iv-name small { display: block; font-weight: 600; font-size: 12px; color: var(--muted); margin-top: 1px; }
-.iv-rate, .iv-tot { text-align: right; font-size: 14px; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.iv-rate { color: var(--muted); }
-.iv-tot { font-weight: 700; }
-.iv-foot { padding: 10px 14px 14px; border-top: 1px solid var(--line); }
+.iv-sec { padding: 0 12px; }
+.irow.iv-item { flex-wrap: nowrap; }
+.irow.iv-item .main { flex: 1 1 0; }
+.iv-qty { font-weight: 800; font-size: 15px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.iv-tot { min-width: 78px; text-align: right; font-size: 15px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+@media (max-width: 420px) { .iv-sec { padding: 0 8px; } .irow.iv-item { padding: 8px 10px; gap: 8px; } .iv-item .icode { min-width: 38px; } .iv-item .name { font-size: 14px; } .iv-tot { min-width: 66px; font-size: 14px; } }
+.iv-foot { padding: 10px 14px 14px; margin-top: 12px; border-top: 1px solid var(--line); }
 .iv-foot > div { display: flex; justify-content: space-between; padding: 4px 0; color: var(--muted); }
 .iv-foot b { color: var(--fg); font-variant-numeric: tabular-nums; }
 .iv-total { font-size: 18px; } .iv-total span { color: var(--fg); font-weight: 700; } .iv-total b { font-size: 20px; }
-@media (max-width: 420px) { .iv-row { grid-template-columns: 30px 1fr auto 74px; gap: 6px; padding: 9px 8px; } .iv-name { font-size: 14px; } .iv-rate, .iv-tot { font-size: 13px; } }
 .oday { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 10px 14px; background: var(--surface-2); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); font-size: 13px; font-weight: 800; letter-spacing: 0.04em; position: sticky; top: calc(60px + env(safe-area-inset-top, 0px)); z-index: 2; }
 @media (min-width: 960px) { .oday { top: 0; } }
 .oday .cnt { color: var(--bad-text); }
@@ -2477,10 +2473,11 @@ function invView(o) {
   const rows = o.l.map(([ref, q, a]) => { const p = typeof ref === 'number' ? S.catalog[ref] : null; const g = p ? (p.brand || p.cat || 'Other') : 'Other'; return { p, ref, q, a, g }; });
   const groups = [...new Set(rows.map(r => r.g))].sort((x, y) => grank(x) - grank(y));
   const boxes = ordBoxes(o); const c = custByName(o.c);
-  const body = groups.map(g => `<div class="iv-group ${gcls(g)}">${esc((GROUP_TITLE[g] || g).toUpperCase())}</div>` + rows.filter(r => r.g === g).map((r, i) => {
+  const body = groups.map((g, gi) => { const gr = rows.filter(r => r.g === g); const gt = gr.reduce((t, r) => t + Math.abs(r.a), 0);
+    return `<div class="iv-sec"><div class="ghead ${gcls(g)}"${gi ? ' style="margin-top:12px"' : ''}><span>${esc((GROUP_TITLE[g] || g).toUpperCase())}</span><span>${money(gt)}</span></div>` + gr.map(r => {
     const rate = r.q ? Math.abs(r.a / r.q) : 0;
-    return `<div class="iv-row ${gcls(g)}${i % 2 ? ' alt' : ''}"><span class="iv-q">${fnu(Math.abs(r.q))}</span><span class="iv-name">${esc(r.p ? r.p.name : String(r.ref).split(':').pop())}<small>${esc([r.p && r.p.code && r.p.code !== '—' ? r.p.code : '', r.p && r.p.pack ? r.p.pack : ''].filter(Boolean).join(' | '))}</small></span><span class="iv-rate">${money(rate)}</span><span class="iv-tot">${money(Math.abs(r.a))}</span></div>`;
-  }).join('')).join('');
+    return `<div class="irow iv-item ${gcls(g)}"><span class="icode">${r.p && r.p.code && r.p.code !== '—' ? esc(r.p.code) : '·'}</span><div class="main"><div class="name">${esc(r.p ? r.p.name : String(r.ref).split(':').pop())}${r.p && r.p.pack ? ` <span style="font-weight:600;color:var(--muted)">${esc(r.p.pack)}</span>` : ''}</div><div class="meta">${money(rate)} each</div></div><span class="iv-qty">× ${fnu(Math.abs(r.q))}</span><strong class="iv-tot">${money(Math.abs(r.a))}</strong></div>`;
+  }).join('') + '</div>'; }).join('');
   return `<div class="iv">
     <div class="iv-bar"><button class="iv-ico" data-act="ord-open" data-n="${esc(o.n)}" aria-label="Back to orders">${ic('back')}</button><span class="iv-num">${cm ? 'Credit ' : ''}${esc(o.n)}</span>
       <button class="iv-ico" data-act="ord-copy" data-n="${esc(o.n)}" aria-label="Copy into a new order" title="Copy into a new order">${SVG_COPY}</button>
