@@ -15,6 +15,13 @@ jobs:
           code=$(curl -s -o body.txt -w '%{http_code}' -X POST -H 'content-type: application/json' -d '{}' https://chuster.netlify.app/ai/msg)
           echo "::notice::ai -> $code :: $(head -c 200 body.txt | tr -d '\n\r')"
           echo "::notice::version $(curl -s https://chuster.netlify.app/version.json)"
+      - name: Is the AI key set (asks one tiny question)
+        env:
+          CHUSTER_SECRETS: ${{ secrets.CHUSTER_SECRETS }}
+        run: |
+          TOK=$(python3 -c "import json,os,hmac,hashlib,base64;k=base64.b64decode(json.loads(os.environ['CHUSTER_SECRETS'])['sync']['key']);print(base64.b64encode(hmac.new(k,b'chuster-ai',hashlib.sha256).digest()).decode())")
+          code=$(curl -s -o ai.txt -w '%{http_code}' -X POST https://chuster.netlify.app/ai/msg -H 'content-type: application/json' -H "x-chuster: $TOK" -d '{"model":"claude-haiku-5-5","max_tokens":20,"messages":[{"role":"user","content":"Say OK"}]}')
+          echo "::notice::ai with code -> $code :: $(head -c 300 ai.txt | tr -d '\n\r')"
       - name: How the other app talks to its server
         if: false
         run: |
