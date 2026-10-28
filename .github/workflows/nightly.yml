@@ -29,13 +29,16 @@ jobs:
           CHUSTER_DB_URL: ${{ secrets.CHUSTER_DB_URL }}
           CHUSTER_SECRETS: ${{ secrets.CHUSTER_SECRETS }}
         run: |
-          if [ -z "$CHUSTER_DB_URL" ] || [ -z "$CHUSTER_SECRETS" ]; then echo "Secrets not set yet"; exit 0; fi
-          sh build-src/ci/nightly.sh
+          if [ -z "$CHUSTER_DB_URL" ] || [ -z "$CHUSTER_SECRETS" ]; then echo '{"result":"secrets missing"}' > build-status.json; exit 0; fi
+          sh build-src/ci/nightly.sh > build-log.txt 2>&1 && R=ok || R=failed
+          cat build-log.txt
+          python3 -c "import json,sys,datetime; L=open('build-log.txt').read().strip().splitlines(); json.dump({'result': sys.argv[1], 'at': datetime.datetime.utcnow().isoformat(timespec='minutes') + 'Z', 'last': L[-8:]}, open('build-status.json','w'), indent=1)" "$R"
+          rm -f build-log.txt
       - name: Publish
         run: |
           git config user.name "Chuster rebuild"
           git config user.email "actions@users.noreply.github.com"
-          git add index.html version.json
+          git add index.html version.json build-status.json
           if git diff --cached --quiet; then echo "nothing new"; exit 0; fi
           git commit -m "App rebuilt from QuickBooks history"
           git pull --rebase origin main && git push origin HEAD:main
