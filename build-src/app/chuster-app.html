@@ -380,7 +380,6 @@ select.sel, input.inp { min-height: 46px; border-radius: 10px; border: 1px solid
 .iv-ico:hover { background: var(--surface-2); }
 .iv-ico svg { width: 24px; height: 24px; }
 .iv-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 12px 14px; }
-.iv-store { font-size: 18px; font-weight: 800; }
 .iv-meta { font-size: 13px; color: var(--muted); margin-top: 2px; }
 .iv-owe { font-size: 12px; font-weight: 700; color: var(--bad-text); background: var(--bad-soft); padding: 4px 8px; border-radius: 999px; white-space: nowrap; }
 .iv-sec { padding: 0 12px; }
@@ -389,6 +388,12 @@ select.sel, input.inp { min-height: 46px; border-radius: 10px; border: 1px solid
 .iv-qty { flex: none; min-width: 34px; font-weight: 800; font-size: 20px; color: var(--gt); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .iv-tot { min-width: 78px; text-align: right; font-size: 15px; white-space: nowrap; font-variant-numeric: tabular-nums; }
 @media (max-width: 420px) { .iv-sec { padding: 0 8px; } .irow.iv-item { padding: 8px 10px; gap: 8px; } .iv-item .icode { min-width: 38px; } .iv-item .name { font-size: 14px; } .iv-tot { min-width: 66px; font-size: 14px; } }
+.iv-store { font: inherit; font-size: 18px; font-weight: 800; color: var(--brand-text); background: none; border: none; padding: 0; cursor: pointer; text-align: left; }
+.iv-caret { font-size: 11px; color: var(--muted); white-space: nowrap; vertical-align: middle; }
+.iv-info { margin: 0 12px 12px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-2); }
+.iv-kv { display: flex; justify-content: space-between; gap: 12px; padding: 5px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
+.iv-kv span { color: var(--muted); } .iv-kv b { text-align: right; }
+.iv-info-acts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
 .iv-foot { padding: 10px 14px 14px; margin-top: 12px; border-top: 1px solid var(--line); }
 .iv-foot > div { display: flex; justify-content: space-between; padding: 4px 0; color: var(--muted); }
 .iv-foot b { color: var(--fg); font-variant-numeric: tabular-nums; }
@@ -2468,13 +2473,30 @@ function ordDetail(o) {
 const GROUP_TITLE = { 'Chuster': 'Chuster packaged', 'Landaus': 'Landaus packaged', 'Chuster Snacks': 'Chuster packaged snacks', 'Chuster Loose': 'Chuster loose', 'Landaus Loose': 'Landaus loose' };
 const SVG_PRINT = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 8V3h10v5M7 17H4v-7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v7h-3M7 14h10v7H7z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>';
 const SVG_COPY = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 9h11v11H9zM5 15H4V4h11v1" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>';
+function ivInfo(c) {
+  const row = (k, v) => v ? `<div class="iv-kv"><span>${k}</span><b>${v}</b></div>` : '';
+  const pd = pastDue(c); const open = (c.open || []).length;
+  return `<div class="iv-info">
+    ${row('Phone', c.phone ? `<a href="${telHref(c.phone)}">${esc(c.phone)}</a>` : '')}
+    ${row('Address', esc(c.address || ''))}
+    ${row('Area', esc(c.area || ''))}
+    ${row('Salesman', c.rep ? esc(repName(c.rep)) : '')}
+    ${row('Terms', esc(c.terms || ''))}
+    ${row('Balance', money(c.balance || 0))}
+    ${pd > 1 ? row('Past due', `<span style="color:var(--bad-text)">${money(pd)}</span>`) : ''}
+    ${row('Open invoices', open ? String(open) : '')}
+    ${row('Last order', c.last ? fmtShort(isoRd(c.last)) : '')}
+    ${row('This year', c.ytd != null && S.role !== 'Warehouse' ? fm(c.ytd) + (c.ytdPrev ? ` <span style="color:var(--muted);font-weight:600">(last year ${fm(c.ytdPrev)})</span>` : '') : '')}
+    <div class="iv-info-acts">${c.phone ? `<a class="btn primary sm" href="${telHref(c.phone)}">${ic('phone')} Call</a><a class="btn good sm" href="${esc(waHref(waNum(c.phone), ''))}" target="_blank" rel="noopener">WhatsApp</a>` : ''}<button class="btn ghost sm" data-act="cust-sel-go" data-n="${esc(c.name)}">Full store page</button></div>
+  </div>`;
+}
 function invView(o) {
   const cm = o.t === 'cm';
   const rows = o.l.map(([ref, q, a]) => { const p = typeof ref === 'number' ? S.catalog[ref] : null; const g = p ? (p.brand || p.cat || 'Other') : 'Other'; return { p, ref, q, a, g }; });
   const groups = [...new Set(rows.map(r => r.g))].sort((x, y) => grank(x) - grank(y));
   const boxes = ordBoxes(o); const c = custByName(o.c);
   const body = groups.map((g, gi) => { const gr = rows.filter(r => r.g === g); const gt = gr.reduce((t, r) => t + Math.abs(r.a), 0);
-    return `<div class="iv-sec"><div class="ghead ${gcls(g)}"${gi ? ' style="margin-top:12px"' : ''}><span>${esc((GROUP_TITLE[g] || g).toUpperCase())}</span><span>${money(gt)}</span></div>` + gr.map(r => {
+    return `<div class="iv-sec"><div class="ghead ${gcls(g)}"${gi ? ' style="margin-top:12px"' : ''}><span style="flex:1;text-align:center">${esc((GROUP_TITLE[g] || g).toUpperCase())}</span></div>` + gr.map(r => {
     const rate = r.q ? Math.abs(r.a / r.q) : 0;
     const sub = [r.p && r.p.code && r.p.code !== '—' ? '#' + r.p.code : '', r.p && r.p.pack ? r.p.pack : '', money(rate) + ' each'].filter(Boolean).join(' · ');
     return `<div class="irow iv-item ${gcls(g)}"><span class="iv-qty">${fnu(Math.abs(r.q))}</span><div class="main"><div class="name">${esc(r.p ? r.p.name : String(r.ref).split(':').pop())}</div><div class="meta">${esc(sub)}</div></div><strong class="iv-tot">${money(Math.abs(r.a))}</strong></div>`;
@@ -2485,7 +2507,8 @@ function invView(o) {
       <button class="iv-ico" data-act="cust-sel-go" data-n="${esc(o.c)}" aria-label="Open the store" title="Open the store">${ic('people')}</button>
       <button class="iv-ico" data-act="ord-stmt" data-n="${esc(o.c)}" aria-label="Send statement" title="Send statement">${ic('mail')}</button>
       <button class="iv-ico" data-act="inv-print" data-n="${esc(o.n)}" aria-label="Print" title="Print">${SVG_PRINT}</button></div>
-    <div class="iv-head"><div><div class="iv-store">${esc(o.c)}</div><div class="iv-meta">${fmtShort(isoRd(o.d))}${c && c.area ? ' · ' + esc(c.area) : ''}${o.due ? ' · due ' + esc(fmtShort(isoRd(o.due))) : ''}</div></div>${c && pastDue(c) > 1 ? `<span class="iv-owe">owes ${fm(pastDue(c))} past due</span>` : ''}</div>
+    <div class="iv-head"><div><button class="iv-store" data-act="iv-info" aria-expanded="${!!S.ivInfo}">${esc(o.c)}&nbsp;<span class="iv-caret">${S.ivInfo ? '▲' : '▼'}</span></button><div class="iv-meta">${fmtShort(isoRd(o.d))}${c && c.area ? ' · ' + esc(c.area) : ''}${o.due ? ' · due ' + esc(fmtShort(isoRd(o.due))) : ''}</div></div>${c && pastDue(c) > 1 ? `<span class="iv-owe">owes ${fm(pastDue(c))} past due</span>` : ''}</div>
+    ${S.ivInfo && c ? ivInfo(c) : ''}
     ${body || '<p class="sub" style="padding:16px;margin:0">No items on this invoice.</p>'}
     <div class="iv-foot"><div><span>Total boxes</span><b>${fn(boxes)}</b></div><div class="iv-total"><span>Total</span><b${cm ? ' style="color:var(--bad-text)"' : ''}>${cm ? '−' : ''}${money(Math.abs(o.a))}</b></div></div>
   </div>`;
@@ -5042,7 +5065,8 @@ document.addEventListener('click', e => {
     case 'inv-filter': S.invFilter = d.f; S.invEdit = null; keep(); break;
     case 'inv-brand': S.invBrand = d.b; S.invEdit = null; keep(); break;
     case 'pk-period': S.pkPeriod = d.p; keep(); break;
-    case 'ord-open': if (!S.ordOpen) S.ordScroll = window.scrollY; S.ordOpen = S.ordOpen === d.n ? null : d.n; render(); window.scrollTo(0, S.ordOpen ? 0 : (S.ordScroll || 0)); break;
+    case 'iv-info': S.ivInfo = !S.ivInfo; render(); break;
+    case 'ord-open': S.ivInfo = false; if (!S.ordOpen) S.ordScroll = window.scrollY; S.ordOpen = S.ordOpen === d.n ? null : d.n; render(); window.scrollTo(0, S.ordOpen ? 0 : (S.ordScroll || 0)); break;
     case 'ord-more': S.ordDays += 10; keep(); break;
     case 'dash-all': if (d.w === 'stores') S.dashAllStores = !S.dashAllStores; else S.dashAllItems = !S.dashAllItems; keep(); break;
     case 'ord-sort': S.ordSort = d.s; keep(); break;
