@@ -2982,7 +2982,7 @@ function aiData() {
     D.seasons = HIST ? HIST.seasons.map(s => ({ name: s[0], year: s[1], from: s[2], to: s[3] })) : [];
     const inv = {}; ((REAL.orders && REAL.orders.list) || []).forEach(o => { inv[o.t + o.n] = o; });
     if (typeof QB !== 'undefined') Object.values(QB.inv || {}).forEach(o => { if (o && o.n) inv[(o.t || 'inv') + o.n] = o; });
-    D.recentInvoices = Object.values(inv).map(o => ({ date: o.d, num: o.n, customer: o.c, type: o.t === 'cm' ? 'credit memo' : 'invoice', amount: o.a, lines: (o.l || []).map(l => ({ item: l[0], desc: l[1], qty: l[2], amount: l[3] })) })).sort((a, b) => a.date < b.date ? 1 : -1);
+    D.recentInvoices = Object.values(inv).map(o => ({ date: o.d, num: o.n, customer: o.c, type: o.t === 'cm' ? 'credit memo' : 'invoice', amount: o.a, lines: rowsOf(o.l).map(l => ({ item: l[0], desc: l[1], qty: l[2], amount: l[3] })) })).sort((a, b) => a.date < b.date ? 1 : -1);
     D._hist = HIST ? HIST.q : {}; D._seasonQ = HIST ? HIST.s : {};
   } else {
     D.recentInvoices = Object.values((REAL.orders && REAL.orders.list) || []).map(o => ({ date: o.d, num: o.n, customer: o.c, lines: (o.l || []).map(l => ({ item: l[0], qty: l[2] })) }));
@@ -4100,6 +4100,8 @@ window.chusterQB = () => QB;
 const qbSave = () => { try { localStorage.setItem('chuster-qb-v1', JSON.stringify(QB)); } catch (e) { SYNC.resetSince(['qi', 'qo', 'qc', 'qs', 'qp', 'qh']); } };
 if (!lsHas('chuster-qb-v1')) SYNC.resetSince(['qi', 'qo', 'qc', 'qs', 'qp', 'qh']);
 function lsHas(k) { try { return localStorage.getItem(k) != null; } catch (e) { return false; } }
+// a list of rows; the office PC used to send a one-row list as just that row
+const rowsOf = a => Array.isArray(a) ? (a.length && !Array.isArray(a[0]) ? [a] : a) : [];
 const qbSet = (box, k, val) => { if (val == null) delete QB[box][k]; else QB[box][k] = val; qbDirty = true; };
 SYNC.on('qi', (k, val) => qbSet('inv', k, val));
 SYNC.on('qo', (k, val) => qbSet('open', k, val));
@@ -4160,8 +4162,8 @@ function qbApply() {
   // invoices and credits from QuickBooks replace the export from the first synced day on
   const inv = Object.values(QB.inv).filter(o => o && o.d >= from && o.c !== 'Chuster Packaging Wholsale');
   const mine = inv.map(o => ({ d: o.d, n: o.n, c: ci.has(o.c) ? o.c : REAL.customers[custIdx(o.c)].name, t: o.t, a: o.a, due: o.due, qb: 1,
-    l: (o.l || []).map(([f, q, a]) => [catIdx.has(f) ? catIdx.get(f) : String(f).split(':').pop(), q, a, f]),
-    cs: o.t === 'inv' ? Math.round((o.l || []).reduce((s, x) => s + (String(x[0]).startsWith('Packs') ? x[1] : 0), 0)) : 0 }));
+    l: rowsOf(o.l).map(([f, q, a]) => [catIdx.has(f) ? catIdx.get(f) : String(f).split(':').pop(), q, a, f]),
+    cs: o.t === 'inv' ? Math.round(rowsOf(o.l).reduce((s, x) => s + (String(x[0]).startsWith('Packs') ? x[1] : 0), 0)) : 0 }));
   REAL.orders.list = mine.concat(B.orders.filter(o => o.d < from)).sort((a, b) => a.d === b.d ? (a.n < b.n ? 1 : -1) : (a.d < b.d ? 1 : -1));
   const maxD = mine.reduce((m, o) => o.d > m ? o.d : m, B.ordersTo);
   REAL.orders.to = maxD > today ? maxD : today;
@@ -4191,7 +4193,7 @@ function qbApply() {
     const q = QB.cust[c.name];
     if (q) { c.balance = q.b; c.active = q.on !== false; if (q.ph) c.phone = q.ph; }
     if (haveOpen) {
-      const L = (opens[c.name] || []).sort((a, b) => a.p - b.p).flatMap(p => p.o || []);
+      const L = (opens[c.name] || []).sort((a, b) => a.p - b.p).flatMap(p => rowsOf(p.o));
       c.open = L.map(([d, n, a, due, id]) => ({ date: mdyOf(d), num: n, amt: a, due: mdyOf(due), id })).sort((a, b) => mdy(a.date) - mdy(b.date));
       const ag = [0, 0, 0, 0, 0];
       L.forEach(([d, n, a, due]) => { const late = tRd - isoRd(due || d); ag[late <= 0 ? 0 : late <= 30 ? 1 : late <= 60 ? 2 : late <= 90 ? 3 : 4] += a; });
