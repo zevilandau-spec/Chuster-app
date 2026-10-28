@@ -1292,12 +1292,11 @@ function orderRows() {
   let last = null;
   return list.map(({ p }) => {
     const g = p.brand || p.cat || '';
-    const hdr = g !== last ? `<div class="ghead ${gcls(g)}" style="margin-top:${last === null ? 0 : 14}px"><span>${esc(g.toUpperCase())}</span><span>${counts[g]} item${counts[g] > 1 ? 's' : ''}</span></div>` : '';
+    const hdr = g !== last ? `<div class="ghead ${gcls(g)}" style="margin-top:${last === null ? 0 : 14}px"><span style="flex:1;text-align:center">${esc((GROUP_TITLE[g] || g).toUpperCase())}</span></div>` : '';
     last = g;
     const k = keyOf(p); const q = S.oq[k] || 0; const price = parseFloat(p.price);
     return hdr + `<div class="irow ${gcls(g)}${q ? ' on' : ''}">
-      <span class="icode">${p.code && p.code !== '—' ? esc(p.code) : '·'}</span>
-      <div class="main"><div class="name">${esc(p.name)}${p.pack ? ` <span style="font-weight:600;color:var(--muted)">${esc(p.pack)}</span>` : ''}</div><div class="meta">${isNaN(price) ? 'no price' : money(price)}${typeof p.stock === 'number' ? ` · <span style="color:${p.stock < 0 ? 'var(--bad-text)' : 'inherit'};font-weight:${p.stock < 0 ? 800 : 600}">${bulkOf(p.full) ? bulkTxt(p.full, p.stock) : fn(p.stock)} in stock</span>` : ''}${bulkOf(p.full) ? ' · order in lb (1 unit = 1,800)' : ''}</div></div>
+      <div class="main"><div class="name">${esc(p.name)}</div><div class="meta">${p.code && p.code !== '—' ? '#' + esc(p.code) + ' · ' : ''}${p.pack ? esc(p.pack) + ' · ' : ''}${isNaN(price) ? 'no price' : money(price)}${typeof p.stock === 'number' ? ` · <span style="color:${p.stock < 0 ? 'var(--bad-text)' : 'inherit'};font-weight:${p.stock < 0 ? 800 : 600}">${bulkOf(p.full) ? bulkTxt(p.full, p.stock) : fn(p.stock)} in stock</span>` : ''}${bulkOf(p.full) ? ' · order in lb (1 unit = 1,800)' : ''}</div></div>
       <div class="step"><button data-act="oq" data-k="${esc(k)}" data-d="-1" aria-label="One less ${esc(p.name)}"${q ? '' : ' disabled'}>−</button><input class="num oq-inp" data-k="${esc(k)}" type="text" inputmode="numeric" pattern="[0-9]*" value="${q || ''}" placeholder="0" aria-label="How many ${esc(p.name)}" autocomplete="off"><button data-act="oq" data-k="${esc(k)}" data-d="1" aria-label="One more ${esc(p.name)}">+</button></div>
     </div>`;
   }).join('');
