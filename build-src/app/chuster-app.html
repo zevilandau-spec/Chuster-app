@@ -3725,7 +3725,16 @@ const SYNC = (function () {
     if (fb) return 'Firebase said: ' + t.replace(/[{}"]/g, '').slice(0, 120);
     return `blocked (${res.status}) by something between this phone and the database${/filter|block|categor|netspark|gentech|jnet|koshernet|techloq|meshimer/i.test(t) ? ', looks like an internet filter' : ''}: ` + t.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80);
   }
+  // read the database answer; a filter or proxy page instead of data gets a clear message (and the other route is tried)
+  async function readJ(res) {
+    const t = await res.text();
+    try { return JSON.parse(t); } catch (x) {
+      const e = new Error(`blocked by something between this phone and the database${/filter|block|categor|netspark|gentech|jnet|koshernet|techloq|meshimer/i.test(t) ? ' (looks like an internet filter)' : ''}: it sent a web page instead of data` + (t ? ' · ' + t.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80) : ''));
+      e.name = 'NotData'; throw e;
+    }
+  }
   function netFail(e) {
+    if (onNetlify && e && e.name === 'NotData') { viaApp = !viaApp; try { localStorage.setItem('chuster-db-via-app', viaApp ? '1' : '0'); } catch (x) { /* ignore */ } return; }
     if (!viaApp && onNetlify && e && e.name === 'TypeError') { viaApp = true; try { localStorage.setItem('chuster-db-via-app', '1'); } catch (x) { /* ignore */ } setTimeout(() => tick(), 500); }
   }
   const st = { ok: null, err: '', last: 0, since: loadLS('chuster-sync-since', {}), out: loadLS('chuster-sync-out', {}), seen: {}, key: null, flushing: false, pulling: false, started: false };
@@ -3788,7 +3797,7 @@ const SYNC = (function () {
         const since = st.since[c] || 0;
         const res = await fetch(`${base()}/${c}.json?orderBy=%22t%22&startAt=${since}`);
         if (!res.ok) throw new Error(await dbErr(res));
-        const j = (await res.json()) || {}; let max = since;
+        const j = (await readJ(res)) || {}; let max = since;
         for (const id of Object.keys(j)) {
           const r = j[id]; if (!r || !r.v) continue; if (r.t > max) max = r.t;
           const sid = c + '/' + id; if (st.out[sid] || st.seen[sid] === r.v) continue;
