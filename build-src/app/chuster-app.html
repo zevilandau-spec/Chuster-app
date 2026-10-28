@@ -394,6 +394,10 @@ select.sel, input.inp { min-height: 46px; border-radius: 10px; border: 1px solid
 .iv-kv { display: flex; justify-content: space-between; gap: 12px; padding: 5px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
 .iv-kv span { color: var(--muted); } .iv-kv b { text-align: right; }
 .iv-info-acts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.oh { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.oh-tag { font-size: 12px; padding: 2px 8px; border-radius: 999px; background: var(--surface); color: var(--fg); border: 1px solid var(--gt); white-space: nowrap; }
+.oh-tag b { color: var(--gt); }
+.oh-tag.ly { border-style: dashed; color: var(--muted); }
 .iv-foot { padding: 10px 14px 14px; margin-top: 12px; border-top: 1px solid var(--line); }
 .iv-foot > div { display: flex; justify-content: space-between; padding: 4px 0; color: var(--muted); }
 .iv-foot b { color: var(--fg); font-variant-numeric: tabular-nums; }
@@ -1290,14 +1294,22 @@ function orderRows() {
   if (!list.length) return `<p class="sub" style="padding:8px 0;margin:0">${S.orderGroup === 'On order' ? 'Nothing on this order yet. Tap + next to an item.' : 'No item matches.'}</p>`;
   const counts = {};
   list.forEach(({ p }) => { const g = p.brand || p.cat || ''; counts[g] = (counts[g] || 0) + 1; });
+  // what this store took last time, and around this time last year, next to each product
+  const cust = S.orderStore ? custByName(S.orderStore) : null; const lastQ = {}, lyQ = {};
+  if (cust) {
+    lastOrderLines(cust).forEach(x => { lastQ[keyOf(x.p)] = (lastQ[keyOf(x.p)] || 0) + x.q; });
+    const t = sameDayLastYear(TODAY); const ly = lyOrders(cust).sort((a, b) => Math.abs(a.rd - t) - Math.abs(b.rd - t))[0];
+    if (ly) ly.lines.forEach(x => { lyQ[keyOf(x.p)] = (lyQ[keyOf(x.p)] || 0) + x.q; });
+  }
   let last = null;
   return list.map(({ p }) => {
     const g = p.brand || p.cat || '';
     const hdr = g !== last ? `<div class="ghead ${gcls(g)}" style="margin-top:${last === null ? 0 : 14}px"><span style="flex:1;text-align:center">${esc((GROUP_TITLE[g] || g).toUpperCase())}</span></div>` : '';
     last = g;
     const k = keyOf(p); const q = S.oq[k] || 0; const price = parseFloat(p.price);
+    const hist = (lastQ[k] ? `<span class="oh-tag">last time <b>${fnu(lastQ[k])}</b></span>` : '') + (lyQ[k] ? `<span class="oh-tag ly">last year <b>${fnu(lyQ[k])}</b></span>` : '');
     return hdr + `<div class="irow ${gcls(g)}${q ? ' on' : ''}">
-      <div class="main"><div class="name">${esc(p.name)}</div><div class="meta">${p.code && p.code !== '—' ? '#' + esc(p.code) + ' · ' : ''}${p.pack ? esc(p.pack) + ' · ' : ''}${isNaN(price) ? 'no price' : money(price)}${typeof p.stock === 'number' ? ` · <span style="color:${p.stock < 0 ? 'var(--bad-text)' : 'inherit'};font-weight:${p.stock < 0 ? 800 : 600}">${bulkOf(p.full) ? bulkTxt(p.full, p.stock) : fn(p.stock)} in stock</span>` : ''}${bulkOf(p.full) ? ' · order in lb (1 unit = 1,800)' : ''}</div></div>
+      <div class="main"><div class="name">${esc(p.name)}</div><div class="meta">${p.code && p.code !== '—' ? '#' + esc(p.code) + ' · ' : ''}${p.pack ? esc(p.pack) + ' · ' : ''}${isNaN(price) ? 'no price' : money(price)}${typeof p.stock === 'number' ? ` · <span style="color:${p.stock < 0 ? 'var(--bad-text)' : 'inherit'};font-weight:${p.stock < 0 ? 800 : 600}">${bulkOf(p.full) ? bulkTxt(p.full, p.stock) : fn(p.stock)} in stock</span>` : ''}${bulkOf(p.full) ? ' · order in lb (1 unit = 1,800)' : ''}</div>${hist ? `<div class="oh">${hist}</div>` : ''}</div>
       <div class="step"><button data-act="oq" data-k="${esc(k)}" data-d="-1" aria-label="One less ${esc(p.name)}"${q ? '' : ' disabled'}>−</button><input class="num oq-inp" data-k="${esc(k)}" type="text" inputmode="numeric" pattern="[0-9]*" value="${q || ''}" placeholder="0" aria-label="How many ${esc(p.name)}" autocomplete="off"><button data-act="oq" data-k="${esc(k)}" data-d="1" aria-label="One more ${esc(p.name)}">+</button></div>
     </div>`;
   }).join('');
@@ -1407,7 +1419,6 @@ function renderOrder() {
         <div id="store-list" style="max-height:440px;overflow-y:auto;padding-right:2px">${storeRows()}</div>` : ''}
         <div class="actions"><button class="btn gold" data-act="repeat">Repeat last order</button><button class="btn ghost" data-act="soon" data-name="Say an order">Say an order</button><button class="btn ghost" data-act="soon" data-name="Upload PDF or photo">Upload PDF / photo</button><button class="btn ghost" data-act="clear-order">Clear</button></div>
       </section>
-      ${cust && !S.storeOpen ? historyCard(cust) : ''}
       <section class="card">
         <div class="field" style="margin-bottom:10px">${ic('search')}<label for="add" class="sr">Find an item</label><input id="add" value="${esc(S.orderQ)}" placeholder="Find an item by name or number" autocomplete="off"></div>
         <div class="chips" role="group" aria-label="Brand">${groups.map(g => `<button class="chip${g === 'All' ? '' : ' ' + gcls(g)}" data-act="og" data-g="${esc(g)}" aria-pressed="${S.orderGroup === g}">${g === 'All' ? `All items · ${S.catalog.length}` : esc(g)}</button>`).join('')}<button class="chip" data-act="og" data-g="On order" aria-pressed="${S.orderGroup === 'On order'}">On this order · ${T.lines}</button></div>
