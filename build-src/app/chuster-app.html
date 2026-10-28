@@ -636,6 +636,10 @@ select.sel, input.inp { min-height: 46px; border-radius: 10px; border: 1px solid
 .bk-line { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; border-top: 1px solid var(--line); padding: 7px 0; font-size: 14px; }
 .bk-line > span { min-width: 0; overflow-wrap: anywhere; }
 @media (max-width: 520px) { .bk-row { grid-template-columns: minmax(0, 1fr) auto; } .bk-row .bk-bar, .bk-row > small, .bk-row > .sub { display: none; } }
+.ai-ans{line-height:1.5}.ai-ans b{font-weight:800}.ai-ul{margin:2px 0 8px;padding-left:22px}.ai-ul li{margin:2px 0}
+.ai-table th{text-align:left;font-size:12px;color:var(--muted);font-weight:700}.ai-table td,.ai-table th{padding:5px 8px 5px 0;white-space:nowrap}
+.ai-wait{display:flex;align-items:center;gap:8px}.ai-dot{width:10px;height:10px;border-radius:50%;background:var(--gold,#e8b931);animation:aipulse 1s ease-in-out infinite}
+@keyframes aipulse{0%,100%{opacity:.3;transform:scale(.8)}50%{opacity:1;transform:scale(1.1)}}
 </style>
 
 <div class="app" id="app">
@@ -1023,10 +1027,10 @@ if (S.baseRole !== 'Owner') S.role = S.baseRole;
 const byName = () => S.user || S.baseRole;
 try { S.lang = localStorage.getItem('chuster-lang') || 'en'; } catch (e) { S.lang = 'en'; }
 const ROLE_VIEWS = {
-  Warehouse: ['packnext', 'packing', 'packlog', 'packrep', 'yield', 'inventory', 'reorder', 'loading', 'loadlist', 'calendar', 'stockmoves', 'polist'],
+  Warehouse: ['ask', 'packnext', 'packing', 'packlog', 'packrep', 'yield', 'inventory', 'reorder', 'loading', 'loadlist', 'calendar', 'stockmoves', 'polist'],
   Driver: ['route', 'stop', 'loading', 'loadlist', 'calendar'],
-  Sales: ['mysales', 'customers', 'collect', 'orders', 'order', 'inbox', 'toqb', 'payments', 'yomtov', 'lost', 'pricelist', 'pricecheck', 'calendar', 'salesorders'],
-  SalesDriver: ['mysales', 'customers', 'collect', 'orders', 'order', 'inbox', 'toqb', 'payments', 'yomtov', 'lost', 'pricelist', 'pricecheck', 'calendar', 'route', 'stop', 'loading', 'loadlist', 'salesorders']
+  Sales: ['ask', 'mysales', 'customers', 'collect', 'orders', 'order', 'inbox', 'toqb', 'payments', 'yomtov', 'lost', 'pricelist', 'pricecheck', 'calendar', 'salesorders'],
+  SalesDriver: ['ask', 'mysales', 'customers', 'collect', 'orders', 'order', 'inbox', 'toqb', 'payments', 'yomtov', 'lost', 'pricelist', 'pricecheck', 'calendar', 'route', 'stop', 'loading', 'loadlist', 'salesorders']
 };
 const isSales = () => S.role === 'Sales' || S.role === 'SalesDriver';
 const allowed = v => S.role === 'Owner' ? true : S.role === 'Office' ? !['tools', 'custprofit', 'finance', 'expenses', 'bank', 'journal', 'accounts'].includes(v) : (ROLE_VIEWS[S.role] || []).includes(v);
@@ -2920,19 +2924,223 @@ const ASK_IDEAS = () => {
   return [big ? `How much Kugel did ${w0.charAt(0).toUpperCase() + w0.slice(1)} buy before Pesach?` : 'How much Kugel was sold before Pesach?', 'Which stores stopped ordering?', 'Top 10 products this year vs last year', 'Who owes us the most over 60 days?', 'Who buys the most Toast Barley?', 'Sales last month', 'Top 10 stores'];
 };
 function askLogHtml() {
-  return S.askLog.map(x => `<section class="card stack" style="gap:8px"><div class="eyebrow">YOU ASKED</div><div style="font-weight:800">${esc(x.q)}</div><div>${x.r.a}</div>${x.r.more || ''}</section>`).join('');
+  return S.askLog.map((x, i) => x.ai ? `<section class="card stack" style="gap:8px"><div class="eyebrow">YOU ASKED</div><div style="font-weight:800">${esc(x.q)}</div><div ${i === 0 && S.aiBusy ? 'id="ai-live"' : ''}>${aiEntryInner(x)}</div></section>`
+    : `<section class="card stack" style="gap:8px"><div class="eyebrow">YOU ASKED</div><div style="font-weight:800">${esc(x.q)}</div><div>${x.r.a}</div>${x.r.more || ''}</section>`).join('');
 }
 function renderAsk() {
   const canTalk = !!(window.SpeechRecognition || window.webkitSpeechRecognition);
-  return `${head('Ask the portal', 'Answers from your QuickBooks numbers · works without internet once open')}
+  const ai = aiOn();
+  return `${head('Ask the portal', ai ? 'Ask anything about your business · the AI reads your QuickBooks numbers' : 'Answers from your QuickBooks numbers · works without internet once open')}
+  <div class="chips" style="align-items:center"><button class="chip" data-act="ai-toggle" aria-pressed="${!S.aiOff}">✨ Smart AI ${S.aiOff ? 'off' : 'on'}</button>${S.askLog.length ? `<button class="chip" data-act="ai-new">New conversation</button>` : ''}</div>
   <section class="card stack">
-    <form id="ask-form" style="display:flex;gap:8px"><input class="inp" id="ask-q" placeholder="Ask about sales, stores, products, who owes…" value="${esc(S.askQ)}" autocomplete="off" style="flex:1">${canTalk ? `<button type="button" class="btn ghost" data-act="ask-mic" aria-label="Speak your question">🎤</button>` : ''}<button class="btn primary" type="submit">Ask</button></form>
-    <div class="chips" style="flex-wrap:wrap">${ASK_IDEAS().map(q => `<button class="chip" data-act="ask-idea" data-q="${esc(q)}">${esc(q)}</button>`).join('')}</div>
+    <form id="ask-form" style="display:flex;gap:8px"><input class="inp" id="ask-q" placeholder="${ai && S.aiMsgs.length ? 'Ask a follow-up…' : 'Ask about sales, stores, products, who owes…'}" value="${esc(S.askQ)}" autocomplete="off" style="flex:1">${canTalk ? `<button type="button" class="btn ghost" data-act="ask-mic" aria-label="Speak your question">🎤</button>` : ''}<button class="btn primary" type="submit" ${S.aiBusy ? 'disabled' : ''}>Ask</button></form>
+    <div class="chips" style="flex-wrap:wrap;${ai && S.askLog.length ? 'display:none' : ''}">${ASK_IDEAS().map(q => `<button class="chip" data-act="ask-idea" data-q="${esc(q)}">${esc(q)}</button>`).join('')}</div>
   </section>
   <div class="stack" id="ask-log">${askLogHtml()}</div>
-  <p class="sub" style="margin:0">It understands stores, products, Chanuka, Purim, Pesach, Shavuos and Rosh Hashana, months, this year and last year, who owes, late stores, top products and top stores. It doesn't make anything up: if it can't find it in your numbers, it says so.</p>`;
+  ${ai ? `<p class="sub" style="margin:0">The AI answers from your numbers as of ${esc(fmtShort(isoRd(REAL.asOf)))}. It only sees what you're allowed to see. Check big decisions in QuickBooks.</p>` : ''}
+  <p class="sub" style="margin:0;${ai ? 'display:none' : ''}">It understands stores, products, Chanuka, Purim, Pesach, Shavuos and Rosh Hashana, months, this year and last year, who owes, late stores, top products and top stores. It doesn't make anything up: if it can't find it in your numbers, it says so.</p>`;
 }
-function doAsk(q) { const r = answer(q); if (!r) return; S.askLog.unshift({ q, r }); S.askQ = ''; render(); const el = document.getElementById('ask-q'); if (el) el.focus(); }
+function doAsk(q) { if (!String(q || '').trim()) return; if (aiOn()) { aiAsk(q.trim()); return; } const r = answer(q); if (!r) return; S.askLog.unshift({ q, r }); S.askQ = ''; render(); const el = document.getElementById('ask-q'); if (el) el.focus(); }
+/* ================= Built-in AI (Claude) for "Ask the portal" =================
+   The question goes to Claude through the app's own address (/ai/msg). Claude answers by writing small
+   pieces of JavaScript that run here, on this phone, over the app's numbers (in a locked-down worker with
+   no internet). Only the numbers a person may see go into that worker. */
+const AI_MODEL = 'claude-opus-5-5';
+Object.assign(S, { aiMsgs: [], aiBusy: false, aiOff: (() => { try { return localStorage.getItem('chuster-ai-off') === '1'; } catch (e) { return false; } })() });
+const aiOn = () => !S.aiOff && !!REAL && typeof SYNC !== 'undefined' && SYNC.aiToken;
+
+// ---- the numbers Claude may look at, by role
+let AI_DATA = null;
+function aiData() {
+  if (AI_DATA) return AI_DATA;
+  const owner = S.role === 'Owner', office = S.role === 'Office', sales = isSales(), wh = S.role === 'Warehouse';
+  const money = owner || office || sales;
+  const months = REP ? REP.months.slice() : [];
+  const D = { asOf: REAL.asOf, today: isoOf(TODAY), months, role: S.role, user: S.user || '' };
+  const cat = REAL.catalog || [];
+  D.products = cat.map(c => ({ name: c.name, code: c.code, pack: c.pack, group: c.group, quickbooksName: c.full, price: c.price, stock: c.stock, reorderAt: c.reorderAt, sold90days: c.sold90 }));
+  D.productTotals = (REAL.allItems || []).map(x => ({ name: x.name, group: x.group, code: x.code, casesThisYear: x.qty, casesSameDaysLastYear: x.qtyPrev, ...(money ? { salesThisYear: x.amount, salesSameDaysLastYear: x.amountPrev } : {}) }));
+  D.belowZero = (REAL.belowZero || []).map(x => ({ name: x.name, code: x.code, group: x.group, stock: x.stock }));
+  D.underReorderPoint = (REAL.low || []).map(x => ({ name: x.name, code: x.code, group: x.group, stock: x.stock, reorderAt: x.reorderAt, sold28days: x.sold28 }));
+  D.openPurchaseOrders = (REAL.openPO ? REAL.openPO.list : []).map(p => ({ item: p.item, name: p.name, date: p.date, num: p.num, vendor: p.vendor, expected: p.deliv, qty: p.qty, left: p.left, ...(owner || office ? { openAmount: p.open } : {}) }));
+  if (!wh) {
+    D.customers = REAL.customers.map(c => ({
+      name: c.name, area: c.area, phone: c.phone, email: c.email, address: c.address, rep: c.rep, repName: repName(c.rep), terms: c.terms, active: c.active,
+      balance: c.balance, aging: { current: c.aging[0], late1to30: c.aging[1], late31to60: c.aging[2], late61to90: c.aging[3], lateOver90: c.aging[4] }, pastDue: pastDue(c),
+      openInvoices: (c.open || []).map(o => ({ date: o.date, num: o.num, amount: o.amt, due: o.due })),
+      lastOrder: c.last, usualDaysBetweenOrders: c.gap, lateToReorder: !!c.late, offSeason: !!c.offSeason,
+      salesLast12Months: c.sales12, salesThisYear: c.ytd, salesSameDaysLastYear: c.ytdPrev, ordersLast12Months: c.orders12, topProducts: c.top
+    }));
+    D.salesByCustomerMonth = {}; if (REP) Object.entries(REP.cust).forEach(([n, L]) => { const a = months.map(() => 0); L.forEach(([i, v]) => { if (i < a.length) a[i] = v; }); D.salesByCustomerMonth[n] = a; });
+    D.reps = REP ? REP.list.map(r => ({ code: r.code, name: repName(r.code), salesByMonth: r.sales, paymentsByMonth: r.paid, invoicesByMonth: r.inv })) : [];
+    D.salesByMonth = (REAL.monthly || []).map(([m, v]) => ({ month: m, sales: v }));
+    D.seasons = HIST ? HIST.seasons.map(s => ({ name: s[0], year: s[1], from: s[2], to: s[3] })) : [];
+    const inv = {}; ((REAL.orders && REAL.orders.list) || []).forEach(o => { inv[o.t + o.n] = o; });
+    if (typeof QB !== 'undefined') Object.values(QB.inv || {}).forEach(o => { if (o && o.n) inv[(o.t || 'inv') + o.n] = o; });
+    D.recentInvoices = Object.values(inv).map(o => ({ date: o.d, num: o.n, customer: o.c, type: o.t === 'cm' ? 'credit memo' : 'invoice', amount: o.a, lines: (o.l || []).map(l => ({ item: l[0], desc: l[1], qty: l[2], amount: l[3] })) })).sort((a, b) => a.date < b.date ? 1 : -1);
+    D._hist = HIST ? HIST.q : {}; D._seasonQ = HIST ? HIST.s : {};
+  } else {
+    D.recentInvoices = Object.values((REAL.orders && REAL.orders.list) || []).map(o => ({ date: o.d, num: o.n, customer: o.c, lines: (o.l || []).map(l => ({ item: l[0], qty: l[2] })) }));
+  }
+  if (owner) {
+    const F = REAL.fin; if (F) { D.profitAndLoss = { months: F.months, note: F.partial, rows: F.pl.map(r => r.h ? { heading: r.n } : { name: r.n, byMonth: r.v }) }; D.balanceSheet = { asOf: F.snap, rows: F.bs.map(r => r.h ? { heading: r.n } : { name: r.n, value: r.v }) }; }
+    if (REAL.books) D.books = REAL.books;
+    D.customerTotalBalance = REAL.ar ? REAL.ar.customerBalanceTotal : null;
+  }
+  return (AI_DATA = D);
+}
+const AI_SCHEMA = `D (all the data; read only):
+- D.asOf: date of the QuickBooks numbers. D.today. D.months: ['YYYY-MM', ...] — every "...ByMonth" array lines up with D.months.
+- D.customers[]: {name, area, phone, email, address, rep, repName, terms, active, balance, aging:{current,late1to30,late31to60,late61to90,lateOver90}, pastDue, openInvoices:[{date (MM/DD/YYYY), num, amount, due}], lastOrder (YYYY-MM-DD), usualDaysBetweenOrders, lateToReorder, offSeason, salesLast12Months, salesThisYear, salesSameDaysLastYear (same calendar days last year), ordersLast12Months, topProducts}
+- D.salesByCustomerMonth: {customerName: [$ per month]}
+- D.reps[]: {code, name, salesByMonth, paymentsByMonth, invoicesByMonth}; D.salesByMonth: [{month, sales}]
+- D.products[]: {name, code, pack, group ('Chuster', 'Landaus', 'Chuster Loose', ...), quickbooksName, price, stock (cases on hand), reorderAt, sold90days}
+- D.productTotals[]: {name, group, code, casesThisYear, casesSameDaysLastYear, salesThisYear, salesSameDaysLastYear}
+- D.belowZero[], D.underReorderPoint[], D.openPurchaseOrders[]: {item, name, date, num, vendor, expected, qty, left, openAmount}
+- D.recentInvoices[]: {date, num, customer, type, amount, lines:[{item, desc, qty, amount}]} newest first (recent months only; older months are in the totals above)
+- D.seasons[]: {name: 'Chanuka'|'Purim'|'Pesach'|'After Pesach'|'Shavuos'|'Rosh Hashana'..., year, from, to}
+- Owner only: D.profitAndLoss {months, rows:[{heading}|{name, byMonth}]}, D.balanceSheet {asOf, rows:[{heading}|{name, value}]}, D.books {expenses, bank, vendors, orders, stock, po, journal, accounts} (arrays of rows), D.customerTotalBalance
+Helpers (functions you can call):
+- findCustomers(text) -> best matching customers (fuzzy, by words of the name)
+- findProducts(text) -> matching products
+- cases(customerName, productNameOrCode?) -> [{product, byMonth:[cases per D.months]}] cases each store bought per product per month (all history the app has)
+- seasonCases(customerName, seasonName, year?) -> [{product, cases}] cases bought in that Yom Tov season
+- sum(array, fn?), by(array, keyFn) -> {key: [items]}, top(array, n, fn) -> biggest n by fn, monthIndex('YYYY-MM')
+Fields that are missing for this person's role are not there on purpose (for example costs or profit).`;
+
+// ---- a locked-down worker that runs Claude's code (no internet, no app access, stops after 10 seconds)
+const AI_WORKER_SRC = `
+for (const k of ['fetch','XMLHttpRequest','WebSocket','EventSource','importScripts','Worker','SharedWorker','BroadcastChannel','indexedDB','caches','WebTransport','RTCPeerConnection']) { let p = self; while (p) { try { Object.defineProperty(p, k, { value: undefined, configurable: false, writable: false }); } catch (e) {} p = Object.getPrototypeOf(p); } }
+let D = null; const hc = {};
+const words = t => String(t || '').toLowerCase().replace(/[^a-z0-9 ]+/g, ' ').split(' ').filter(Boolean);
+function findCustomers(t) { const ws = words(t).filter(w => w.length > 1); if (!ws.length || !D.customers) return []; return D.customers.map(c => { const nw = words(c.name); return { c, h: ws.filter(w => nw.some(x => x === w || (w.length >= 3 && x.startsWith(w)))).length }; }).filter(x => x.h).sort((a, b) => b.h - a.h || (b.c.salesLast12Months || 0) - (a.c.salesLast12Months || 0)).slice(0, 8).map(x => x.c); }
+function findProducts(t) { const s = String(t || '').toLowerCase().trim(); const ws = words(t); return D.products.filter(p => p.code === s || ws.every(w => words(p.name + ' ' + p.group + ' ' + p.code).some(x => x === w || x.startsWith(w)))); }
+function histOf(ci) { if (hc[ci]) return hc[ci]; const out = {}; const s = D._hist[ci]; if (s) s.split(';').forEach(part => { const [i, rest] = part.split(':'); const m = out[+i] = {}; rest.split('|').forEach(x => { const [mm, q] = x.split('='); m[+mm] = +q; }); }); return (hc[ci] = out); }
+function custIdx(name) { let i = D.customers.findIndex(c => c.name === name); if (i < 0) { const f = findCustomers(name)[0]; if (f) i = D.customers.indexOf(f); } return i; }
+function cases(name, prod) { const ci = custIdx(name); if (ci < 0) return []; const h = histOf(ci); const ok = prod ? new Set(findProducts(prod).map(p => D.products.indexOf(p))) : null; return Object.keys(h).filter(i => !ok || ok.has(+i)).map(i => ({ product: D.products[+i] ? D.products[+i].name + (D.products[+i].pack ? ' ' + D.products[+i].pack : '') + ' (' + D.products[+i].group + ')' : 'item ' + i, byMonth: D.months.map((m, k) => h[i][k] || 0) })); }
+function seasonCases(name, sea, year) { const ci = custIdx(name); if (ci < 0) return []; const s = D._seasonQ[ci]; if (!s) return []; const want = D.seasons.map((x, k) => ({ x, k })).filter(o => o.x.name.toLowerCase() === String(sea).toLowerCase() && (!year || o.x.year === +year)).map(o => o.k); const tot = {}; s.split(';').forEach(p => { const [i, r] = p.split(':'); const [si, q] = r.split('='); if (want.includes(+si)) tot[i] = (tot[i] || 0) + +q; }); return Object.entries(tot).map(([i, q]) => ({ product: D.products[+i] ? D.products[+i].name + ' (' + D.products[+i].group + ')' : 'item ' + i, cases: q })).sort((a, b) => b.cases - a.cases); }
+const sum = (a, f) => a.reduce((t, x) => t + (+(f ? f(x) : x) || 0), 0);
+const by = (a, f) => a.reduce((o, x) => { const k = f(x); (o[k] || (o[k] = [])).push(x); return o; }, {});
+const top = (a, n, f) => a.slice().sort((x, y) => f(y) - f(x)).slice(0, n);
+const monthIndex = m => D.months.indexOf(m);
+onmessage = e => {
+  if (e.data.data) { D = e.data.data; return; }
+  let out;
+  try { const r = new Function('D', 'findCustomers', 'findProducts', 'cases', 'seasonCases', 'sum', 'by', 'top', 'monthIndex', '"use strict";\\n' + e.data.code)(D, findCustomers, findProducts, cases, seasonCases, sum, by, top, monthIndex); out = { ok: true, v: r === undefined ? null : r }; }
+  catch (err) { out = { ok: false, v: String(err && err.message || err) }; }
+  let s; try { s = JSON.stringify(out.v); } catch (x) { s = String(out.v); }
+  if (s && s.length > 20000) s = s.slice(0, 20000) + ' …(cut: return less)';
+  postMessage({ ok: out.ok, s: s == null ? 'null' : s });
+};`;
+let aiW = null;
+function aiWorker() { if (!aiW) { aiW = new Worker(URL.createObjectURL(new Blob([AI_WORKER_SRC], { type: 'text/javascript' }))); aiW.postMessage({ data: aiData() }); } return aiW; }
+function aiRun(code) {
+  return new Promise(res => {
+    const w = aiWorker(); let done = false;
+    const t = setTimeout(() => { if (done) return; done = true; w.terminate(); aiW = null; res({ ok: false, s: 'Stopped: the code ran longer than 10 seconds.' }); }, 10000);
+    w.onmessage = e => { if (done) return; done = true; clearTimeout(t); res(e.data); };
+    w.postMessage({ code });
+  });
+}
+
+// ---- talking to Claude (streamed through the app's own address)
+function aiSystem() {
+  const who = { Owner: 'the owner', Office: 'the office', Sales: 'a salesman', SalesDriver: 'a salesman who also delivers', Warehouse: 'the warehouse' }[S.role] || S.role;
+  return `You are the assistant inside the Chuster app, the business app of Chuster Noodle (a kosher noodle, pasta and snack maker and distributor; brands Chuster and Landaus; it sells to stores and supermarkets, mostly in Brooklyn, Monsey and the New York area). The numbers come from their QuickBooks Desktop. You are talking with ${esc(S.user || who)} (${who}). Today is ${isoOf(TODAY)}; the QuickBooks numbers are as of ${REAL.asOf}.
+
+How to work:
+- Get every number from the data with the run_code tool. Never guess or make up numbers, stores or products. If the data can't answer it, say so plainly and say what you can tell instead.
+- run_code runs a JavaScript function body over the data and gives back what you return. Return small results (filter, sum, top 20), not whole arrays. You can call it several times.
+- Stores and products are often written short or misspelled ("Bingo", "Pomegranate", "toast barley"): use findCustomers / findProducts. If several stores match, say which one you used and name the others.
+- "Cases" means units sold (quantity). Money is in US dollars.
+- Hebrew/Jewish holidays matter for sales (Chanuka, Purim, Pesach, Shavuos, Rosh Hashana); use D.seasons for their dates.
+
+How to answer:
+- Short and simple English (the reader is busy and English is not always his first language). If he writes in Yiddish or Hebrew, answer in the same language.
+- Start with the answer in one sentence, then a short list or a small table (markdown) if it helps. Round money like $12,340. Say which dates or period the numbers cover.
+- Don't explain your code or your steps.
+
+${AI_SCHEMA}`;
+}
+const AI_TOOLS = [{ name: 'run_code', description: 'Run a JavaScript function body over the app data D (see the system prompt) and return its result. Use `return`. No internet. 10 second limit.', input_schema: { type: 'object', properties: { code: { type: 'string', description: 'Function body, e.g. `const c = findCustomers("bingo")[0]; return {name: c.name, balance: c.balance};`' } }, required: ['code'] } }];
+
+async function aiStream(onText) {
+  const tok = await SYNC.aiToken();
+  const body = { model: AI_MODEL, max_tokens: 8000, system: [{ type: 'text', text: aiSystem(), cache_control: { type: 'ephemeral' } }], tools: AI_TOOLS, messages: S.aiMsgs };
+  const res = await fetch(location.origin + '/ai/msg', { method: 'POST', headers: { 'content-type': 'application/json', 'x-chuster': tok }, body: JSON.stringify(body) });
+  if (!res.ok) {
+    const t = await res.text(); let m = t; try { const j = JSON.parse(t); m = (j.error && j.error.message) || t; } catch (e) { m = /meshimer|access restricted/i.test(t) ? 'Your internet filter blocked the AI. Ask Meshimer to allow chuster.netlify.app/ai/' : t.replace(/<[^>]+>/g, ' ').trim(); }
+    const e = new Error(m.slice(0, 300)); e.status = res.status; throw e;
+  }
+  const reader = res.body.getReader(); const dec = new TextDecoder(); let buf = ''; const blocks = []; let stop = null;
+  for (;;) {
+    const { value, done } = await reader.read(); if (done) break;
+    buf += dec.decode(value, { stream: true }); let i;
+    while ((i = buf.indexOf('\n\n')) >= 0) {
+      const ev = buf.slice(0, i); buf = buf.slice(i + 2);
+      const line = ev.split('\n').find(l => l.startsWith('data:')); if (!line) continue;
+      let d; try { d = JSON.parse(line.slice(5)); } catch (e) { continue; }
+      if (d.type === 'content_block_start') { const b = Object.assign({}, d.content_block); if (b.type === 'tool_use') { b._json = ''; b.input = {}; } if (b.type === 'text') b.text = b.text || ''; blocks[d.index] = b; }
+      else if (d.type === 'content_block_delta') { const b = blocks[d.index]; if (!b) continue; if (d.delta.type === 'text_delta') { b.text += d.delta.text; onText(blocks); } else if (d.delta.type === 'input_json_delta') b._json += d.delta.partial_json; }
+      else if (d.type === 'content_block_stop') { const b = blocks[d.index]; if (b && b.type === 'tool_use') { try { b.input = b._json ? JSON.parse(b._json) : {}; } catch (e) { b.input = {}; } delete b._json; } }
+      else if (d.type === 'message_delta') stop = d.delta.stop_reason;
+      else if (d.type === 'error') throw new Error((d.error && d.error.message) || 'AI error');
+    }
+  }
+  return { blocks: blocks.filter(Boolean).filter(b => b.type === 'text' || b.type === 'tool_use').map(b => b.type === 'text' ? { type: 'text', text: b.text } : { type: 'tool_use', id: b.id, name: b.name, input: b.input }), stop };
+}
+async function aiAsk(q) {
+  if (S.aiBusy) return;
+  const entry = { q, ai: true, text: '', steps: 0, status: 'Thinking…' }; S.askLog.unshift(entry); S.askQ = ''; S.aiBusy = true;
+  const before = S.aiMsgs.length; S.aiMsgs.push({ role: 'user', content: q });
+  render();
+  const paint = () => { const el = document.getElementById('ai-live'); if (el) el.innerHTML = aiEntryInner(entry); };
+  try {
+    for (let round = 0; round < 10; round++) {
+      const r = await aiStream(blocks => { entry.text = blocks.filter(b => b && b.type === 'text').map(b => b.text).join('\n\n'); entry.status = ''; paint(); });
+      S.aiMsgs.push({ role: 'assistant', content: r.blocks });
+      entry.text = r.blocks.filter(b => b.type === 'text').map(b => b.text).join('\n\n');
+      const calls = r.blocks.filter(b => b.type === 'tool_use');
+      if (r.stop !== 'tool_use' || !calls.length) break;
+      entry.steps += calls.length; entry.status = 'Looking at your numbers…'; paint();
+      const results = [];
+      for (const c of calls) { const o = await aiRun(String((c.input && c.input.code) || '')); results.push({ type: 'tool_result', tool_use_id: c.id, content: o.s, is_error: !o.ok }); }
+      S.aiMsgs.push({ role: 'user', content: results });
+    }
+    entry.status = '';
+  } catch (e) {
+    entry.status = ''; entry.err = String(e.message || e);
+    // the AI didn't answer: take the question back out of the conversation and try the built-in answers
+    S.aiMsgs.length = before;
+    const r = answer(q); if (r) entry.r = r;
+  }
+  // keep the conversation short enough (last 12 questions)
+  const starts = S.aiMsgs.map((m, i) => m.role === 'user' && typeof m.content === 'string' ? i : -1).filter(i => i >= 0);
+  if (starts.length > 12) S.aiMsgs = S.aiMsgs.slice(starts[starts.length - 12]);
+  S.aiBusy = false; render();
+}
+// ---- small markdown to html (bold, lists, tables, headings)
+function aiMd(t) {
+  const inl = s => esc(s).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/(^|[^*])\*([^*\n]+)\*/g, '$1<i>$2</i>').replace(/`([^`]+)`/g, '<code>$1</code>');
+  const L = String(t || '').split('\n'); let h = ''; let i = 0;
+  while (i < L.length) {
+    const l = L[i];
+    if (/^\s*\|.*\|\s*$/.test(l) && i + 1 < L.length && /^\s*\|[\s:|-]+\|\s*$/.test(L[i + 1])) {
+      const row = x => x.trim().replace(/^\||\|$/g, '').split('|').map(c => c.trim());
+      const hd = row(l); i += 2; const rows = []; while (i < L.length && /^\s*\|.*\|\s*$/.test(L[i])) rows.push(row(L[i++]));
+      h += `<div style="overflow-x:auto"><table class="mini-table ai-table"><tr>${hd.map(c => `<th>${inl(c)}</th>`).join('')}</tr>${rows.map(r => `<tr>${r.map(c => `<td>${inl(c)}</td>`).join('')}</tr>`).join('')}</table></div>`; continue;
+    }
+    if (/^\s*[-*•]\s+/.test(l)) { let li = ''; while (i < L.length && /^\s*[-*•]\s+/.test(L[i])) li += `<li>${inl(L[i++].replace(/^\s*[-*•]\s+/, ''))}</li>`; h += `<ul class="ai-ul">${li}</ul>`; continue; }
+    if (/^\s*\d+[.)]\s+/.test(l)) { let li = ''; while (i < L.length && /^\s*\d+[.)]\s+/.test(L[i])) li += `<li>${inl(L[i++].replace(/^\s*\d+[.)]\s+/, ''))}</li>`; h += `<ol class="ai-ul">${li}</ol>`; continue; }
+    const m = l.match(/^\s*#{1,4}\s+(.*)/); if (m) { h += `<div style="font-weight:800;margin-top:6px">${inl(m[1])}</div>`; i++; continue; }
+    if (l.trim()) h += `<p style="margin:0 0 6px">${inl(l)}</p>`; i++;
+  }
+  return h;
+}
+function aiEntryInner(x) {
+  return `${x.text ? `<div class="ai-ans">${aiMd(x.text)}</div>` : ''}${x.status ? `<div class="sub ai-wait" style="margin:0"><span class="ai-dot"></span>${esc(x.status)}</div>` : ''}${x.err ? `<div class="sub" style="margin:0;color:var(--bad-text)">The AI didn't answer: ${esc(x.err)}${x.r ? ' · Here is the built-in answer:' : ''}</div>${x.r ? `<div>${x.r.a}</div>${x.r.more || ''}` : ''}` : ''}`;
+}
+
 
 /* ================= more tools: collections, Yom Tov list, lost items, profit by store, price check,
    what to pack, reorder alerts, yield, loading list from invoices, morning summary ================= */
@@ -3862,7 +4070,8 @@ const SYNC = (function () {
     try { localStorage.setItem('chuster-db-url', u); } catch (e) { /* ignore */ }
     st.since = {}; st.seen = {}; st.ok = null; st.started ? tick() : start();
   }
-  return { put, on: (c, fn) => { handlers[c] = fn; }, resetSince: L => { L.forEach(c => { delete st.since[c]; }); saveLS('chuster-sync-since', st.since); }, start, tick, ready, has, pillHtml, badge, toolsCard, test, getProof, url: url0, lastTr: null };
+  async function aiToken() { const hk = await crypto.subtle.importKey('raw', unb64(cfg.key), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']); return b64(new Uint8Array(await crypto.subtle.sign('HMAC', hk, new TextEncoder().encode('chuster-ai')))); }
+  return { put, aiToken, on: (c, fn) => { handlers[c] = fn; }, resetSince: L => { L.forEach(c => { delete st.since[c]; }); saveLS('chuster-sync-since', st.since); }, start, tick, ready, has, pillHtml, badge, toolsCard, test, getProof, url: url0, lastTr: null };
 })();
 window.SYNC = SYNC;
 const proofOf = st => ({ sig: st.sig || null });
@@ -4882,6 +5091,8 @@ document.addEventListener('click', e => {
     case 'rep-base': S.repCfg.base = d.b; saveReps(); keep(); break;
     case 'rep-print': { const [a2, b2, lbl] = repRange(); const r = repRows().find(x => x.code === d.r); if (r) printDoc(commissionDoc(repStats(r, a2, b2), a2, b2, lbl), `Chuster commission - ${repName(r.code)} - ${lbl}`); break; }
     case 'ask-idea': doAsk(d.q); break;
+    case 'ai-toggle': S.aiOff = !S.aiOff; try { localStorage.setItem('chuster-ai-off', S.aiOff ? '1' : '0'); } catch (e) { /* ignore */ } render(); break;
+    case 'ai-new': if (!S.aiBusy) { S.aiMsgs = []; S.askLog = []; render(); } break;
     case 'ask-mic': { const SR = window.SpeechRecognition || window.webkitSpeechRecognition; if (!SR) break; const rec = new SR(); rec.lang = 'en-US'; rec.onresult = ev => { const q = ev.results[0][0].transcript; doAsk(q); }; rec.onerror = () => toast('Couldn\'t hear that. Try typing.'); rec.start(); toast('Listening…'); break; }
     case 'col-f': S.colF = d.f; S.colOpen = null; keep(); break;
     case 'col-open': S.colOpen = S.colOpen === d.n ? null : d.n; keep(); break;
