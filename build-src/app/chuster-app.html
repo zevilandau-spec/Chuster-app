@@ -426,7 +426,8 @@ select.sel, input.inp { min-height: 46px; border-radius: 10px; border: 1px solid
 .irow .main { flex: 1 1 180px; min-width: 0; }
 .irow .name { font-weight: 800; font-size: 15px; }
 .irow .meta { font-size: 13px; color: var(--muted); }
-.icode { min-width: 46px; height: 30px; padding: 0 7px; border-radius: 8px; background: var(--gt); color: #FFFFFF; font-weight: 800; font-size: 13px; display: grid; place-items: center; font-variant-numeric: tabular-nums; flex: none; }
+.icode.stopn { min-width: 46px; height: 30px; padding: 0 7px; border-radius: 8px; background: var(--gt); color: #FFFFFF; font-weight: 800; font-size: 13px; display: grid; place-items: center; font-variant-numeric: tabular-nums; flex: none; }
+.icode { min-width: 34px; flex: none; color: var(--gt); font-size: 12px; font-weight: 800; font-variant-numeric: tabular-nums; }
 .irow.on .step { border-color: var(--gt); }
 .chip.gc { background: var(--gs); border-color: transparent; color: var(--fg); }
 .chip.gc[aria-pressed="true"] { background: var(--gt); border-color: var(--gt); color: #FFFFFF; }
@@ -1340,7 +1341,7 @@ function sameDayLastYear(rd) {
 }
 function linesTable(lines) {
   if (!lines.length) return '<p class="sub" style="margin:0">No items on this order.</p>';
-  return `<div class="stack" style="gap:6px">${lines.map(({ p, q }) => `<div class="irow ${gcls(p.brand || p.cat || '')}" style="margin-top:0;padding:8px 12px"><span class="icode">${p.code && p.code !== '—' ? esc(p.code) : '·'}</span><div class="main"><div class="name" style="font-size:14px">${esc(p.name)}${p.pack ? ` <span style="font-weight:600;color:var(--muted)">${esc(p.pack)}</span>` : ''}</div></div><strong class="num" style="font-size:16px">× ${q}</strong></div>`).join('')}</div>`;
+  return `<div class="stack" style="gap:6px">${lines.map(({ p, q }) => `<div class="irow ${gcls(p.brand || p.cat || '')}" style="margin-top:0;padding:8px 12px;flex-wrap:nowrap"><span class="iv-qty">${q}</span><div class="main" style="flex:1 1 0"><div class="name" style="font-size:14px">${esc(p.name)}</div><div class="meta">${[p.code && p.code !== '—' ? '#' + p.code : '', p.pack || ''].filter(Boolean).map(esc).join(' · ')}</div></div></div>`).join('')}</div>`;
 }
 function lastOrderLines(c) { return c && c.lastOrder ? c.lastOrder.lines.map(([full, q]) => ({ p: S.catalog.find(x => x.full === full), q: Math.round(q) })).filter(x => x.p) : []; }
 function lyOrders(c) {
@@ -3918,7 +3919,7 @@ function renderDeliveries() {
   const i = days.indexOf(date);
   const col = (t, label, list) => `<section class="card stack" style="gap:6px"><div class="card-head" style="margin:0"><h2>${esc(label)}</h2><span class="sub" style="margin:0">${list.length} stops · ${fn(list.reduce((s, x) => s + stopCases(x.o), 0))} cases · ${list.filter(x => stopReady(date, x)).length} loaded · ${list.filter(x => x.st.st === 'done' || x.st.st === 'partial').length} delivered</span></div>
     ${list.map((x, k) => `<div class="irow ${areaCls(x.area)}${x.st.st ? '' : ' on'}" style="margin-top:0">
-      <span class="icode">${k + 1}</span>
+      <span class="icode stopn">${k + 1}</span>
       <div class="main"><div class="name" style="font-size:14px"><a href="#stop" data-act="d-open" data-k="${esc(x.k)}" style="color:inherit">${esc(x.o.c)}</a></div><div class="meta">${esc(x.area)} · ${esc(fixAddr(x.c.address) || 'no address')} · #${esc(x.o.label || x.o.n)} · ${fn(stopCases(x.o))} cases · ${fm(x.o.a)}</div></div>
       ${readyTag(date, x)}${stTag(x.st)}${x.st.st && (x.st.proof || x.st.sig) ? `<button class="btn ghost sm" data-act="d-proof" data-k="${esc(x.k)}">Proof</button>` : ''}
       <span style="display:flex;gap:4px">${t >= 0 ? `<button class="btn ghost sm" data-act="d-move" data-k="${esc(x.k)}" data-t="${t}" data-dir="-1" aria-label="Move up"${k ? '' : ' disabled'}>↑</button><button class="btn ghost sm" data-act="d-move" data-k="${esc(x.k)}" data-t="${t}" data-dir="1" aria-label="Move down"${k < list.length - 1 ? '' : ' disabled'}>↓</button>` : ''}
@@ -3950,7 +3951,7 @@ function renderDriver() {
   <div class="tiles"><div class="tile"><div class="k">Stops left</div><div class="v">${left} of ${list.length}</div><div class="s">${fn(list.reduce((s, x) => s + stopCases(x.o), 0))} cases on the truck</div></div>
     ${next ? `<button class="tile good" data-act="d-open" data-k="${esc(next.k)}" style="text-align:left;font:inherit;cursor:pointer"><div class="k">Next stop</div><div class="v" style="font-size:20px">${esc(next.o.c)}</div><div class="s">${esc(fixAddr(next.c.address))} · tap to start</div></button>` : `<div class="tile good"><div class="k">All done</div><div class="v">🎉</div><div class="s">Send your day to the office</div></div>`}</div>
   <section class="card" style="padding:8px 14px">${list.map((x, k) => `<div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px;border-top:${k ? '1px solid var(--line)' : 'none'};padding:10px 0">
-    <span class="icode" style="background:${x.st.st ? 'var(--good)' : 'var(--brand)'}">${x.st.st ? '✓' : k + 1}</span>
+    <span class="icode stopn" style="background:${x.st.st ? 'var(--good)' : 'var(--brand)'}">${x.st.st ? '✓' : k + 1}</span>
     <button data-act="d-open" data-k="${esc(x.k)}" style="flex:1 1 220px;min-width:0;text-align:left;background:none;border:none;font:inherit;color:inherit;cursor:pointer;padding:0"><b>${esc(x.o.c)}</b><span style="display:block;font-size:13px;color:var(--muted)">${esc(fixAddr(x.c.address))} · ${fn(stopCases(x.o))} cases</span></button>
     <span style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-left:auto">${stTag(x.st)}${x.c.address ? `<a class="btn ghost sm" href="${esc(mapsHref(fixAddr(x.c.address)))}" target="_blank" rel="noopener">Maps</a><a class="btn ghost sm" href="${esc(wazeHref(fixAddr(x.c.address)))}" target="_blank" rel="noopener">Waze</a>` : ''}</span></div>`).join('') || '<p class="sub">No stops for this truck today.</p>'}</section>`;
 }
