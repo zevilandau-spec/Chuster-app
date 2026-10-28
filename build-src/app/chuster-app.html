@@ -1104,7 +1104,12 @@ function go(v, keepScroll) { S.lxSheet = null;
   try { history.replaceState(null, '', '#' + v); } catch (e) { /* hash not available */ }
   if (!keepScroll) window.scrollTo(0, 0);
 }
-function render() { drawChrome(); document.getElementById('view').innerHTML = VIEWS[S.view].r() + (typeof sigModal === 'function' ? sigModal() : ''); document.title = 'Chuster Noodle App'; if (S.sigOpen) initSig(); if (S.view === 'live' && typeof geoMount === 'function') { geoMap = null; geoMount(); } }
+function crashBox(e) {
+  const v = document.getElementById('view'); if (!v) return;
+  v.innerHTML = `<section class="card stack" style="border:2px solid var(--bad-text)"><h2>Something broke on this screen</h2><p class="sub" style="margin:0">Send a screenshot of this to Claude.</p><pre style="white-space:pre-wrap;font-size:12px;margin:0">${esc(String(e && (e.stack || e.message) || e)).slice(0, 1500)}</pre><div class="actions"><a class="btn primary" href="#home" onclick="setTimeout(()=>location.reload(),50)">Try again</a><button class="btn ghost" onclick="try{['chuster-qb-v1','chuster-sync-since','chuster-sync-out'].forEach(k=>localStorage.removeItem(k))}catch(x){};location.reload()">Clear saved data and reload</button></div></section>`;
+}
+window.addEventListener('error', ev => { try { if (!document.getElementById('view').innerHTML.trim()) crashBox(ev.error || ev.message); } catch (x) { /* ignore */ } });
+function render() { try { drawChrome(); } catch (e) { crashBox(e); return; } try { document.getElementById('view').innerHTML = VIEWS[S.view].r() + (typeof sigModal === 'function' ? sigModal() : ''); } catch (e) { crashBox(e); return; } document.title = 'Chuster Noodle App'; if (S.sigOpen) initSig(); if (S.view === 'live' && typeof geoMount === 'function') { geoMap = null; geoMount(); } }
 function openMenu() { document.getElementById('app').classList.add('menu-open'); document.getElementById('scrim').hidden = false; }
 function closeMenu() { document.getElementById('app').classList.remove('menu-open'); document.getElementById('scrim').hidden = true; }
 let toastTimer;
