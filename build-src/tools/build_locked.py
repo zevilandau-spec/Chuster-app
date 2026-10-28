@@ -58,8 +58,9 @@ lock_ui = '''<div id="lock" style="position:fixed;inset:0;z-index:100;background
     window.CHUSTER_DATA = data; var l = document.getElementById('lock'); if (l) l.remove();
     try { window.__startApp(); } catch (e) {
       var box = document.createElement('div'); box.setAttribute('style', 'position:fixed;inset:12px;z-index:9999;background:#fff;border:3px solid #b42318;border-radius:14px;padding:18px;overflow:auto;font:14px system-ui;color:#111');
-      box.innerHTML = '<h2 style="margin:0 0 8px">The app could not start</h2><p>Send a screenshot of this to Claude.</p><pre style="white-space:pre-wrap;font-size:12px"></pre><button style="padding:10px 14px;font-size:15px" onclick="try{Object.keys(localStorage).forEach(function(k){if(k!==\'chuster-pass\')localStorage.removeItem(k)})}catch(x){};location.reload()">Clear saved data and reload</button>';
-      box.querySelector('pre').textContent = String((e && (e.stack || e.message)) || e).slice(0, 2000) + '\n' + (navigator.userAgent || '');
+      box.innerHTML = '<h2 style="margin:0 0 8px">The app could not start</h2><p>Send a screenshot of this to Claude.</p><pre style="white-space:pre-wrap;font-size:12px"></pre><button id="lock-clear" style="padding:10px 14px;font-size:15px">Clear saved data and reload</button>';
+      box.querySelector('#lock-clear').addEventListener('click', function () { try { Object.keys(localStorage).forEach(function (k) { if (k !== 'chuster-pass') localStorage.removeItem(k); }); } catch (x) { /* ignore */ } location.reload(); });
+      box.querySelector('pre').textContent = String((e && (e.stack || e.message)) || e).slice(0, 2000) + ' | ' + (navigator.userAgent || '');
       document.body.appendChild(box);
     }
   }
