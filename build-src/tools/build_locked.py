@@ -54,7 +54,15 @@ lock_ui = '''<div id="lock" style="position:fixed;inset:0;z-index:100;background
         return ds.text().then(JSON.parse);
       });
   }
-  function start(data) { window.CHUSTER_DATA = data; var l = document.getElementById('lock'); if (l) l.remove(); window.__startApp(); }
+  function start(data) {
+    window.CHUSTER_DATA = data; var l = document.getElementById('lock'); if (l) l.remove();
+    try { window.__startApp(); } catch (e) {
+      var box = document.createElement('div'); box.setAttribute('style', 'position:fixed;inset:12px;z-index:9999;background:#fff;border:3px solid #b42318;border-radius:14px;padding:18px;overflow:auto;font:14px system-ui;color:#111');
+      box.innerHTML = '<h2 style="margin:0 0 8px">The app could not start</h2><p>Send a screenshot of this to Claude.</p><pre style="white-space:pre-wrap;font-size:12px"></pre><button style="padding:10px 14px;font-size:15px" onclick="try{Object.keys(localStorage).forEach(function(k){if(k!==\'chuster-pass\')localStorage.removeItem(k)})}catch(x){};location.reload()">Clear saved data and reload</button>';
+      box.querySelector('pre').textContent = String((e && (e.stack || e.message)) || e).slice(0, 2000) + '\n' + (navigator.userAgent || '');
+      document.body.appendChild(box);
+    }
+  }
   if (!(window.crypto && crypto.subtle) || !window.DecompressionStream) { err.textContent = 'This browser is too old to open the app. Update your iPad / iPhone (Settings → General → Software Update), or open the link in Chrome.'; err.hidden = false; btn.disabled = true; return; }
   var saved = null; try { saved = localStorage.getItem('chuster-pass'); } catch (e) { /* storage blocked */ }
   if (saved) { btn.disabled = true; btn.textContent = 'Opening…'; unlock(saved).then(start).catch(function () { try { localStorage.removeItem('chuster-pass'); } catch (e) { /* ignore */ } btn.disabled = false; btn.textContent = 'Open'; }); }
