@@ -400,6 +400,9 @@ select.sel, input.inp { min-height: 46px; border-radius: 10px; border: 1px solid
 .irow.or-row { flex-wrap: nowrap; }
 .irow.or-row .main { flex: 1 1 0; }
 @media (max-width: 520px) { .or-row .step button { width: 38px; } .or-row .step input { width: 40px; } .or-row .oh-last { white-space: normal; } }
+#ai-fab { position: fixed; right: 18px; bottom: 24px; z-index: 40; display: flex; align-items: center; gap: 6px; padding: 12px 18px; border-radius: 999px; background: var(--brand, #2340A0); color: #fff; font-weight: 800; font-size: 15px; text-decoration: none; box-shadow: 0 6px 18px rgba(20, 30, 70, .28); }
+#ai-fab[hidden] { display: none; }
+@media (max-width: 959px) { #ai-fab { bottom: calc(86px + env(safe-area-inset-bottom)); padding: 11px 15px; } }
 .oh { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
 .oh-tag { font-size: 12px; padding: 2px 8px; border-radius: 999px; background: var(--surface); color: var(--fg); border: 1px solid var(--gt); white-space: nowrap; }
 .oh-tag b { color: var(--gt); }
@@ -1055,7 +1058,7 @@ const VIEWS = {
   pricelist: { title: 'Price list', r: renderPriceList },
   po: { title: 'Purchase order', r: renderPO },
   reps: { title: 'Sales by rep', r: renderReps },
-  ask: { title: 'Ask the portal', r: renderAsk },
+  ask: { title: 'Ask AI', r: renderAsk },
   collect: { title: 'Collections', r: renderCollect },
   yomtov: { title: 'Yom Tov list', r: renderYomTov },
   lost: { title: 'Lost items', r: renderLost },
@@ -1072,7 +1075,7 @@ const VIEWS = {
   customers: { title: 'Customers', r: renderCustomers }
 };
 const NAV = [
-  { items: [['home', 'Dashboard', 'home'], ['ask', 'Ask the portal', 'chat'], ['calendar', 'Calendar', 'cal']] },
+  { items: [['home', 'Dashboard', 'home'], ['ask', 'Ask AI ✨', 'chat'], ['calendar', 'Calendar', 'cal']] },
   { h: 'ORDERS', items: [['order', 'New order', 'order'], ['orders', 'Orders', 'order'], ['inbox', 'Incoming orders', 'chat', 'inbox'], ['toqb', 'To QuickBooks', 'check', 'toqb']] },
   { h: 'CUSTOMERS', items: [['customers', 'Customers', 'people', 'late'], ['payments', 'Payments', 'card', 'pay'], ['collect', 'Collections', 'card'], ['custprofit', 'Profit by store', 'chart'], ['lost', 'Lost items', 'alert'], ['yomtov', 'Yom Tov list', 'cal']] },
   { h: 'SALES & MONEY', items: [['mysales', 'Salesman dashboard', 'chart'], ['reps', 'Sales by rep & commission', 'people'], ['finance', 'Finance', 'chart']] },
@@ -1099,7 +1102,7 @@ const ROLE_VIEWS = {
 const isSales = () => S.role === 'Sales' || S.role === 'SalesDriver';
 const allowed = v => S.role === 'Owner' ? true : S.role === 'Office' ? !['tools', 'custprofit', 'finance', 'expenses', 'bank', 'journal', 'accounts'].includes(v) : (ROLE_VIEWS[S.role] || []).includes(v);
 const roleHome = () => S.role === 'Warehouse' ? 'packnext' : S.role === 'Driver' ? 'route' : isSales() ? 'mysales' : 'home';
-const YI = { 'Dashboard': 'הויפט בלאט', 'Ask the portal': 'פרעג די אפּ', 'Ask': 'פרעג', 'Orders': 'ארדערס', 'New order': 'נייע ארדער', '+ New order': '+ נייע ארדער', 'Incoming orders': 'אריינקומענדיגע ארדערס', 'Payments': 'באצאלונגען',
+const YI = { 'Dashboard': 'הויפט בלאט', 'Ask the portal': 'פרעג די אפּ', 'Ask AI': 'פרעג AI', 'Ask AI ✨': 'פרעג AI ✨', 'Ask': 'פרעג', 'Orders': 'ארדערס', 'New order': 'נייע ארדער', '+ New order': '+ נייע ארדער', 'Incoming orders': 'אריינקומענדיגע ארדערס', 'Payments': 'באצאלונגען',
   'Customers': 'קאסטומערס', 'Collections': 'איינמאנען געלט', 'Products & profit': 'פראדוקטן און פראפיט', 'Sales by rep & commission': 'סעילס לויט רעפּ', 'Sales by rep': 'סעילס לויט רעפּ', 'Yom Tov list': 'יום טוב ליסטע', 'Chanuka': 'חנוכה', 'Purim': 'פורים', 'Pesach': 'פסח', 'After Pesach': 'נאך פסח', 'Shavuos': 'שבועות', 'Rosh Hashana': 'ראש השנה', 'Yom Tov reorder list': 'יום טוב ליסטע',
   'Lost items': 'פארלוירענע פראדוקטן', 'Profit by store': 'פראפיט לויט סטאר', 'Price check': 'פרייז קאנטראל', 'Deliveries': 'דעליווערס', 'Driver': 'דרייווער', 'Trucks & loading': 'טראקס און לאדנען', 'Loading list': 'לאדן ליסטע',
   'Inventory': 'אינווענטאר', 'Reorder alerts': 'ווארענונגען צו באשטעלן', 'What to pack': 'וואס צו פּאקן', 'Packing plan': 'פּאקן פּלאן', 'Pack log': 'פּאקן לאג', 'Packing report': 'פּאקן באריכט', 'Yield': 'יעלד',
@@ -1168,12 +1171,18 @@ function go(v, keepScroll) { S.lxSheet = null;
   try { history.replaceState(null, '', '#' + v); } catch (e) { /* hash not available */ }
   if (!keepScroll) window.scrollTo(0, 0);
 }
+function aiFab() {
+  let b = document.getElementById('ai-fab');
+  const show = typeof allowed === 'function' && allowed('ask') && !['ask', 'order', 'stop', 'loading'].includes(S.view) && !!REAL;
+  if (!b) { b = document.createElement('a'); b.id = 'ai-fab'; b.href = '#ask'; b.setAttribute('data-go', 'ask'); b.setAttribute('aria-label', 'Ask AI'); b.innerHTML = '✨ <span>Ask AI</span>'; document.body.appendChild(b); }
+  b.hidden = !show;
+}
 function crashBox(e) {
   const v = document.getElementById('view'); if (!v) return;
   v.innerHTML = `<section class="card stack" style="border:2px solid var(--bad-text)"><h2>Something broke on this screen</h2><p class="sub" style="margin:0">Send a screenshot of this to Claude.</p><pre style="white-space:pre-wrap;font-size:12px;margin:0">${esc(String(e && (e.stack || e.message) || e)).slice(0, 1500)}</pre><div class="actions"><a class="btn primary" href="#home" onclick="setTimeout(()=>location.reload(),50)">Try again</a><button class="btn ghost" onclick="try{['chuster-qb-v1','chuster-sync-since','chuster-sync-out'].forEach(k=>localStorage.removeItem(k))}catch(x){};location.reload()">Clear saved data and reload</button></div></section>`;
 }
 window.addEventListener('error', ev => { try { if (!document.getElementById('view').innerHTML.trim()) crashBox(ev.error || ev.message); } catch (x) { /* ignore */ } });
-function render() { try { drawChrome(); } catch (e) { crashBox(e); return; } try { document.getElementById('view').innerHTML = VIEWS[S.view].r() + (typeof sigModal === 'function' ? sigModal() : ''); } catch (e) { crashBox(e); return; } document.title = 'Chuster Noodle App'; if (S.sigOpen) initSig(); if (S.view === 'live' && typeof geoMount === 'function') { geoMap = null; geoMount(); } }
+function render() { try { drawChrome(); } catch (e) { crashBox(e); return; } try { document.getElementById('view').innerHTML = VIEWS[S.view].r() + (typeof sigModal === 'function' ? sigModal() : ''); } catch (e) { crashBox(e); return; } document.title = 'Chuster Noodle App'; aiFab(); if (S.sigOpen) initSig(); if (S.view === 'live' && typeof geoMount === 'function') { geoMap = null; geoMount(); } }
 function openMenu() { document.getElementById('app').classList.add('menu-open'); document.getElementById('scrim').hidden = false; }
 function closeMenu() { document.getElementById('app').classList.remove('menu-open'); document.getElementById('scrim').hidden = true; }
 let toastTimer;
@@ -3058,7 +3067,7 @@ function askLogHtml() {
 function renderAsk() {
   const canTalk = !!(window.SpeechRecognition || window.webkitSpeechRecognition);
   const ai = aiOn();
-  return `${head('Ask the portal', ai ? 'Ask anything about your business · the AI reads your QuickBooks numbers' : 'Answers from your QuickBooks numbers · works without internet once open')}
+  return `${head('Ask AI', ai ? 'Ask anything about your business · the AI reads your QuickBooks numbers' : 'Answers from your QuickBooks numbers · works without internet once open')}
   <div class="chips" style="align-items:center"><button class="chip" data-act="ai-toggle" aria-pressed="${!S.aiOff}">✨ Smart AI ${S.aiOff ? 'off' : 'on'}</button>${S.askLog.length ? `<button class="chip" data-act="ai-new">New conversation</button>` : ''}</div>
   <section class="card stack">
     <form id="ask-form" style="display:flex;gap:8px"><input class="inp" id="ask-q" placeholder="${ai && S.aiMsgs.length ? 'Ask a follow-up…' : 'Ask about sales, stores, products, who owes…'}" value="${esc(S.askQ)}" autocomplete="off" style="flex:1">${canTalk ? `<button type="button" class="btn ghost" data-act="ask-mic" aria-label="Speak your question">🎤</button>` : ''}<button class="btn primary" type="submit" ${S.aiBusy ? 'disabled' : ''}>Ask</button></form>
