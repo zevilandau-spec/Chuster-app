@@ -6,7 +6,19 @@ jobs:
     steps:
       - name: Try both routes to the shared database
         run: |
-          for u in "https://chuster.netlify.app/db/.json?shallow=true" "https://chuster-afb77-default-rtdb.firebaseio.com/.json?shallow=true" "https://chuster.netlify.app/db/c9f96489aaf0b6c66d4456571/qh.json?orderBy=%22t%22&startAt=0&limitToFirst=1"; do
+          for u in "https://chuster.netlify.app/db/c9f96489aaf0b6c66d4456571/qh.json?orderBy=%22t%22&startAt=0&limitToFirst=1"; do
             code=$(curl -s -o body.txt -w '%{http_code} %{content_type}' "$u")
-            echo "::notice::$u -> $code :: $(head -c 160 body.txt | tr -d '\n\r')"
+            echo "::notice::$u -> $code :: $(head -c 120 body.txt | tr -d '\n\r')"
           done
+      - name: How the other app talks to its server
+        run: |
+          curl -s https://chusternoodle.netlify.app/ -o page.html
+          echo "::notice::page: $(head -c 900 page.html | tr -d '\n\r')"
+          for s in $(grep -oE '(src|href)="[^"]+\.(js|json|webmanifest)"' page.html | sed -E 's/.*="([^"]+)"/\1/'); do
+            case "$s" in http*) u="$s";; /*) u="https://chusternoodle.netlify.app$s";; *) u="https://chusternoodle.netlify.app/$s";; esac
+            curl -s "$u" -o f.js
+            echo "::notice::file $u size $(wc -c < f.js)"
+            hits=$(grep -oE "https?://[a-zA-Z0-9._/-]+|/\.netlify/functions/[a-zA-Z0-9_-]+|/api/[a-zA-Z0-9_/-]+|firebase[a-zA-Z]*|supabase|letsync[a-zA-Z.]*|wss?://[a-zA-Z0-9._/-]+" f.js | sort | uniq -c | sort -rn | head -40 | tr '\n' ' ')
+            echo "::notice::in $s: $hits"
+          done
+          curl -s -o /dev/null -w '%{http_code}' https://chusternoodle.netlify.app/.netlify/functions/ ; echo
