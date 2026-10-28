@@ -20,6 +20,7 @@ ASOF=$(python3 -c "import json;print(json.load(open('raw/meta.json'))['asOf'])")
 FROM=$(python3 -c "import json;print(json.load(open('raw/meta.json'))['from'])")
 mkdir -p build
 CHUSTER_NIGHTLY=1 sh tools/build_from.sh export build/data.json "$ASOF" "$FROM"
+python3 -I tools/build_extra.py raw build/data.json || echo "books part skipped"
 python3 -I tools/add_sync.py build/data.json sync.json build/data_sync.json
 node tools/lock.js build/data_sync.json passcodes.json build/locked.json
 python3 -I tools/build_locked.py .
