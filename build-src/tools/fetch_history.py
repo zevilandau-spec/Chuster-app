@@ -22,6 +22,10 @@ with urllib.request.urlopen(f"{URL}/{cfg['space']}/hx.json", timeout=300) as r:
 if 'manifest' not in hx:
     sys.exit('No history from the office PC yet.')
 man = json.loads(unscramble(hx['manifest']['v']))
+prev = os.environ.get('CHUSTER_LAST_HISTORY', '')
+if prev and man.get('at', '') <= prev:
+    print('history unchanged since', prev); sys.exit(3)
+open(os.path.join(os.path.dirname(os.path.abspath(OUT)) or '.', 'history-at.txt'), 'w').write(man.get('at', ''))
 os.makedirs(OUT, exist_ok=True)
 n = 0
 for name, info in man['sets'].items():

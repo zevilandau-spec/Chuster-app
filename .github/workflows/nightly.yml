@@ -1,7 +1,7 @@
 name: Rebuild the app from QuickBooks
 on:
   schedule:
-    - cron: '45 9 * * *'   # every morning, after the office PC sent last night's QuickBooks history
+    - cron: '17 * * * *'   # every hour: rebuild as soon as the office PC sent new QuickBooks history
   push:
     branches: [main]
     paths: ['build-src/**']
@@ -28,11 +28,14 @@ jobs:
         env:
           CHUSTER_DB_URL: ${{ secrets.CHUSTER_DB_URL }}
           CHUSTER_SECRETS: ${{ secrets.CHUSTER_SECRETS }}
+          CHUSTER_FORCE: ${{ github.event_name != 'schedule' }}
         run: |
           if [ -z "$CHUSTER_DB_URL" ] || [ -z "$CHUSTER_SECRETS" ]; then echo '{"result":"secrets missing"}' > build-status.json; exit 0; fi
           sh build-src/ci/nightly.sh > build-log.txt 2>&1 && R=ok || R=failed
           cat build-log.txt
-          python3 -c "import json,sys,datetime; L=open('build-log.txt').read().strip().splitlines(); json.dump({'result': sys.argv[1], 'at': datetime.datetime.utcnow().isoformat(timespec='minutes') + 'Z', 'last': L[-8:]}, open('build-status.json','w'), indent=1)" "$R"
+          if grep -q -e UNCHANGED -e "No full history yet" build-log.txt; then rm -f build-log.txt; exit 0; fi
+          H=$(cat build-src/history-at.txt 2>/dev/null || true); rm -f build-src/history-at.txt
+          python3 -c "import json,sys,datetime; L=open('build-log.txt').read().strip().splitlines(); json.dump({'result': sys.argv[1], 'history': sys.argv[2], 'at': datetime.datetime.utcnow().isoformat(timespec='minutes') + 'Z', 'last': L[-8:]}, open('build-status.json','w'), indent=1)" "$R" "$H"
           rm -f build-log.txt
       - name: Publish
         run: |

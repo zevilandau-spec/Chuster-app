@@ -10,9 +10,11 @@ s['sync']['url'] = os.environ['CHUSTER_DB_URL'].strip().rstrip('/'); json.dump(s
 PY
 cleanup() { rm -rf raw export build netlify sync.json passcodes.json; }
 trap cleanup EXIT
-if ! python3 tools/fetch_history.py "$CHUSTER_DB_URL" sync.json raw; then
-  echo "No full history yet; the app stays as it is."; exit 0
-fi
+export CHUSTER_LAST_HISTORY=$(python3 -c "import json;print(json.load(open('../build-status.json')).get('history',''))" 2>/dev/null || true)
+if [ "$CHUSTER_FORCE" = "true" ]; then CHUSTER_LAST_HISTORY=""; fi
+python3 tools/fetch_history.py "$CHUSTER_DB_URL" sync.json raw && R=0 || R=$?
+if [ "$R" = 3 ]; then echo "UNCHANGED"; exit 0; fi
+if [ "$R" != 0 ]; then echo "No full history yet; the app stays as it is."; exit 0; fi
 python3 -I tools/convert_raw.py raw export
 ASOF=$(python3 -c "import json;print(json.load(open('raw/meta.json'))['asOf'])")
 FROM=$(python3 -c "import json;print(json.load(open('raw/meta.json'))['from'])")
