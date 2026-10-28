@@ -386,7 +386,7 @@ select.sel, input.inp { min-height: 46px; border-radius: 10px; border: 1px solid
 .iv-sec { padding: 0 12px; }
 .irow.iv-item { flex-wrap: nowrap; }
 .irow.iv-item .main { flex: 1 1 0; }
-.iv-qty { font-weight: 800; font-size: 15px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.iv-qty { flex: none; min-width: 34px; font-weight: 800; font-size: 20px; color: var(--gt); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .iv-tot { min-width: 78px; text-align: right; font-size: 15px; white-space: nowrap; font-variant-numeric: tabular-nums; }
 @media (max-width: 420px) { .iv-sec { padding: 0 8px; } .irow.iv-item { padding: 8px 10px; gap: 8px; } .iv-item .icode { min-width: 38px; } .iv-item .name { font-size: 14px; } .iv-tot { min-width: 66px; font-size: 14px; } }
 .iv-foot { padding: 10px 14px 14px; margin-top: 12px; border-top: 1px solid var(--line); }
@@ -2477,7 +2477,7 @@ function invView(o) {
     return `<div class="iv-sec"><div class="ghead ${gcls(g)}"${gi ? ' style="margin-top:12px"' : ''}><span>${esc((GROUP_TITLE[g] || g).toUpperCase())}</span><span>${money(gt)}</span></div>` + gr.map(r => {
     const rate = r.q ? Math.abs(r.a / r.q) : 0;
     const sub = [r.p && r.p.code && r.p.code !== '—' ? '#' + r.p.code : '', r.p && r.p.pack ? r.p.pack : '', money(rate) + ' each'].filter(Boolean).join(' · ');
-    return `<div class="irow iv-item ${gcls(g)}"><div class="main"><div class="name">${esc(r.p ? r.p.name : String(r.ref).split(':').pop())}</div><div class="meta">${esc(sub)}</div></div><span class="iv-qty">× ${fnu(Math.abs(r.q))}</span><strong class="iv-tot">${money(Math.abs(r.a))}</strong></div>`;
+    return `<div class="irow iv-item ${gcls(g)}"><span class="iv-qty">${fnu(Math.abs(r.q))}</span><div class="main"><div class="name">${esc(r.p ? r.p.name : String(r.ref).split(':').pop())}</div><div class="meta">${esc(sub)}</div></div><strong class="iv-tot">${money(Math.abs(r.a))}</strong></div>`;
   }).join('') + '</div>'; }).join('');
   return `<div class="iv">
     <div class="iv-bar"><button class="iv-ico" data-act="ord-open" data-n="${esc(o.n)}" aria-label="Back to orders">${ic('back')}</button><span class="iv-num">${cm ? 'Credit ' : ''}${esc(o.n)}</span>
