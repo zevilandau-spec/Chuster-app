@@ -625,6 +625,17 @@ select.sel, input.inp { min-height: 46px; border-radius: 10px; border: 1px solid
 
 .ver-banner { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(76px + env(safe-area-inset-bottom, 0px)); z-index: 70; display: flex; align-items: center; gap: 12px; background: var(--fg); color: var(--bg); border-radius: 14px; padding: 10px 12px 10px 16px; box-shadow: 0 10px 30px rgba(0,0,0,.25); width: max-content; max-width: calc(100vw - 32px); font-size: 14px; }
 @media (min-width: 960px) { .ver-banner { bottom: 20px; } }
+
+/* ---------- Books ---------- */
+.bk-row { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) auto auto; gap: 10px; align-items: center; width: 100%; text-align: left; background: none; border: none; border-top: 1px solid var(--line); padding: 8px 2px; font: inherit; color: inherit; cursor: pointer; }
+.bk-row.on { background: var(--brand-soft); border-radius: 8px; }
+.bk-row small { display: block; color: var(--muted); font-size: 11.5px; font-weight: 600; }
+.bk-name { font-weight: 700; min-width: 0; overflow-wrap: anywhere; }
+.bk-bar { height: 8px; background: var(--line); border-radius: 5px; overflow: hidden; }
+.bk-bar i { display: block; height: 100%; background: var(--chart-a); border-radius: 5px; }
+.bk-line { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; border-top: 1px solid var(--line); padding: 7px 0; font-size: 14px; }
+.bk-line > span { min-width: 0; overflow-wrap: anywhere; }
+@media (max-width: 520px) { .bk-row { grid-template-columns: minmax(0, 1fr) auto; } .bk-row .bk-bar, .bk-row > small, .bk-row > .sub { display: none; } }
 </style>
 
 <div class="app" id="app">
@@ -955,6 +966,14 @@ const VIEWS = {
   calendar: { title: 'Calendar', r: renderCalendar },
   loading: { title: 'Loading', r: renderLoad },
   toqb: { title: 'To QuickBooks', r: renderToQB },
+  expenses: { title: 'Expenses', r: renderExpenses },
+  bank: { title: 'Bank & deposits', r: renderBank },
+  vendors: { title: 'Vendors & bills', r: renderVendors },
+  salesorders: { title: 'Sales orders', r: renderSalesOrders },
+  stockmoves: { title: 'Stock moves', r: renderStockMoves },
+  polist: { title: 'All purchase orders', r: renderPOList },
+  journal: { title: 'Journal entries', r: renderJournal },
+  accounts: { title: 'Chart of accounts', r: renderAccounts },
   route: { title: 'Deliveries', r: () => renderDeliveries() },
   stop: { title: 'Driver', r: () => renderDriver() },
   dsched: { title: 'Delivery days', r: () => renderDSched() },
@@ -992,7 +1011,8 @@ const NAV = [
   { h: 'PRODUCTS', items: [['items', 'Products & profit', 'chart'], ['pricelist', 'Price list', 'order'], ['pricecheck', 'Price check', 'card']] },
   { h: 'DELIVERIES', items: [['route', 'Deliveries', 'box'], ['stop', 'Driver', 'wheel'], ['live', 'Live trucks', 'pin'], ['loading', 'Loading', 'truck'], ['dsched', 'Delivery days', 'cal']] },
   { h: 'WAREHOUSE', items: [['packnext', 'What to pack', 'clip'], ['packing', 'Packing plan', 'clip'], ['packlog', 'Pack log', 'clip'], ['packrep', 'Packing report', 'chart'], ['yield', 'Yield', 'chart']] },
-  { h: 'STOCK & BUYING', items: [['inventory', 'Inventory', 'box', 'inv'], ['reorder', 'Reorder alerts', 'alert'], ['buying', 'Buying & suppliers', 'card']] }
+  { h: 'STOCK & BUYING', items: [['inventory', 'Inventory', 'box', 'inv'], ['reorder', 'Reorder alerts', 'alert'], ['buying', 'Buying & suppliers', 'card'], ['polist', 'All purchase orders', 'clip'], ['stockmoves', 'Stock moves', 'box']] },
+  { h: 'BOOKS', items: [['expenses', 'Expenses', 'chart'], ['bank', 'Bank & deposits', 'card'], ['vendors', 'Vendors & bills', 'people'], ['salesorders', 'Sales orders & estimates', 'order'], ['journal', 'Journal entries', 'clip'], ['accounts', 'Chart of accounts', 'chart']] }
 ];
 const TABS = [['home', 'Home', 'home'], ['orders', 'Orders', 'order'], ['route', 'Deliveries', 'truck'], ['inventory', 'Stock', 'box']];
 
@@ -1003,19 +1023,19 @@ if (S.baseRole !== 'Owner') S.role = S.baseRole;
 const byName = () => S.user || S.baseRole;
 try { S.lang = localStorage.getItem('chuster-lang') || 'en'; } catch (e) { S.lang = 'en'; }
 const ROLE_VIEWS = {
-  Warehouse: ['packnext', 'packing', 'packlog', 'packrep', 'yield', 'inventory', 'reorder', 'loading', 'loadlist', 'calendar'],
+  Warehouse: ['packnext', 'packing', 'packlog', 'packrep', 'yield', 'inventory', 'reorder', 'loading', 'loadlist', 'calendar', 'stockmoves', 'polist'],
   Driver: ['route', 'stop', 'loading', 'loadlist', 'calendar'],
-  Sales: ['mysales', 'customers', 'collect', 'orders', 'order', 'inbox', 'toqb', 'payments', 'yomtov', 'lost', 'pricelist', 'pricecheck', 'calendar'],
-  SalesDriver: ['mysales', 'customers', 'collect', 'orders', 'order', 'inbox', 'toqb', 'payments', 'yomtov', 'lost', 'pricelist', 'pricecheck', 'calendar', 'route', 'stop', 'loading', 'loadlist']
+  Sales: ['mysales', 'customers', 'collect', 'orders', 'order', 'inbox', 'toqb', 'payments', 'yomtov', 'lost', 'pricelist', 'pricecheck', 'calendar', 'salesorders'],
+  SalesDriver: ['mysales', 'customers', 'collect', 'orders', 'order', 'inbox', 'toqb', 'payments', 'yomtov', 'lost', 'pricelist', 'pricecheck', 'calendar', 'route', 'stop', 'loading', 'loadlist', 'salesorders']
 };
 const isSales = () => S.role === 'Sales' || S.role === 'SalesDriver';
-const allowed = v => S.role === 'Owner' ? true : S.role === 'Office' ? !['tools', 'custprofit', 'finance'].includes(v) : (ROLE_VIEWS[S.role] || []).includes(v);
+const allowed = v => S.role === 'Owner' ? true : S.role === 'Office' ? !['tools', 'custprofit', 'finance', 'expenses', 'bank', 'journal', 'accounts'].includes(v) : (ROLE_VIEWS[S.role] || []).includes(v);
 const roleHome = () => S.role === 'Warehouse' ? 'packnext' : S.role === 'Driver' ? 'route' : isSales() ? 'mysales' : 'home';
 const YI = { 'Dashboard': 'הויפט בלאט', 'Ask the portal': 'פרעג די אפּ', 'Ask': 'פרעג', 'Orders': 'ארדערס', 'New order': 'נייע ארדער', '+ New order': '+ נייע ארדער', 'Incoming orders': 'אריינקומענדיגע ארדערס', 'Payments': 'באצאלונגען',
   'Customers': 'קאסטומערס', 'Collections': 'איינמאנען געלט', 'Products & profit': 'פראדוקטן און פראפיט', 'Sales by rep & commission': 'סעילס לויט רעפּ', 'Sales by rep': 'סעילס לויט רעפּ', 'Yom Tov list': 'יום טוב ליסטע', 'Chanuka': 'חנוכה', 'Purim': 'פורים', 'Pesach': 'פסח', 'After Pesach': 'נאך פסח', 'Shavuos': 'שבועות', 'Rosh Hashana': 'ראש השנה', 'Yom Tov reorder list': 'יום טוב ליסטע',
   'Lost items': 'פארלוירענע פראדוקטן', 'Profit by store': 'פראפיט לויט סטאר', 'Price check': 'פרייז קאנטראל', 'Deliveries': 'דעליווערס', 'Driver': 'דרייווער', 'Trucks & loading': 'טראקס און לאדנען', 'Loading list': 'לאדן ליסטע',
   'Inventory': 'אינווענטאר', 'Reorder alerts': 'ווארענונגען צו באשטעלן', 'What to pack': 'וואס צו פּאקן', 'Packing plan': 'פּאקן פּלאן', 'Pack log': 'פּאקן לאג', 'Packing report': 'פּאקן באריכט', 'Yield': 'יעלד',
-  'Buying & suppliers': 'איינקויפן', 'Calendar': 'קאלענדאר', 'Delivery days': 'דעליווערי טעג', 'Loading': 'לאדנען', 'To QuickBooks': 'צו קוויקבוקס', 'Salesman dashboard': 'סעילסמאן בלאט', 'Finance': 'פינאנסן', 'Price list': 'פרייז ליסטע', 'Products': 'פראדוקטן', 'Packing': 'פּאקן', 'Home': 'היים', 'Stock': 'סטאק', 'More': 'מער', 'Tools': 'געצייג',
+  'Buying & suppliers': 'איינקויפן', 'Calendar': 'קאלענדאר', 'Delivery days': 'דעליווערי טעג', 'Loading': 'לאדנען', 'BOOKS': 'ביכער', 'Expenses': 'הוצאות', 'Bank & deposits': 'באנק און דעפאזיטן', 'Vendors & bills': 'סאפלייערס און בילס', 'Sales orders & estimates': 'סעילס ארדערס', 'Journal entries': 'זשורנאל', 'Chart of accounts': 'אקאונטס', 'All purchase orders': 'אלע פּי-אוס', 'Stock moves': 'סטאק באוועגונגען', 'To QuickBooks': 'צו קוויקבוקס', 'Salesman dashboard': 'סעילסמאן בלאט', 'Finance': 'פינאנסן', 'Price list': 'פרייז ליסטע', 'Products': 'פראדוקטן', 'Packing': 'פּאקן', 'Home': 'היים', 'Stock': 'סטאק', 'More': 'מער', 'Tools': 'געצייג',
   'Route planner': 'רוט פלאנער', 'Live trucks': 'טראקס לייוו', 'DELIVERIES': 'דעליווערס', 'STOCK & MORE': 'סטאק און מער', 'ORDERS': 'ארדערס', 'CUSTOMERS': 'קאסטומערס', 'SALES & MONEY': 'סעילס און געלט', 'PRODUCTS': 'פראדוקטן', 'WAREHOUSE': 'וועיערהאוז', 'STOCK & BUYING': 'סטאק און איינקויפן', 'SELL MORE': 'מער פארקויפן', 'ONLY YOU SEE THIS': 'נאר דו זעסט דאס', 'Purchase order': 'באשטעלונג', 'Stop': 'סטאפּ' };
 const tr = t => (S.lang === 'yi' && YI[t]) ? `<span dir="rtl" lang="yi">${YI[t]}</span>` : t;
 const trTxt = t => (S.lang === 'yi' && YI[t]) ? YI[t] : t;
@@ -4531,6 +4551,149 @@ document.addEventListener('click', e => { const el = e.target.closest('[data-act
   setTimeout(check, 4000); setInterval(check, 5 * 60000);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) check(); });
 })();
+/* ================= Books: expenses, bank & deposits, vendors & bills, sales orders & estimates, stock moves, all POs, journal, accounts ================= */
+Object.assign(S, { bkPer: 'ytd', bkAcct: null, bkQ: '', bkVSort: 'owe', bkVen: null, bkSoTab: 'so', bkStTab: 'build', bkPoSt: 'open', bkVenTab: 'list' });
+const BK = () => (REAL && REAL.books) || null;
+const bkDay = d => d ? fmtShort(isoRd(d)) : '';
+function bkEmpty(title, sub) {
+  return head(title, sub) + `<section class="card stack"><h2>Comes in with tonight's full QuickBooks read</h2><p class="sub" style="margin:0">This screen fills itself from QuickBooks once the office PC has version 3.2 of Chuster QB Sync and has done one night's full read. Nothing to do on your phone.</p></section>`;
+}
+function bkTabs(key, list) { return `<div class="chips" role="tablist">${list.map(([id, n]) => `<button class="chip" data-act="bk-set" data-k="${key}" data-v="${id}" aria-pressed="${S[key] === id}">${n}</button>`).join('')}</div>`; }
+function bkSearch(ph) { return `<div class="field" style="margin:0">${ic('search')}<label class="sr" for="bk-q">Search</label><input id="bk-q" value="${esc(S.bkQ)}" placeholder="${esc(ph)}" autocomplete="off"></div>`; }
+const bkHit = (...xs) => { const q = S.bkQ.trim().toLowerCase(); return !q || xs.some(x => String(x || '').toLowerCase().includes(q)); };
+function bkBars(vals, labels, h = 120) {
+  const max = Math.max(1, ...vals.map(v => Math.abs(v))); const w = 100 / vals.length;
+  return `<svg viewBox="0 0 100 ${h / 3}" preserveAspectRatio="none" style="width:100%;height:${h}px;display:block" role="img" aria-label="By month">${vals.map((v, i) => { const bh = Math.abs(v) / max * (h / 3 - 2); return `<rect x="${(i * w + w * 0.15).toFixed(2)}" y="${(h / 3 - bh).toFixed(2)}" width="${(w * 0.7).toFixed(2)}" height="${bh.toFixed(2)}" rx="0.6" fill="${i === vals.length - 1 ? 'var(--gold)' : 'var(--chart-a)'}"><title>${esc(labels[i])}: ${money(v)}</title></rect>`; }).join('')}</svg>
+    <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted)"><span>${esc(labels[0] || '')}</span><span>${esc(labels[labels.length - 1] || '')}</span></div>`;
+}
+const MSHORT = ym => { const [y, m] = ym.split('-'); return MONS[+m - 1] + ' ' + y.slice(2); };
+function bkPeriod(months) {
+  const n = months.length, cur = REAL.asOf.slice(0, 7), ci = months.indexOf(cur), y = REAL.asOf.slice(0, 4);
+  const idx = { ytd: months.map((m, i) => m.startsWith(y) ? i : -1).filter(i => i >= 0), m: ci >= 0 ? [ci] : [n - 1], lm: ci > 0 ? [ci - 1] : [], '12': months.map((m, i) => i).slice(-12) }[S.bkPer] || [];
+  const prev = idx.map(i => i - 12).filter(i => i >= 0);
+  return { idx, prev, label: { ytd: `${y} so far`, m: 'this month', lm: 'last month', '12': 'last 12 months' }[S.bkPer] };
+}
+const bkSum = (arr, idx) => idx.reduce((s, i) => s + (arr[i] || 0), 0);
+
+function renderExpenses() {
+  const B = BK(); if (!B || !B.expenses) return bkEmpty('Expenses', 'Checks, bills and card charges by account');
+  const E = B.expenses; const P = bkPeriod(E.months);
+  const rows = E.accounts.map(([a, v]) => ({ a, v, s: bkSum(v, P.idx), p: bkSum(v, P.prev) })).filter(x => Math.abs(x.s) >= 0.01).sort((x, y) => y.s - x.s);
+  const tot = rows.reduce((s, x) => s + x.s, 0), totP = E.accounts.reduce((s, [a, v]) => s + bkSum(v, P.prev), 0);
+  const monthly = E.months.map((m, i) => E.accounts.reduce((s, [a, v]) => s + (v[i] || 0), 0)).slice(-24);
+  const max = Math.max(1, ...rows.map(x => x.s));
+  const sel = S.bkAcct && E.accounts.find(x => x[0] === S.bkAcct);
+  const rec = E.recent.filter(r => (!S.bkAcct || r[6].some(l => l[0] === S.bkAcct)) && bkHit(r[3], r[2], ...r[6].map(l => l[0] + ' ' + (l[2] || ''))));
+  return `${head('Expenses', 'Checks, bills and card charges by account, from QuickBooks')}
+  ${bkTabs('bkPer', [['m', 'This month'], ['lm', 'Last month'], ['ytd', 'This year'], ['12', '12 months']])}
+  <div class="tiles"><div class="tile"><div class="k">Expenses · ${esc(P.label)}</div><div class="v">${fm(tot)}</div><div class="s">${totP ? `${sgn(pct(tot, totP))} vs a year before (${fm(totP)})` : ''}</div></div>
+    <div class="tile"><div class="k">Biggest</div><div class="v" style="font-size:18px">${esc(rows[0] ? rows[0].a : '—')}</div><div class="s">${rows[0] ? fm(rows[0].s) : ''}</div></div></div>
+  <section class="card stack"><h2>Every month, all accounts</h2>${bkBars(monthly, E.months.slice(-24).map(MSHORT))}</section>
+  <div class="split"><section class="card stack" style="gap:6px"><div class="card-head" style="margin:0"><h2>By account · ${esc(P.label)}</h2>${S.bkAcct ? '<button class="btn ghost sm" data-act="bk-acct" data-a="">Show all</button>' : ''}</div>
+    ${rows.map(x => `<button class="bk-row${S.bkAcct === x.a ? ' on' : ''}" data-act="bk-acct" data-a="${esc(x.a)}"><span class="bk-name">${esc(x.a)}</span><span class="bk-bar"><i style="width:${(x.s / max * 100).toFixed(1)}%"></i></span><b class="num">${fm(x.s)}</b><small class="num">${x.p ? sgn(pct(x.s, x.p)) : ''}</small></button>`).join('') || '<p class="sub">No expenses in this period.</p>'}
+    ${sel ? `<div class="stack" style="gap:4px;margin-top:8px"><b>${esc(sel[0])} · every month</b>${bkBars(sel[1].slice(-24), E.months.slice(-24).map(MSHORT), 90)}</div>` : ''}</section>
+  <aside class="card stack" style="gap:6px"><h2>By vendor · last 12 months</h2>${E.vendors.slice(0, 20).map(([v, a12, ay]) => `<div class="bk-line"><span>${esc(v)}</span><b class="num">${fm(a12)}</b></div>`).join('')}</aside></div>
+  <section class="card stack" style="gap:6px"><div class="card-head" style="margin:0"><h2>Recent${S.bkAcct ? ' · ' + esc(S.bkAcct) : ''}</h2><span class="sub" style="margin:0">${rec.length}</span></div>${bkSearch('Search vendor, check # or account')}
+    ${rec.slice(0, 120).map(r => `<div class="bk-line"><span style="min-width:0"><b>${esc(r[3] || '—')}</b><br><small class="sub" style="margin:0">${bkDay(r[0])} · ${esc(r[1])}${r[2] ? ' #' + esc(r[2]) : ''}${r[4] ? ' · ' + esc(r[4]) : ''} · ${r[6].map(l => esc(l[0])).join(', ')}</small></span><b class="num">${money(r[5])}</b></div>`).join('') || '<p class="sub">Nothing found.</p>'}</section>`;
+}
+function renderBank() {
+  const B = BK(); if (!B || !B.bank) return bkEmpty('Bank & deposits', 'Bank and card balances, deposits');
+  const K = B.bank; const months = K.months.slice(-12);
+  const tot = K.months.map((m, i) => K.deposits.reduce((s, [a, v]) => s + (v[i] || 0), 0)).slice(-12);
+  const rec = K.recent.filter(r => bkHit(r[1], r[5], ...r[4].map(x => x[0])));
+  const typeName = { Bank: 'Bank', CreditCard: 'Credit card', OtherCurrentAsset: 'Other', OtherCurrentLiability: 'Owed', LongTermLiability: 'Loan' };
+  return `${head('Bank & deposits', 'Balances and deposits from QuickBooks')}
+  <div class="tiles">${K.accounts.filter(a => Math.abs(a[2]) >= 0.01).map(([n, t, b]) => `<div class="tile"><div class="k">${esc(typeName[t] || t)}</div><div class="v" style="font-size:20px;color:${b < 0 && t === 'Bank' ? 'var(--bad-text)' : 'inherit'}">${fm(b)}</div><div class="s">${esc(n)}</div></div>`).join('')}</div>
+  <section class="card stack"><h2>Deposits every month</h2>${bkBars(tot, months.map(MSHORT))}
+    <div>${K.deposits.map(([a, v]) => `<div class="bk-line"><span>${esc(a)} · this month</span><b class="num">${fm(v[v.length - 1] || 0)}</b></div>`).join('')}</div></section>
+  <section class="card stack" style="gap:6px"><div class="card-head" style="margin:0"><h2>Recent deposits</h2><span class="sub" style="margin:0">${rec.length}</span></div>${bkSearch('Search store or bank')}
+    ${rec.slice(0, 120).map(r => `<div class="bk-line"><span style="min-width:0"><b>${bkDay(r[0])} · ${esc(r[1])}</b><br><small class="sub" style="margin:0">${r[4].map(([w, a]) => esc(w) + ' ' + fm(a)).join(' · ')}${r[3] > r[4].length ? ` · +${r[3] - r[4].length} more` : ''}</small></span><b class="num">${money(r[2])}</b></div>`).join('') || '<p class="sub">Nothing found.</p>'}</section>`;
+}
+function renderVendors() {
+  const B = BK(); if (!B || !B.vendors) return bkEmpty('Vendors & bills', 'What you owe each vendor and what you paid');
+  const V = B.vendors; const owe = V.list.reduce((s, v) => s + Math.max(0, v[1]), 0);
+  if (S.bkVen) { const v = V.list.find(x => x[0] === S.bkVen); if (v) {
+    const pays = V.payments.filter(p => p[3] === v[0]);
+    return `${head(v[0], 'Vendor from QuickBooks', '<button class="btn ghost" data-act="bk-ven" data-v="">Back</button>')}
+      <div class="tiles"><div class="tile"><div class="k">You owe</div><div class="v">${fm(v[1])}</div><div class="s">${esc(v[5] || '')}</div></div><div class="tile"><div class="k">Bought · 12 months</div><div class="v">${fm(v[2])}</div><div class="s">${v[6] ? 'Last paid ' + bkDay(v[6]) + ' · ' + fm(v[7]) : ''}</div></div></div>
+      <section class="card stack">${v[3] ? `<div>Phone: <b>${esc(v[3])}</b></div>` : ''}${v[4] ? `<div>Email: <b>${esc(v[4])}</b></div>` : ''}<h2>Payments · last 6 months</h2>${pays.map(p => `<div class="bk-line"><span>${bkDay(p[0])} · ${esc(p[1])}${p[2] ? ' #' + esc(p[2]) : ''} · ${esc(p[4])}</span><b class="num">${money(p[5])}</b></div>`).join('') || '<p class="sub">No payments in the last 6 months.</p>'}</section>`; } }
+  const srt = { owe: (a, b) => b[1] - a[1], spend: (a, b) => b[2] - a[2], az: (a, b) => a[0].localeCompare(b[0]) }[S.bkVSort];
+  const L = V.list.filter(v => bkHit(v[0], v[3], v[4])).sort(srt);
+  return `${head('Vendors & bills', 'What you owe, what you bought, what you paid')}
+  <div class="tiles"><div class="tile"><div class="k">You owe vendors</div><div class="v">${fm(owe)}</div><div class="s">${V.list.filter(v => v[1] > 0.01).length} vendors</div></div><div class="tile"><div class="k">Paid · last 30 days</div><div class="v">${fm(V.payments.filter(p => isoRd(REAL.asOf) - isoRd(p[0]) < 30).reduce((s, p) => s + p[5], 0))}</div></div></div>
+  ${bkTabs('bkVenTab', [['list', 'Vendors'], ['pay', 'Bill payments']])}
+  ${S.bkVenTab === 'pay' ? `<section class="card stack" style="gap:6px">${bkSearch('Search vendor or check #')}${V.payments.filter(p => bkHit(p[3], p[2])).slice(0, 150).map(p => `<div class="bk-line"><span style="min-width:0"><b>${esc(p[3])}</b><br><small class="sub" style="margin:0">${bkDay(p[0])} · ${esc(p[1])}${p[2] ? ' #' + esc(p[2]) : ''} · ${esc(p[4])}</small></span><b class="num">${money(p[5])}</b></div>`).join('')}</section>`
+    : `<div class="chips">${[['owe', 'Owe most'], ['spend', 'Bought most'], ['az', 'A to Z']].map(([k, n]) => `<button class="chip" data-act="bk-set" data-k="bkVSort" data-v="${k}" aria-pressed="${S.bkVSort === k}">${n}</button>`).join('')}</div>
+    <section class="card stack" style="gap:6px">${bkSearch('Search vendor')}${L.slice(0, 200).map(v => `<button class="bk-row" data-act="bk-ven" data-v="${esc(v[0])}"><span class="bk-name">${esc(v[0])}<small>${v[6] ? 'paid ' + bkDay(v[6]) : ''}</small></span><span class="sub num" style="margin:0">${v[2] ? fm(v[2]) + ' bought' : ''}</span><b class="num" style="color:${v[1] > 0.01 ? 'var(--bad-text)' : 'inherit'}">${fm(v[1])}</b></button>`).join('')}</section>`}`;
+}
+function renderSalesOrders() {
+  const B = BK(); if (!B || !B.orders) return bkEmpty('Sales orders & estimates', 'Open sales orders and estimates from QuickBooks');
+  const O = B.orders; const L = (S.bkSoTab === 'so' ? O.so : O.est).filter(r => bkHit(r[2], r[1], ...r[5].map(l => l[0])));
+  const tot = L.reduce((s, r) => s + r[3], 0);
+  return `${head('Sales orders & estimates', 'What is promised but not invoiced yet')}
+  ${bkTabs('bkSoTab', [['so', `Open sales orders · ${O.so.length}`], ['est', `Estimates · ${O.est.length}`]])}
+  <div class="tiles"><div class="tile"><div class="k">${S.bkSoTab === 'so' ? 'Open sales orders' : 'Estimates (last year)'}</div><div class="v">${fm(tot)}</div><div class="s">${L.length} · ${S.bkSoTab === 'so' ? `${O.soDone90} done in the last 90 days` : 'not turned into orders yet'}</div></div></div>
+  ${bkSearch('Search store, number or item')}
+  ${L.slice(0, 120).map(r => `<article class="card stack" style="gap:6px"><div class="qw-head"><b>${esc(r[2])}</b><b class="num">${money(r[3])}</b></div>
+    <div class="sub" style="margin:0">#${esc(r[1])} · ${bkDay(r[0])}${r[4] ? ' · ship ' + bkDay(r[4]) : ''}${r[6] ? ' · ' + esc(r[6]) : ''}</div>
+    <div class="qw-lines">${r[5].slice(0, 8).map(l => `<div class="qw-line"><span class="num">${fnu(l[2])}</span><span>${esc(l[1] || nameOfFull(l[0]))}${l[3] ? ` <small class="sub">(${fnu(l[3])} invoiced)</small>` : ''}</span><span class="num">${money(l[4])}</span></div>`).join('')}</div>
+    ${(S.role === 'Owner' || S.role === 'Office' || isSales()) ? `<div class="actions"><button class="btn ghost sm" data-act="bk-toorder" data-t="${S.bkSoTab}" data-n="${esc(r[1])}">Make it a new order</button></div>` : ''}</article>`).join('') || '<section class="card"><p class="sub" style="margin:0">Nothing open.</p></section>'}`;
+}
+function renderStockMoves() {
+  const B = BK(); if (!B || !B.stock) return bkEmpty('Stock moves', 'Assembly builds and inventory adjustments from QuickBooks');
+  const T = B.stock; const today = isoRd(REAL.asOf);
+  const b30 = {}; T.build.forEach(r => { if (today - isoRd(r[0]) < 30) b30[r[2]] = (b30[r[2]] || 0) + (+r[3] || 0); });
+  const top = Object.entries(b30).sort((a, b) => b[1] - a[1]).slice(0, 15);
+  return `${head('Stock moves', 'Assembly builds and inventory adjustments')}
+  ${bkTabs('bkStTab', [['build', 'Builds'], ['adj', 'Adjustments']])}
+  ${S.bkStTab === 'build' ? `<section class="card stack" style="gap:6px"><h2>Built in the last 30 days</h2>${top.map(([it, q]) => `<div class="bk-line"><span>${esc(nameOfFull(it))}</span><b class="num">${fn(q)}</b></div>`).join('') || '<p class="sub">No builds.</p>'}</section>
+    <section class="card stack" style="gap:6px">${bkSearch('Search item')}${T.build.filter(r => bkHit(r[2], r[1])).slice(0, 150).map(r => `<div class="bk-line"><span style="min-width:0">${esc(nameOfFull(r[2]))}<br><small class="sub" style="margin:0">${bkDay(r[0])}${r[1] ? ' · #' + esc(r[1]) : ''}${r[4] ? ' · pending' : ''}</small></span><b class="num">${fn(r[3])}</b></div>`).join('')}</section>`
+    : `<section class="card stack" style="gap:6px">${bkSearch('Search item or note')}${T.adj.filter(r => bkHit(r[3], r[2], ...r[4].map(l => l[0]))).slice(0, 150).map(r => `<div class="stack" style="gap:2px;border-top:1px solid var(--line);padding-top:6px"><b>${bkDay(r[0])}${r[1] ? ' · #' + esc(r[1]) : ''}${r[3] ? ' · ' + esc(r[3]) : ''}</b>${r[4].map(l => `<div class="bk-line" style="border:none;padding:0"><span>${esc(nameOfFull(l[0]))}</span><b class="num" style="color:${l[1] < 0 ? 'var(--bad-text)' : 'var(--good-text)'}">${l[1] > 0 ? '+' : ''}${fnu(l[1])}${l[2] ? ' · ' + money(l[2]) : ''}</b></div>`).join('')}</div>`).join('') || '<p class="sub">No adjustments.</p>'}</section>`}`;
+}
+function renderPOList() {
+  const B = BK(); if (!B || !B.po) return bkEmpty('All purchase orders', 'Open, partly received, received and closed');
+  const ST = { open: ['Open', 'gold'], part: ['Part received', 'blue'], received: ['Received', 'green'], closed: ['Closed', 'grey'] };
+  const L = B.po.filter(p => (S.bkPoSt === 'all' || p[4] === S.bkPoSt) && bkHit(p[2], p[1], ...p[7].map(l => l[0])));
+  return `${head('All purchase orders', 'Every PO of the last two years from QuickBooks')}
+  <div class="chips">${[['open', 'Open'], ['part', 'Part received'], ['received', 'Received'], ['closed', 'Closed'], ['all', 'All']].map(([k, n]) => `<button class="chip" data-act="bk-set" data-k="bkPoSt" data-v="${k}" aria-pressed="${S.bkPoSt === k}">${n} · ${k === 'all' ? B.po.length : B.po.filter(p => p[4] === k).length}</button>`).join('')}</div>
+  ${bkSearch('Search vendor, PO # or item')}
+  ${L.slice(0, 150).map(p => `<article class="card stack" style="gap:6px"><div class="qw-head"><b>${esc(p[2])}</b><b class="num">${money(p[3])}</b></div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center"><span class="tag ${ST[p[4]][1]}">${ST[p[4]][0]}${p[4] === 'part' ? ' · ' + p[6] + '%' : ''}</span><span class="sub" style="margin:0">PO #${esc(p[1])} · ${bkDay(p[0])}${p[5] ? ' · expected ' + bkDay(p[5]) : ''}</span></div>
+    <div class="qw-lines">${p[7].map(l => `<div class="qw-line"><span class="num">${fnu(l[1])}</span><span>${esc(nameOfFull(l[0]))}</span><span class="num">${l[2] ? fnu(l[2]) + ' in' : ''}</span></div>`).join('')}</div></article>`).join('') || '<section class="card"><p class="sub" style="margin:0">Nothing here.</p></section>'}`;
+}
+function renderJournal() {
+  const B = BK(); if (!B || !B.journal) return bkEmpty('Journal entries', 'From QuickBooks');
+  const L = B.journal.filter(j => bkHit(j[1], ...j[3].map(l => l[1] + ' ' + l[3] + ' ' + l[4])));
+  return `${head('Journal entries', 'The last 12 months from QuickBooks')}${bkSearch('Search account, name or number')}
+  ${L.slice(0, 150).map(j => `<article class="card stack" style="gap:4px"><b>${bkDay(j[0])}${j[1] ? ' · #' + esc(j[1]) : ''}${j[2] ? ' · <span class="tag gold">adjusting</span>' : ''}</b>
+    ${j[3].map(l => `<div class="bk-line" style="padding:2px 0"><span>${l[0] === 'C' ? '&emsp;' : ''}${esc(l[1])}${l[3] ? ' · ' + esc(l[3]) : ''}${l[4] ? ` <small class="sub">${esc(l[4])}</small>` : ''}</span><b class="num">${l[0] === 'D' ? money(l[2]) : ''}</b><b class="num" style="min-width:90px;text-align:right">${l[0] === 'C' ? money(l[2]) : ''}</b></div>`).join('')}</article>`).join('') || '<section class="card"><p class="sub" style="margin:0">No journal entries.</p></section>'}`;
+}
+function renderAccounts() {
+  const B = BK(); if (!B || !B.accounts) return bkEmpty('Chart of accounts', 'Every account with its balance');
+  const TN = { Bank: 'Bank', AccountsReceivable: 'Accounts receivable', OtherCurrentAsset: 'Other current assets', FixedAsset: 'Fixed assets', OtherAsset: 'Other assets', AccountsPayable: 'Accounts payable', CreditCard: 'Credit cards', OtherCurrentLiability: 'Other current liabilities', LongTermLiability: 'Long-term liabilities', Equity: 'Equity', Income: 'Income', CostOfGoodsSold: 'Cost of goods sold', Expense: 'Expenses', OtherIncome: 'Other income', OtherExpense: 'Other expenses', NonPosting: 'Non-posting' };
+  const order = Object.keys(TN); const L = B.accounts.filter(a => a[4] && bkHit(a[0], a[2]));
+  const types = [...new Set(L.map(a => a[1]))].sort((a, b) => (order.indexOf(a) < 0 ? 99 : order.indexOf(a)) - (order.indexOf(b) < 0 ? 99 : order.indexOf(b)));
+  return `${head('Chart of accounts', 'Active accounts and balances from QuickBooks')}${bkSearch('Search account')}
+  <div class="split"><div class="stack" style="gap:12px">${types.map(t => `<section class="card stack" style="gap:4px"><h2>${esc(TN[t] || t)}</h2>${L.filter(a => a[1] === t).map(a => `<div class="bk-line"><span>${a[2] ? `<small class="sub">${esc(a[2])}</small> ` : ''}${esc(a[0])}</span><b class="num">${money(a[3])}</b></div>`).join('')}</section>`).join('')}</div></div>`;
+}
+function bkAction(a, d) {
+  switch (a) {
+    case 'bk-set': S[d.k] = d.v; break;
+    case 'bk-acct': S.bkAcct = d.a || null; break;
+    case 'bk-ven': S.bkVen = d.v || null; window.scrollTo(0, 0); break;
+    case 'bk-toorder': {
+      const B = BK(); const list = d.t === 'so' ? B.orders.so : B.orders.est; const r = list.find(x => x[1] === d.n); if (!r) return;
+      S.orderStore = r[2]; S.storeOpen = false; S.catalog.forEach(p => { delete S.oq[keyOf(p)]; });
+      let miss = 0; r[5].forEach(l => { const p = S.catalog.find(c => c.full === l[0]); const q = Math.max(0, (+l[2] || 0) - (+l[3] || 0)); if (p && q) S.oq[keyOf(p)] = (S.oq[keyOf(p)] || 0) + q; else if (q) miss++; });
+      toast(miss ? `Copied. ${miss} line(s) are not in the product list, add them by hand.` : 'Copied into a new order. Check it and tap Send to QuickBooks.'); go('order'); return;
+    }
+    default: return;
+  }
+  render();
+}
+document.addEventListener('click', e => { const el = e.target.closest('[data-act^="bk-"]'); if (!el) return; bkAction(el.dataset.act, el.dataset); });
+document.addEventListener('input', e => { if (e.target.id === 'bk-q') { S.bkQ = e.target.value; const pos = e.target.selectionStart; render(); const q = document.getElementById('bk-q'); if (q) { q.focus(); try { q.setSelectionRange(pos, pos); } catch (x) { /* ignore */ } } } });
+
 document.addEventListener('click', e => {
   const goEl = e.target.closest('[data-go]');
   if (goEl) { e.preventDefault(); go(goEl.dataset.go); return; }
