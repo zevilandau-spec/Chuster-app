@@ -1,0 +1,12 @@
+name: Check database route
+on: workflow_dispatch
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Try both routes to the shared database
+        run: |
+          for u in "https://chuster.netlify.app/db/.json?shallow=true" "https://chuster-afb77-default-rtdb.firebaseio.com/.json?shallow=true" "https://chuster.netlify.app/db/c9f96489aaf0b6c66d4456571/qh.json?orderBy=%22t%22&startAt=0&limitToFirst=1"; do
+            code=$(curl -s -o body.txt -w '%{http_code} %{content_type}' "$u")
+            echo "::notice::$u -> $code :: $(head -c 160 body.txt | tr -d '\n\r')"
+          done
