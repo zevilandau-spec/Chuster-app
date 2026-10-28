@@ -3779,13 +3779,14 @@ const SYNC = (function () {
     if (!ready() || st.flushing || !Object.keys(st.out).length) { badge(); return; }
     st.flushing = true;
     try {
-      let ids; const sentNow = new Set();
+      let ids, bump = false; const sentNow = new Set();
       while ((ids = Object.keys(st.out).filter(id => !sentNow.has(st.out[id]))).length) for (const id of ids) {
         const r = st.out[id]; sentNow.add(r); const v = r.coll === 'qw' ? await encC1({ k: r.key, val: r.val, by: r.by }) : await enc({ k: r.key, val: r.val, by: r.by });
         const res = await fetch(r.coll === 'p' ? pPath(r.key) : `${base()}/${id}.json`, { method: 'PUT', body: JSON.stringify({ v, t: { '.sv': 'timestamp' } }) });
         if (!res.ok) throw new Error(await dbErr(res));
-        st.seen[id] = v; if (st.out[id] === r) delete st.out[id];
+        st.seen[id] = v; if (st.out[id] === r) delete st.out[id]; bump = true;
       }
+      if (bump) await fetch(`${base()}/_t.json`, { method: 'PUT', body: JSON.stringify({ '.sv': 'timestamp' }) }).catch(() => {});
       st.ok = true; st.err = '';
     } catch (e) { st.ok = false; st.err = String(e.message || e); netFail(e); }
     saveOut(); st.flushing = false; badge();
@@ -3793,6 +3794,9 @@ const SYNC = (function () {
   async function pull() {
     if (!ready() || st.pulling) return; st.pulling = true; let changed = false;
     try {
+      const mr = await fetch(`${base()}/_t.json`); if (!mr.ok) throw new Error(await dbErr(mr));
+      const mark = await readJ(mr);
+      if (st.full && mark === st.mark && Date.now() - st.full < 180000) { st.ok = true; st.err = ''; st.last = Date.now(); st.pulling = false; badge(); return; }
       for (const c of COLLS) {
         const since = st.since[c] || 0;
         const res = await fetch(`${base()}/${c}.json?orderBy=%22t%22&startAt=${since}`);
@@ -3805,6 +3809,7 @@ const SYNC = (function () {
         }
         st.since[c] = max;
       }
+      st.mark = mark; st.full = Date.now();
       saveLS('chuster-sync-since', st.since); st.ok = true; st.err = ''; st.last = Date.now();
     } catch (e) { st.ok = false; st.err = String(e.message || e); netFail(e); }
     st.pulling = false; badge();
@@ -3859,6 +3864,7 @@ const SYNC = (function () {
   }
   return { put, on: (c, fn) => { handlers[c] = fn; }, resetSince: L => { L.forEach(c => { delete st.since[c]; }); saveLS('chuster-sync-since', st.since); }, start, tick, ready, has, pillHtml, badge, toolsCard, test, getProof, url: url0, lastTr: null };
 })();
+window.SYNC = SYNC;
 const proofOf = st => ({ sig: st.sig || null });
 const dsShare = k => { const s = S.dstat[k]; if (!s) return SYNC.put('ds', k, null); const o = Object.assign({}, s); delete o.sig; delete o.photos; o.proof = (s.sig ? 1 : 0) + (+s.photos || 0) || s.proof || 0; SYNC.put('ds', k, o); };
 Object.assign(S, { ready: loadLS('chuster-ready-v1', {}), proofView: null });

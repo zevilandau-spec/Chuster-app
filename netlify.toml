@@ -1,6 +1,8 @@
 # Chuster app: plain files, no build step. Phones always get the newest app.
 [build]
   publish = "."
+  # only publish when the app itself changed (saves Netlify credits)
+  ignore = "git diff --quiet $CACHED_COMMIT_REF $COMMIT_REF -- index.html version.json netlify.toml manifest.webmanifest *.png"
 
 [[headers]]
   for = "/index.html"
