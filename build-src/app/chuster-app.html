@@ -2476,7 +2476,8 @@ function invView(o) {
   const body = groups.map((g, gi) => { const gr = rows.filter(r => r.g === g); const gt = gr.reduce((t, r) => t + Math.abs(r.a), 0);
     return `<div class="iv-sec"><div class="ghead ${gcls(g)}"${gi ? ' style="margin-top:12px"' : ''}><span>${esc((GROUP_TITLE[g] || g).toUpperCase())}</span><span>${money(gt)}</span></div>` + gr.map(r => {
     const rate = r.q ? Math.abs(r.a / r.q) : 0;
-    return `<div class="irow iv-item ${gcls(g)}"><span class="icode">${r.p && r.p.code && r.p.code !== '—' ? esc(r.p.code) : '·'}</span><div class="main"><div class="name">${esc(r.p ? r.p.name : String(r.ref).split(':').pop())}${r.p && r.p.pack ? ` <span style="font-weight:600;color:var(--muted)">${esc(r.p.pack)}</span>` : ''}</div><div class="meta">${money(rate)} each</div></div><span class="iv-qty">× ${fnu(Math.abs(r.q))}</span><strong class="iv-tot">${money(Math.abs(r.a))}</strong></div>`;
+    const sub = [r.p && r.p.code && r.p.code !== '—' ? '#' + r.p.code : '', r.p && r.p.pack ? r.p.pack : '', money(rate) + ' each'].filter(Boolean).join(' · ');
+    return `<div class="irow iv-item ${gcls(g)}"><div class="main"><div class="name">${esc(r.p ? r.p.name : String(r.ref).split(':').pop())}</div><div class="meta">${esc(sub)}</div></div><span class="iv-qty">× ${fnu(Math.abs(r.q))}</span><strong class="iv-tot">${money(Math.abs(r.a))}</strong></div>`;
   }).join('') + '</div>'; }).join('');
   return `<div class="iv">
     <div class="iv-bar"><button class="iv-ico" data-act="ord-open" data-n="${esc(o.n)}" aria-label="Back to orders">${ic('back')}</button><span class="iv-num">${cm ? 'Credit ' : ''}${esc(o.n)}</span>
