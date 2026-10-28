@@ -394,6 +394,12 @@ select.sel, input.inp { min-height: 46px; border-radius: 10px; border: 1px solid
 .iv-kv { display: flex; justify-content: space-between; gap: 12px; padding: 5px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
 .iv-kv span { color: var(--muted); } .iv-kv b { text-align: right; }
 .iv-info-acts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.oh-last { font-size: 13px; white-space: nowrap; color: var(--muted); }
+.oh-last.g b { color: var(--good-text); } .oh-last.y b { color: var(--gold-text, #8a5a00); } .oh-last.r b { color: var(--bad-text); }
+.oh-last.n { font-style: italic; }
+.irow.or-row { flex-wrap: nowrap; }
+.irow.or-row .main { flex: 1 1 0; }
+@media (max-width: 520px) { .or-row .step button { width: 38px; } .or-row .step input { width: 40px; } .or-row .oh-last { white-space: normal; } }
 .oh { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
 .oh-tag { font-size: 12px; padding: 2px 8px; border-radius: 999px; background: var(--surface); color: var(--fg); border: 1px solid var(--gt); white-space: nowrap; }
 .oh-tag b { color: var(--gt); }
@@ -1295,8 +1301,12 @@ function orderRows() {
   const counts = {};
   list.forEach(({ p }) => { const g = p.brand || p.cat || ''; counts[g] = (counts[g] || 0) + 1; });
   // what this store took last time, and around this time last year, next to each product
-  const cust = S.orderStore ? custByName(S.orderStore) : null; const lastQ = {}, lyQ = {};
+  const cust = S.orderStore ? custByName(S.orderStore) : null; const lastQ = {}, lyQ = {}, lastBuy = {};
   if (cust) {
+    // when this store last took each product: exact day from recent invoices, else the month from the history
+    ((REAL && REAL.orders && REAL.orders.list) || []).forEach(o => { if (o.c !== cust.name || o.t !== 'inv') return; rowsOf(o.l).forEach(([ref, q]) => { if (typeof ref !== 'number' || !(q > 0)) return; const b = lastBuy[ref]; if (!b || o.d > b.d) lastBuy[ref] = { d: o.d, q }; else if (o.d === b.d) b.q += q; }); });
+    const ci = REAL ? REAL.customers.indexOf(cust) : -1;
+    if (ci >= 0 && HIST && REP) Object.entries(histOf(ci)).forEach(([i, m]) => { if (lastBuy[i]) return; const ks = Object.keys(m).map(Number).filter(k => m[k] > 0); if (!ks.length) return; const mk = Math.max(...ks); const ym = REP.months[mk]; if (ym) lastBuy[i] = { d: ym + '-15', q: m[mk], month: true }; });
     lastOrderLines(cust).forEach(x => { lastQ[keyOf(x.p)] = (lastQ[keyOf(x.p)] || 0) + x.q; });
     const t = sameDayLastYear(TODAY); const ly = lyOrders(cust).sort((a, b) => Math.abs(a.rd - t) - Math.abs(b.rd - t))[0];
     if (ly) ly.lines.forEach(x => { lyQ[keyOf(x.p)] = (lyQ[keyOf(x.p)] || 0) + x.q; });
@@ -1307,8 +1317,18 @@ function orderRows() {
     const hdr = g !== last ? `<div class="ghead ${gcls(g)}" style="margin-top:${last === null ? 0 : 14}px"><span style="flex:1;text-align:center">${esc((GROUP_TITLE[g] || g).toUpperCase())}</span></div>` : '';
     last = g;
     const k = keyOf(p); const q = S.oq[k] || 0; const price = parseFloat(p.price);
-    const hist = (lastQ[k] ? `<span class="oh-tag">last time <b>${fnu(lastQ[k])}</b></span>` : '') + (lyQ[k] ? `<span class="oh-tag ly">last year <b>${fnu(lyQ[k])}</b></span>` : '');
-    return hdr + `<div class="irow ${gcls(g)}${q ? ' on' : ''}">
+    let hist = '';
+    if (cust) {
+      const b = lastBuy[S.catalog.indexOf(p)];
+      if (b) {
+        const days = TODAY - isoRd(b.d); const cls = days <= 14 ? 'g' : days <= 60 ? 'y' : 'r';
+        const ago = b.month ? (days < 45 ? 'this month' : days < 365 ? Math.round(days / 30) + ' mo' : Math.round(days / 365 * 10) / 10 + ' yr') : days <= 0 ? 'today' : days < 7 ? days + ' day' + (days === 1 ? '' : 's') : days < 30 ? Math.floor(days / 7) + ' wk' : days < 365 ? Math.round(days / 30) + ' mo' : Math.round(days / 365 * 10) / 10 + ' yr';
+        const when = b.month ? MONS[+b.d.slice(5, 7) - 1] + ' ' + b.d.slice(2, 4) : (+b.d.slice(5, 7)) + '/' + (+b.d.slice(8, 10));
+        hist = `<span class="oh-last ${cls}">⟲ <b>${when} · ×${fnu(b.q)}</b> · ${ago}</span>`;
+      } else hist = `<span class="oh-last n">⊖ Never ordered</span>`;
+      if (lyQ[k]) hist += `<span class="oh-tag ly">last year <b>${fnu(lyQ[k])}</b></span>`;
+    }
+    return hdr + `<div class="irow or-row ${gcls(g)}${q ? ' on' : ''}">
       <div class="main"><div class="name">${esc(p.name)}</div><div class="meta">${p.code && p.code !== '—' ? '#' + esc(p.code) + ' · ' : ''}${p.pack ? esc(p.pack) + ' · ' : ''}${isNaN(price) ? 'no price' : money(price)}${typeof p.stock === 'number' ? ` · <span style="color:${p.stock < 0 ? 'var(--bad-text)' : 'inherit'};font-weight:${p.stock < 0 ? 800 : 600}">${bulkOf(p.full) ? bulkTxt(p.full, p.stock) : fn(p.stock)} in stock</span>` : ''}${bulkOf(p.full) ? ' · order in lb (1 unit = 1,800)' : ''}</div>${hist ? `<div class="oh">${hist}</div>` : ''}</div>
       <div class="step"><button data-act="oq" data-k="${esc(k)}" data-d="-1" aria-label="One less ${esc(p.name)}"${q ? '' : ' disabled'}>−</button><input class="num oq-inp" data-k="${esc(k)}" type="text" inputmode="numeric" pattern="[0-9]*" value="${q || ''}" placeholder="0" aria-label="How many ${esc(p.name)}" autocomplete="off"><button data-act="oq" data-k="${esc(k)}" data-d="1" aria-label="One more ${esc(p.name)}">+</button></div>
     </div>`;
