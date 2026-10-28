@@ -345,6 +345,25 @@ select.sel, input.inp { min-height: 46px; border-radius: 10px; border: 1px solid
 .dash-row input[type="checkbox"] { width: 22px; height: 22px; }
 @media (max-width: 1099px) { .detail { order: -1; } }
 .order-bar, .order-spacer { display: none; }
+.o2-bar { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px; border-bottom: 1px solid var(--line); }
+.o2-sel { flex: 1 1 140px; max-width: 200px; min-height: 46px; padding: 0 12px; border: 1.5px solid var(--line-strong, var(--line)); border-radius: 12px; background: var(--surface); color: var(--fg); font: inherit; font-size: 15px; }
+@media (max-width: 600px) { .o2-sel { max-width: none; } }
+.o2-day { display: flex; justify-content: space-between; padding: 14px 16px 6px; font-size: 13px; font-weight: 700; color: var(--muted); }
+.o2-row { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; background: none; border: none; border-top: 1px solid var(--line); padding: 12px 16px; font: inherit; color: var(--fg); cursor: pointer; }
+.o2-row:hover, .o2-row.on { background: var(--surface-2); }
+.o2-store { flex: 1; min-width: 0; font-weight: 700; font-size: 15px; overflow: hidden; text-overflow: ellipsis; }
+.o2-sub { display: block; font-weight: 500; font-size: 13px; color: var(--muted); margin-top: 2px; }
+.o2-amt { font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.o2-amt.cm { color: var(--bad-text); }
+.o2-detail { padding: 4px 16px 14px; background: var(--surface-2); }
+.o2-line { display: flex; gap: 10px; align-items: baseline; padding: 7px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
+.o2-code { width: 34px; flex: none; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.o2-lname { flex: 1; min-width: 0; }
+.o2-muted { color: var(--muted); }
+.o2-q { width: 44px; text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; }
+.o2-q::before { content: '× '; }
+.o2-la { width: 86px; text-align: right; font-variant-numeric: tabular-nums; }
+.o2-acts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
 .oday { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 10px 14px; background: var(--surface-2); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); font-size: 13px; font-weight: 800; letter-spacing: 0.04em; position: sticky; top: calc(60px + env(safe-area-inset-top, 0px)); z-index: 2; }
 @media (min-width: 960px) { .oday { top: 0; } }
 .oday .cnt { color: var(--bad-text); }
@@ -2412,51 +2431,45 @@ const ordBoxes = o => o.l.reduce((s, [ref, q]) => s + (typeof ref === 'number' &
 function ordDetail(o) {
   const lines = o.l.map(([ref, q, a]) => {
     const p = typeof ref === 'number' ? S.catalog[ref] : null;
-    const g = p ? (p.brand || p.cat || '') : 'Other';
-    return `<div class="irow ${gcls(g)}" style="margin-top:6px;padding:8px 12px"><span class="icode">${p && p.code && p.code !== '—' ? esc(p.code) : '·'}</span><div class="main"><div class="name" style="font-size:14px">${esc(p ? p.name : ref)}${p && p.pack ? ` <span style="font-weight:600;color:var(--muted)">${esc(p.pack)}</span>` : ''}</div><div class="meta">${money(a)}</div></div><strong class="num">× ${fnu(q)}</strong></div>`;
+    return `<div class="o2-line"><span class="o2-code">${p && p.code && p.code !== '—' ? esc(p.code) : ''}</span><span class="o2-lname">${esc(p ? p.name : ref)}${p && p.pack ? ` <span class="o2-muted">${esc(p.pack)}</span>` : ''}</span><span class="o2-q">${fnu(q)}</span><span class="o2-la">${money(a)}</span></div>`;
   }).join('');
-  return `<div class="odetail">${lines || '<p class="sub" style="margin:8px 0 0">No lines on this invoice.</p>'}
-    <div class="actions" style="margin-top:10px"><button class="btn primary sm" data-act="ord-copy" data-n="${esc(o.n)}">Copy into a new order</button><button class="btn ghost sm" data-act="cust-sel-go" data-n="${esc(o.c)}">Open ${esc(o.c)}</button><button class="btn ghost sm" data-act="ord-stmt" data-n="${esc(o.c)}">Send statement</button><button class="btn gold sm" data-act="inv-print" data-n="${esc(o.n)}">Print / PDF ${o.t === 'cm' ? 'credit memo' : 'invoice'}</button></div></div>`;
+  return `<div class="o2-detail">${lines || '<p class="sub" style="margin:0">No lines on this invoice.</p>'}
+    <div class="o2-acts"><button class="btn primary sm" data-act="ord-copy" data-n="${esc(o.n)}">Copy into new order</button><button class="btn ghost sm" data-act="cust-sel-go" data-n="${esc(o.c)}">Open store</button><button class="btn ghost sm" data-act="inv-print" data-n="${esc(o.n)}">Print</button></div></div>`;
 }
 function ordList() {
   const list = ordFiltered();
-  if (!list.length) return '<p class="sub" style="padding:14px;margin:0">No orders match.</p>';
+  if (!list.length) return '<p class="sub" style="padding:16px;margin:0">No orders match.</p>';
   const days = [...new Set(list.map(o => o.d))];
   const show = S.ordQ.trim() ? days : days.slice(0, S.ordDays);
   const html = show.map(d => {
-    const os = list.filter(o => o.d === d); if (S.ordSort === 'big') os.sort((x, y) => y.a - x.a); const tot = os.reduce((s, o) => s + o.a, 0); const r = isoRd(d);
-    const head = `<div class="oday"><span>${r === TODAY ? 'TODAY' : WDS[dow(r)].toUpperCase()} ${d.slice(5, 7)}/${d.slice(8)} <span style="font-weight:600;color:var(--muted);letter-spacing:0">· ${hebStr(r, false)} · ${fm(tot)}${S.ordArea === 'All' && !S.ordQ.trim() && S.ordType === 'all' ? dayCompare(d) : ''}</span></span><span class="cnt">${os.length}</span></div>`;
+    const os = list.filter(o => o.d === d); const tot = os.reduce((s, o) => s + o.a, 0); const r = isoRd(d);
+    const head = `<div class="o2-day"><span>${r === TODAY ? 'Today' : r === TODAY - 1 ? 'Yesterday' : WDS[dow(r)] + ', ' + fmtShort(r).replace(/^\w+, /, '')}</span><span>${os.length} · ${fm(tot)}</span></div>`;
     return head + os.map(o => {
-      const open = S.ordOpen === o.n; const bx = ordBoxes(o);
-      return `<button class="orow" data-act="ord-open" data-n="${esc(o.n)}" aria-expanded="${open}">
-        <div class="l1"><span class="store">${esc(o.c)}</span><span class="when">${d.slice(5, 7)}/${d.slice(8)}/${d.slice(2, 4)}</span></div>
-        <div class="l2"><span class="doc"><b>${o.t === 'cm' ? 'Credit memo' : 'Invoice'}</b> · ${esc(o.n)} · <span class="amt">${money(o.a)}</span></span>
-          <span class="ochips">${bx ? `<span class="ochip"><svg viewBox="0 0 24 24" aria-hidden="true">${I.box}</svg>${fn(bx)}</span>` : ''}${ordFlags(o)}${o.t === 'cm' ? '<span class="ochip cm">Credit</span>' : ''}<span class="ochip ok"><svg viewBox="0 0 24 24" aria-hidden="true">${I.check}</svg>In QuickBooks</span></span></div>
+      const open = S.ordOpen === o.n; const bx = ordBoxes(o); const cm = o.t === 'cm';
+      return `<button class="o2-row${open ? ' on' : ''}" data-act="ord-open" data-n="${esc(o.n)}" aria-expanded="${open}">
+        <span class="o2-store">${esc(o.c)}<span class="o2-sub">${cm ? 'Credit' : 'Invoice'} ${esc(o.n)}${bx ? ` · ${fn(bx)} cases` : ''}</span></span>
+        <span class="o2-amt${cm ? ' cm' : ''}">${cm ? '−' : ''}${money(Math.abs(o.a))}</span>
       </button>${open ? ordDetail(o) : ''}`;
     }).join('');
   }).join('');
-  const more = !S.ordQ.trim() && days.length > show.length ? `<div style="padding:14px"><button class="btn ghost full" data-act="ord-more">Show more days (${days.length - show.length} more)</button></div>` : '';
+  const more = !S.ordQ.trim() && days.length > show.length ? `<div style="padding:12px"><button class="btn ghost full" data-act="ord-more">Show more days</button></div>` : '';
   return html + more;
 }
 function renderOrders() {
   const OR = REAL && REAL.orders;
   const nIn = S.inbox.filter(x => x.st !== 'added').length;
-  const actions = `<a class="btn ghost" href="#inbox" data-go="inbox">Incoming orders${nIn ? ' · ' + nIn : ''}</a><a class="btn primary" href="#order" data-go="order">+ New order</a>`;
+  const actions = `<a class="btn primary" href="#order" data-go="order">+ New order</a>`;
   if (!OR) return head('Orders', '', actions) + `<section class="card stack"><h2>Your orders show here</h2><p class="sub" style="margin:0">Once the app has your QuickBooks data, every invoice shows here by day.</p></section>`;
-  const inv = OR.list.filter(o => o.t === 'inv').length, cm = OR.list.length - inv;
-  return `${head('Orders', `Invoices from QuickBooks · ${fmtShort(isoRd(OR.from))} to ${fmtShort(isoRd(OR.to))}`, actions)}
-  ${REAL.counts.late ? `<a class="attn blue" href="#customers" data-act="go-cust" data-f="late">${ic('clock')}<span class="main"><strong>${REAL.counts.late} stores haven't ordered when they usually do</strong><small>Call or WhatsApp them before the next truck goes out</small></span><strong>See them →</strong></a>` : ''}
-  <section class="card" style="padding:0;overflow:hidden">
-    <div style="display:flex;flex-wrap:wrap;gap:8px;padding:12px;align-items:center;border-bottom:1px solid var(--line)">
-      <div class="field" style="flex:1 1 220px">${ic('search')}<label class="sr" for="ord-q">Search orders</label><input id="ord-q" value="${esc(S.ordQ)}" placeholder="Search store or invoice number" autocomplete="off"></div>
-      <label class="sr" for="ord-date">Jump to a day</label><input class="inp" type="date" id="ord-date" min="${OR.from}" max="${OR.to}" value="${S.ordFrom || OR.to}" style="flex:0 1 170px;width:auto">
-      <div class="chips" role="group" aria-label="Sort"><button class="chip" data-act="ord-sort" data-s="new" aria-pressed="${S.ordSort === 'new'}">Newest</button><button class="chip" data-act="ord-sort" data-s="big" aria-pressed="${S.ordSort === 'big'}">Biggest first</button></div>
-      <div class="chips" role="group" aria-label="Show"><button class="chip" data-act="ord-type" data-t="all" aria-pressed="${S.ordType === 'all'}">All · ${OR.list.length}</button><button class="chip" data-act="ord-type" data-t="inv" aria-pressed="${S.ordType === 'inv'}">Invoices · ${inv}</button><button class="chip" data-act="ord-type" data-t="cm" aria-pressed="${S.ordType === 'cm'}">Credits · ${cm}</button></div>
+  const areas = [...new Set(OR.list.map(o => areaOf(o.c)))].sort((x, y) => (AREA_ORDER.indexOf(x) < 0 ? 99 : AREA_ORDER.indexOf(x)) - (AREA_ORDER.indexOf(y) < 0 ? 99 : AREA_ORDER.indexOf(y)));
+  return `${head('Orders', nIn ? `<a href="#inbox" data-go="inbox" style="color:var(--brand-text);font-weight:700">${nIn} incoming order${nIn === 1 ? '' : 's'} waiting →</a>` : '', actions)}
+  <section class="card o2" style="padding:0;overflow:hidden">
+    <div class="o2-bar">
+      <div class="field" style="flex:1 1 200px">${ic('search')}<label class="sr" for="ord-q">Search orders</label><input id="ord-q" value="${esc(S.ordQ)}" placeholder="Search store or invoice #" autocomplete="off"></div>
+      <label class="sr" for="ord-area-sel">Area</label><select class="inp o2-sel" id="ord-area-sel"><option value="All">All areas</option>${areas.map(a => `<option${S.ordArea === a ? ' selected' : ''}>${esc(a)}</option>`).join('')}</select>
+      <label class="sr" for="ord-type-sel">Show</label><select class="inp o2-sel" id="ord-type-sel"><option value="all">All</option><option value="inv"${S.ordType === 'inv' ? ' selected' : ''}>Invoices</option><option value="cm"${S.ordType === 'cm' ? ' selected' : ''}>Credits</option></select>
     </div>
-    <div class="chips" role="group" aria-label="Area" style="padding:10px 12px;border-bottom:1px solid var(--line)"><button class="chip" data-act="ord-area" data-a="All" aria-pressed="${S.ordArea === 'All'}">All areas</button>${[...new Set(OR.list.map(o => areaOf(o.c)))].sort((x, y) => (AREA_ORDER.indexOf(x) < 0 ? 99 : AREA_ORDER.indexOf(x)) - (AREA_ORDER.indexOf(y) < 0 ? 99 : AREA_ORDER.indexOf(y))).map(a => `<button class="chip ${areaCls(a)}" data-act="ord-area" data-a="${esc(a)}" aria-pressed="${S.ordArea === a}">${esc(a)}</button>`).join('')}</div>
     <div id="ord-list">${ordList()}</div>
-  </section>
-  <p class="sample">From your QuickBooks export (to ${fmtShort(isoRd(REAL.asOf))}). Orders after that show up once the app is connected to QuickBooks.</p>`;
+  </section>`;
 }
 
 /* ================= products & profit + price lists ================= */
@@ -5177,6 +5190,8 @@ document.addEventListener('change', e => {
   if (cl.contains('pay-pick')) { S.payments[+t.dataset.i].pick = t.value || null; }
   if (t.id === 'cust-sort') { S.custSort = t.value; render(); }
   if (t.id === 'ord-date' && t.value) { S.ordFrom = t.value; S.ordDays = 10; render(); }
+  if (t.id === 'ord-area-sel') { S.ordArea = t.value; S.ordOpen = null; render(); }
+  if (t.id === 'ord-type-sel') { S.ordType = t.value; S.ordOpen = null; render(); }
   if (t.id === 'pk-day' && t.value) { S.pkPeriod = 'day'; S.pkDay = t.value; render(); }
   if (t.id === 'pl-date' && t.value) { S.plDate = t.value; S.pl = S.plSaved[t.value] ? JSON.parse(JSON.stringify(S.plSaved[t.value])) : { loose: {}, made: {} }; render(); }
   if (t.id === 'cust-area') { S.custArea = t.value; render(); }
