@@ -1446,13 +1446,13 @@ function renderOrder() {
         <div style="display:flex;flex-wrap:wrap;gap:8px">${info}</div>` : ''}
         ${!storeName || S.storeOpen ? `<div class="field">${ic('search')}<label class="sr" for="store-q">Find a store</label><input id="store-q" value="${esc(S.storeQ)}" placeholder="Find a store by name, area or phone" autocomplete="off"></div>
         <div id="store-list" style="max-height:440px;overflow-y:auto;padding-right:2px">${storeRows()}</div>` : ''}
-        <div class="actions"><button class="btn gold" data-act="repeat">Repeat last order</button><button class="btn ghost" data-act="soon" data-name="Say an order">Say an order</button><button class="btn ghost" data-act="soon" data-name="Upload PDF or photo">Upload PDF / photo</button><button class="btn ghost" data-act="clear-order">Clear</button></div>
+        ${storeName && !S.storeOpen ? `<div class="actions"><button class="btn gold" data-act="repeat">Repeat last order</button><button class="btn ghost" data-act="soon" data-name="Say an order">Say an order</button><button class="btn ghost" data-act="soon" data-name="Upload PDF or photo">Upload PDF / photo</button><button class="btn ghost" data-act="clear-order">Clear</button></div>` : ''}
       </section>
-      <section class="card">
+      ${storeName ? `<section class="card">
         <div class="field" style="margin-bottom:10px">${ic('search')}<label for="add" class="sr">Find an item</label><input id="add" value="${esc(S.orderQ)}" placeholder="Find an item by name or number" autocomplete="off"></div>
         <div class="chips" role="group" aria-label="Brand">${groups.map(g => `<button class="chip${g === 'All' ? '' : ' ' + gcls(g)}" data-act="og" data-g="${esc(g)}" aria-pressed="${S.orderGroup === g}">${g === 'All' ? `All items · ${S.catalog.length}` : esc(g)}</button>`).join('')}<button class="chip" data-act="og" data-g="On order" aria-pressed="${S.orderGroup === 'On order'}">On this order · ${T.lines}</button></div>
         <div id="order-list" style="margin-top:10px">${orderRows()}</div>
-      </section>
+      </section>` : `<section class="card"><p class="sub" style="margin:0">Pick a store first. Then the products show with what they took last time.</p></section>`}
     </div>
     <aside class="card stack" style="position:sticky;top:calc(80px + env(safe-area-inset-top, 0px))">
       <h2>Summary</h2>
@@ -1465,7 +1465,7 @@ function renderOrder() {
     </aside>
   </div>
   <div class="order-spacer"></div>
-  <div class="order-bar" id="order-bar">${orderBarHtml()}</div>`;
+  ${storeName ? `<div class="order-bar" id="order-bar">${orderBarHtml()}</div>` : ''}`;
 }
 
 function invStatus(r) { return r.onHand < 0 ? 'zero' : r.onHand < r.reorderAt ? 'low' : 'ok'; }
