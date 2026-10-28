@@ -1,5 +1,5 @@
 // The app's built-in AI: passes questions to Claude (Anthropic) with the key kept on Netlify.
-// Only the Chuster app can use it: it sends a code made from the app's own key (checked by its fingerprint).
+// Only the Chuster app can use it: it sends a code made from the app's own key (checked by its fingerprint). (key read at request time)
 const OK = '6258ba263a0ce9b25e7b415f89a513d564d7715be510f0e71c0b76f64c31d62f';
 const MODELS = ['claude-opus-5-5', 'claude-sonnet-5-5', 'claude-haiku-5-5'];
 const json = (o, status) => new Response(JSON.stringify(o), { status, headers: { 'content-type': 'application/json', 'cache-control': 'no-store' } });
