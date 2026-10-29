@@ -724,6 +724,14 @@ body:has(#ai-fab:not([hidden])) #view { padding-bottom: 72px; }
   .side .brand .brand-logo { width: 96px; }
   body:has(.app.menu-open) #ai-fab { display: none; }
 }
+.sm-table { border-collapse: separate; border-spacing: 2px; font-size: 12px; font-variant-numeric: tabular-nums; min-width: 760px; width: 100%; }
+.sm-table th { font-size: 11px; color: var(--muted); font-weight: 700; padding: 2px 4px; text-align: center; }
+.sm-table tr th:first-child { text-align: left; color: var(--fg); font-size: 12px; }
+.sm-table td { padding: 5px 4px; text-align: center; border-radius: 5px; white-space: nowrap; }
+.sm-table td.sm-e { background: var(--surface-2); }
+.sm-table td.sm-t { font-weight: 800; text-align: right; padding-left: 8px; }
+.sm-table small { display: block; font-size: 10px; font-weight: 700; }
+.up { color: var(--good-text); } .down { color: var(--bad-text); }
 /* ===== compact everywhere ===== */
 main { padding-block: 14px 32px; }
 .view { gap: 10px; }
@@ -1252,6 +1260,45 @@ function head(title, sub, actions = '') {
 }
 const todayLine = () => `${fmtLong(TODAY)} · ${hebStr(TODAY)} · <span lang="he" dir="rtl" class="he-text">${hebLetters(TODAY)}</span>`;
 
+/* ---------- more sales on the dashboard: every month of every year, stats, growing and dropping stores ---------- */
+function salesMore(D) {
+  if (!D || !D.monthly || !D.monthly.length) return '';
+  const by = {}; D.monthly.forEach(([ym, v]) => { const y = +ym.slice(0, 4), m = +ym.slice(5, 7) - 1; (by[y] || (by[y] = Array(12).fill(null)))[m] = v; });
+  const years = Object.keys(by).map(Number).sort((a, b) => b - a);
+  const CY = +D.asOf.slice(0, 4), CM = +D.asOf.slice(5, 7) - 1;
+  const all = D.monthly.map(x => x[1]).filter(v => v > 0); const mx = Math.max(...all, 1);
+  const cell = (v, y, m) => { if (v == null || (y === CY && m > CM)) return '<td class="sm-e"></td>'; const a = Math.max(0.06, v / mx); return `<td style="background:color-mix(in srgb, var(--brand) ${Math.round(a * 70)}%, var(--surface))${a > 0.55 ? ';color:#fff' : ''}"${y === CY && m === CM ? ' title="so far this month"' : ''}>${fm(v)}${y === CY && m === CM ? '*' : ''}</td>`; };
+  const tot = y => by[y].reduce((t, v) => t + (v || 0), 0);
+  const rows = years.map((y, k) => { const t = tot(y); const prevY = by[y - 1] ? (y === CY ? by[y - 1].slice(0, CM + 1).reduce((s2, v) => s2 + (v || 0), 0) : tot(y - 1)) : null; const ch = prevY ? Math.round((t - prevY) / prevY * 100) : null;
+    return `<tr><th>${y}</th>${by[y].map((v, m) => cell(v, y, m)).join('')}<td class="sm-t">${fm(t)}${ch != null ? `<small class="${ch >= 0 ? 'up' : 'down'}">${ch >= 0 ? '+' : ''}${ch}%</small>` : ''}</td></tr>`; }).join('');
+  // stats
+  let best = D.monthly.reduce((b, x) => (!b || x[1] > b[1] ? x : b), null);
+  const thisY = by[CY] ? by[CY].slice(0, CM).filter(v => v != null) : []; const avgThis = thisY.length ? thisY.reduce((a, b) => a + b, 0) / thisY.length : 0;
+  const lastY = by[CY - 1] ? by[CY - 1].filter(v => v != null) : []; const avgLast = lastY.length ? lastY.reduce((a, b) => a + b, 0) / lastY.length : 0;
+  let invThis = 0, invLast = 0;
+  if (REP) REP.months.forEach((ym, i) => { const n = REP.list.reduce((t, r) => t + (r.inv[i] || 0), 0); if (+ym.slice(0, 4) === CY) invThis += n; else if (+ym.slice(0, 4) === CY - 1 && +ym.slice(5, 7) - 1 <= CM) invLast += n; });
+  const avgInv = invThis ? D.ytd / invThis : 0, avgInvLast = invLast && D.ytdPrev ? D.ytdPrev / invLast : 0;
+  const pctTxt = (a, b) => b ? `<span class="${a >= b ? 'up' : 'down'}">${a >= b ? '+' : ''}${Math.round((a - b) / b * 100)}%</span>` : '';
+  const tiles = `<div class="tiles">
+    <div class="tile"><div class="k">Best month ever</div><div class="v">${fm(best[1])}</div><div class="s">${MON[+best[0].slice(5, 7) - 1]} ${best[0].slice(0, 4)}</div></div>
+    <div class="tile"><div class="k">Average month ${CY}</div><div class="v">${fm(avgThis)}</div><div class="s">${CY - 1}: ${fm(avgLast)} ${pctTxt(avgThis, avgLast)}</div></div>
+    ${invThis ? `<div class="tile"><div class="k">Invoices ${CY} so far</div><div class="v">${fn(invThis)}</div><div class="s">same days ${CY - 1}: ${fn(invLast)} ${pctTxt(invThis, invLast)}</div></div>
+    <div class="tile"><div class="k">Average invoice</div><div class="v">${money(avgInv)}</div><div class="s">${CY - 1}: ${money(avgInvLast)} ${pctTxt(avgInv, avgInvLast)}</div></div>` : ''}
+  </div>`;
+  // growing and dropping stores (this year vs the same days last year)
+  const cs = (REAL.customers || []).filter(c => (c.ytdPrev || 0) > 3000 || (c.ytd || 0) > 3000).map(c => ({ c, d: (c.ytd || 0) - (c.ytdPrev || 0) }));
+  const up = cs.slice().sort((a, b) => b.d - a.d).slice(0, 6).filter(x => x.d > 0), down = cs.slice().sort((a, b) => a.d - b.d).slice(0, 6).filter(x => x.d < 0);
+  const list = (L, cls) => L.map(x => `<button class="cust-row" data-act="cust-sel-go" data-n="${esc(x.c.name)}"><span class="main"><b>${esc(x.c.name)}</b><span class="sub" style="display:block;margin:0;font-size:12px">${fm(x.c.ytd || 0)} vs ${fm(x.c.ytdPrev || 0)}</span></span><b class="${cls}">${x.d >= 0 ? '+' : '−'}${fm(Math.abs(x.d))}</b></button>`).join('') || '<p class="sub" style="margin:0">None.</p>';
+  return `<section class="card stack sm-card">
+    <div class="card-head" style="margin:0"><h2>Sales by month · every year</h2><span class="sub" style="margin:0;font-size:12px">* so far this month · % = vs the year before${by[CY - 1] ? ' (same months for ' + CY + ')' : ''}</span></div>
+    <div style="overflow-x:auto"><table class="sm-table"><tr><th></th>${MONS.map(m => `<th>${m}</th>`).join('')}<th>Year</th></tr>${rows}</table></div>
+    ${tiles}
+  </section>
+  <div class="split even">
+    <section class="card stack"><div class="card-head" style="margin:0"><h2>Growing the most</h2><span class="sub" style="margin:0;font-size:12px">${CY} so far vs same days ${CY - 1}</span></div>${list(up, 'up')}</section>
+    <section class="card stack"><div class="card-head" style="margin:0"><h2>Dropping the most</h2><span class="sub" style="margin:0;font-size:12px">call them</span></div>${list(down, 'down')}</section>
+  </div>`;
+}
 function renderHome() {
   const html = renderHomeRaw();
   const first = html.indexOf('<!--@');
@@ -2098,6 +2145,7 @@ function renderHomeReal() {
     </figure>
   </div>
 
+  ${salesMore(D)}
   <!--@bottom--><div class="split even">
     <section class="card stack">
       <h2>Needs your attention</h2>
