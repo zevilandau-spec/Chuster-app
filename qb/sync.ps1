@@ -8,7 +8,7 @@
 param([switch]$Install, [switch]$Test, [switch]$Full, [switch]$Other, [switch]$History, [switch]$Watch)
 
 $ErrorActionPreference = 'Stop'
-$Ver = '3.5'
+$Ver = '3.6'
 $AppName = 'Chuster App Sync'
 $TaskName = 'Chuster QB Sync'
 $Here = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -915,6 +915,124 @@ function Mail-Probe {
   } catch { $script:MailInfo = 'none:' + ([string]$_.Exception.Message).Substring(0, [Math]::Min(80, ([string]$_.Exception.Message).Length)) }
   $script:MailInfo
 }
+# ---------------- statements by email (Outlook on this PC) ----------------
+# The app's Statements screen sets: on/off, day and hour, stores left out, "send now" and "send a test".
+function Coll-Read([string]$coll) {
+  $m = @{}
+  $r = Invoke-RestMethod -Method Get -Uri ((Url) + '/' + $cfg.space + '/' + $coll + '.json') -TimeoutSec 60
+  if ($r) { foreach ($p in $r.PSObject.Properties) { $rec = Unprotect ([string]$p.Value.v); if ($rec -and $rec.k) { $m[[string]$rec.k] = $rec.val } } }
+  $m
+}
+function Sl-Put([string]$k, $val) {
+  Db-Patch ([ordered]@{ ('sl/s' + (Sha $k).Substring(0, 20)) = [ordered]@{ v = (Protect (ToJson ([ordered]@{ k = $k; val = $val; by = 'QuickBooks' }))); t = @{ '.sv' = 'timestamp' } } })
+}
+function Stmt-Data {
+  $today = (Get-Date).Date; $by = @{}
+  foreach ($r in (QB-All 'InvoiceQueryRq' '<PaidStatus>NotPaidOnly</PaidStatus><IncludeRetElement>RefNumber</IncludeRetElement><IncludeRetElement>CustomerRef</IncludeRetElement><IncludeRetElement>TxnDate</IncludeRetElement><IncludeRetElement>DueDate</IncludeRetElement><IncludeRetElement>BalanceRemaining</IncludeRetElement>' 'InvoiceRet')) {
+    $b = N $r 'BalanceRemaining'; if ($b -le 0.005) { continue }
+    $c = T $r 'CustomerRef/FullName'; $d = T $r 'TxnDate'; $due = T $r 'DueDate'; if (-not $due) { $due = $d }
+    $days = 0; try { $days = ($today - [datetime]::ParseExact($due, 'yyyy-MM-dd', $Inv)).Days } catch { }
+    if (-not $by.ContainsKey($c)) { $by[$c] = New-Object System.Collections.Generic.List[object] }
+    $by[$c].Add([ordered]@{ n = (T $r 'RefNumber'); d = $d; due = $due; b = $b; days = $days })
+  }
+  $cust = @{}
+  foreach ($r in (QB-All 'CustomerQueryRq' '<ActiveStatus>All</ActiveStatus><IncludeRetElement>FullName</IncludeRetElement><IncludeRetElement>Email</IncludeRetElement><IncludeRetElement>Cc</IncludeRetElement><IncludeRetElement>TotalBalance</IncludeRetElement>' 'CustomerRet')) {
+    $cust[(T $r 'FullName')] = [ordered]@{ em = (T $r 'Email'); cc = (T $r 'Cc'); bal = (N $r 'TotalBalance') }
+  }
+  $out = @{}
+  foreach ($c in $by.Keys) {
+    $inv = @($by[$c] | Sort-Object { $_.d }); $mx = ($inv | Measure-Object -Property days -Maximum).Maximum
+    $info = $cust[$c]; if (-not $info) { $info = [ordered]@{ em = ''; cc = ''; bal = 0 } }
+    if (-not $info.em -and $c.Contains(':')) { $p = $cust[$c.Split(':')[0]]; if ($p) { $info.em = $p.em; $info.cc = $p.cc } }
+    $grp = if ($mx -gt 90) { '90' } elseif ($mx -gt 60) { '60' } else { '' }
+    $out[$c] = [ordered]@{ name = $c; inv = $inv; max = $mx; grp = $grp; em = $info.em; cc = $info.cc; bal = $info.bal }
+  }
+  $out
+}
+function Mail-List([string]$s) { (($s -split '[;,\s]+') | Where-Object { $_ -match '@' }) -join '; ' }
+function HtmlE([string]$s) { [Net.WebUtility]::HtmlEncode($s) }
+function Stmt-Html($x) {
+  $us = { param($iso) try { [datetime]::ParseExact($iso, 'yyyy-MM-dd', $Inv).ToString('MM/dd/yyyy', $Inv) } catch { $iso } }
+  $m = { param($v) $(if ([double]$v -lt 0) { '-$' } else { '$' }) + ([Math]::Abs([double]$v)).ToString('#,##0.00', $Inv) }
+  $sum = 0.0; $late = 0.0; $rows = ''
+  foreach ($i in $x.inv) {
+    $sum += $i.b; if ($i.days -gt 0) { $late += $i.b }
+    $red = if ($i.days -gt 60) { 'color:#8A1C12;font-weight:bold' } else { '' }
+    $rows += '<tr style="border-bottom:1px solid #e3dccb"><td>' + (& $us $i.d) + '</td><td>#' + (HtmlE $i.n) + '</td><td>' + (& $us $i.due) + '</td><td align="right" style="' + $red + '">' + $(if ($i.days -gt 0) { [string]$i.days } else { '' }) + '</td><td align="right">' + (& $m $i.b) + '</td></tr>'
+  }
+  $bal = if ([Math]::Abs($x.bal) -gt 0.005) { $x.bal } else { $sum }
+  $tot = '<tr><td colspan="4" align="right">Open invoices</td><td align="right">' + (& $m $sum) + '</td></tr>'
+  if ([Math]::Abs($bal - $sum) -ge 1) { $tot += '<tr><td colspan="4" align="right">Credits and payments not yet applied</td><td align="right">' + (& $m ($bal - $sum)) + '</td></tr>' }
+  if ($late -gt 1) { $tot += '<tr><td colspan="4" align="right" style="color:#8A1C12"><b>Past due</b></td><td align="right" style="color:#8A1C12"><b>' + (& $m $late) + '</b></td></tr>' }
+  $tot += '<tr style="font-size:16px"><td colspan="4" align="right"><b>Total due</b></td><td align="right"><b>' + (& $m $bal) + '</b></td></tr>'
+  '<div style="font-family:Arial,Helvetica,sans-serif;color:#1a2340;max-width:680px">' +
+  '<table width="100%" style="border-bottom:3px solid #E8B730;margin-bottom:12px"><tr><td><img src="https://chuster.netlify.app/icon-192.png" width="70" height="70" alt="Chuster Noodle"></td><td align="right"><div style="font-size:22px;font-weight:bold;color:#22409A">Statement</div><div>' + (Get-Date).ToString('MMMM d, yyyy', $Inv) + '</div></td></tr></table>' +
+  '<p style="margin:0 0 10px">To: <b>' + (HtmlE $x.name) + '</b></p>' +
+  '<table cellpadding="6" style="border-collapse:collapse;width:100%;font-size:14px"><tr style="background:#22409A;color:#ffffff"><th align="left">Date</th><th align="left">Invoice</th><th align="left">Due</th><th align="right">Days late</th><th align="right">Open amount</th></tr>' + $rows + $tot + '</table>' +
+  '<p style="margin-top:16px">' + $(if ($late -gt 1) { 'Please send payment for the past-due invoices. If you already sent it, thank you, please reply with the check number so we can match it.' } else { 'Thank you for your business.' }) + '</p>' +
+  '<p>Questions? Just reply to this email.<br><b>Chuster Noodle</b></p></div>'
+}
+function Mail-Send([string]$to, [string]$cc, [string]$subj, [string]$html) {
+  $ol = New-Object -ComObject Outlook.Application
+  $mi = $ol.CreateItem(0); $mi.To = $to; if ($cc) { $mi.CC = $cc }; $mi.Subject = $subj; $mi.HTMLBody = $html; $mi.Send()
+}
+function Stmt-Send($x, [string]$why, [string]$testTo) {
+  $to = if ($testTo) { Mail-List $testTo } else { Mail-List $x.em }
+  $cc = if ($testTo) { '' } else { Mail-List $x.cc }
+  $subj = $(if ($testTo) { '[TEST] ' } else { '' }) + 'Statement from Chuster Noodle - ' + $x.name
+  if (-not $to) { if (-not $testTo) { Sl-Put $x.name ([ordered]@{ at = (NowS); grp = $x.grp; ok = $false; err = 'No email for this store in QuickBooks'; why = $why }) }; return $false }
+  try {
+    Mail-Send $to $cc $subj (Stmt-Html $x)
+    if (-not $testTo) { Sl-Put $x.name ([ordered]@{ at = (NowS); grp = $x.grp; ok = $true; to = $to; why = $why }) }
+    Log "Statement: $($x.name) -> $to ($why)"; Start-Sleep -Seconds 2; return $true
+  } catch {
+    $e = ([string]$_.Exception.Message); if ($e.Length -gt 160) { $e = $e.Substring(0, 160) }
+    if (-not $testTo) { Sl-Put $x.name ([ordered]@{ at = (NowS); grp = $x.grp; ok = $false; err = $e; why = $why }) }
+    Log "Statement: $($x.name) failed: $e"; throw
+  }
+}
+$script:StmtTried = [datetime]::MinValue
+function Stmt-Tick {
+  if (((Get-Date) - $script:StmtTried).TotalMinutes -lt 3) { return }
+  $script:StmtTried = Get-Date
+  $sx = Coll-Read 'sx'; $sl = Coll-Read 'sl'
+  $done = @(); if ($sl['_req'] -and $sl['_req'].ids) { $done = @($sl['_req'].ids) }
+  $cfgS = $sx['cfg']; $now = Get-Date
+  $test = $sx['test']; $req = $sx['now']
+  $needTest = $test -and $test.id -and -not ($done -contains $test.id)
+  $needNow = $req -and $req.id -and -not ($done -contains $req.id)
+  $due = $false
+  if ($cfgS -and $cfgS.on -and [int]$now.DayOfWeek -eq [int]$cfgS.day -and $now.Hour -ge [int]$cfgS.hour) { $due = $true }
+  if ($due -and $sl['_auto'] -and [string]$sl['_auto'].day -eq $now.ToString('yyyy-MM-dd')) { $due = $false }
+  if (-not ($needTest -or $needNow -or $due)) { return }
+  $data = Stmt-Data
+  if ($needTest) {
+    $ids = $done + @($test.id); Sl-Put '_req' ([ordered]@{ ids = @($ids | Select-Object -Last 40) }); $done = $ids
+    $pick = @($data.Values | Where-Object { $_.grp } | Sort-Object { - $_.max } | Select-Object -First 2)
+    if (-not $pick.Count) { $pick = @($data.Values | Select-Object -First 1) }
+    try { foreach ($x in $pick) { [void](Stmt-Send $x 'test' ([string]$test.to)) }; Sl-Put '_test' ([ordered]@{ id = $test.id; at = (NowS); ok = $true; to = [string]$test.to; n = $pick.Count }) }
+    catch { Sl-Put '_test' ([ordered]@{ id = $test.id; at = (NowS); ok = $false; err = ([string]$_.Exception.Message); to = [string]$test.to }) }
+  }
+  if ($needNow) {
+    $ids = $done + @($req.id); Sl-Put '_req' ([ordered]@{ ids = @($ids | Select-Object -Last 40) }); $done = $ids
+    $n = 0; foreach ($name in @($req.names)) { $x = $data[[string]$name]; if ($x -and $n -lt 300) { try { if (Stmt-Send $x 'now' '') { $n++ } } catch { } } }
+    Sl-Put '_now' ([ordered]@{ id = $req.id; at = (NowS); n = $n })
+  }
+  if ($due) {
+    $n = 0
+    foreach ($x in $data.Values) {
+      if (-not $x.grp -or $n -ge 300) { continue }
+      $off = $sx['x:' + $x.name]; if ($off -and $off.off) { continue }
+      $last = $sl[$x.name]; $every = if ($x.grp -eq '90') { 6.5 } else { 13.5 }
+      if ($last -and $last.at -and $last.ok -ne $false) { try { if (($now - [datetime]::ParseExact([string]$last.at, 'yyyy-MM-ddTHH:mm:ss', $Inv)).TotalDays -lt $every) { continue } } catch { } }
+      if ($last -and $last.ok -eq $false -and $last.at -and ([string]$last.at).StartsWith($now.ToString('yyyy-MM-dd'))) { continue }
+      try { if (Stmt-Send $x 'auto' '') { $n++ } } catch { }
+    }
+    Sl-Put '_auto' ([ordered]@{ day = $now.ToString('yyyy-MM-dd'); n = $n; at = (NowS) })
+    if ($n) { Log "Statements: sent $n." }
+  }
+  try { (New-Object -ComObject Outlook.Application).Session.SendAndReceive($false) } catch { }
+}
 # Self-update: picks up new versions of this program from the app's site, only when signed with this office's key.
 $CodeKey = $hm.ComputeHash([Text.Encoding]::UTF8.GetBytes('chuster-qb-code'))
 function Code-Mac([byte[]]$b) { [Convert]::ToBase64String((New-Object System.Security.Cryptography.HMACSHA256 -ArgumentList (, $CodeKey)).ComputeHash($b)) }
@@ -942,6 +1060,7 @@ function Watch-Loop {
     if ((Get-Item $PSCommandPath).LastWriteTime -ne $codeAt) { Log 'Always-on: new version found, restarting.'; return }
     try { (Get-Item $LockPath -ErrorAction Stop).LastWriteTime = Get-Date } catch { }
     if (((Get-Date) - $lastUpd).TotalMinutes -ge 10) { $lastUpd = Get-Date; try { Check-Update } catch { } }
+    try { Stmt-Tick } catch { Log ('Statements: ' + $_.Exception.Message) }
     try {
       $script:ForceRead = Test-Path $ReadFlag; if ($script:ForceRead) { Remove-Item $ReadFlag -ErrorAction SilentlyContinue }
       $st = Load-State

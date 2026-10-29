@@ -758,6 +758,7 @@ body:has(#ai-fab:not([hidden])) #view { padding-bottom: 72px; }
 .pk-step { padding: 7px 12px; border-radius: 10px; font-size: 13px; font-weight: 800; }
 .pk-step.clean { background: var(--gold-soft); color: var(--gold-text); } .pk-step.tube { background: var(--brand-soft); color: var(--brand-text); }
 .pk-tubes { display: flex; gap: 4px; flex: none; } .pk-tubes .chip { min-width: 34px; padding: 0 8px; }
+.sx-row { display: flex; gap: 10px; align-items: center; padding: 8px 4px; border-top: 1px solid var(--line); cursor: pointer; } .sx-row .main { flex: 1; min-width: 0; } .sx-row .main b { display: block; } .sx-row .meta { font-size: 12px; color: var(--muted); overflow-wrap: anywhere; } .sx-row.off { opacity: .5; } .sx-row input { width: 20px; height: 20px; flex: none; }
 .pk-sum { display: flex; gap: 8px; font-size: 14px; padding: 4px 0; border-bottom: 1px solid var(--line); } .pk-sum b { flex: none; width: 104px; } .pk-sum .pk-eggc { color: var(--gold-text, #8a5a00); }
 #pk-ai-t { font: inherit; font-size: 16px; width: 100%; padding: 8px 10px; resize: vertical; }
 .pk-aiprev { background: var(--bg2, #f4efe2); border-radius: 12px; padding: 10px; }
@@ -1158,6 +1159,7 @@ const VIEWS = {
   reps: { title: 'Sales by rep', r: renderReps },
   ask: { title: 'Ask AI', r: renderAsk },
   collect: { title: 'Collections', r: renderCollect },
+  stmts: { title: 'Statements by email', r: renderStmts },
   yomtov: { title: 'Yom Tov list', r: renderYomTov },
   lost: { title: 'Lost items', r: renderLost },
   custprofit: { title: 'Profit by store', r: renderCustProfit },
@@ -1175,7 +1177,7 @@ const VIEWS = {
 const NAV = [
   { items: [['home', 'Dashboard', 'home'], ['ask', 'Ask AI ✨', 'chat'], ['calendar', 'Calendar', 'cal']] },
   { h: 'ORDERS', items: [['order', 'New order', 'order'], ['orders', 'Orders', 'order'], ['inbox', 'Incoming orders', 'chat', 'inbox'], ['toqb', 'To QuickBooks', 'check', 'toqb']] },
-  { h: 'CUSTOMERS', items: [['customers', 'Customers', 'people', 'late'], ['payments', 'Payments', 'card', 'pay'], ['collect', 'Collections', 'card'], ['custprofit', 'Profit by store', 'chart'], ['lost', 'Lost items', 'alert'], ['yomtov', 'Yom Tov list', 'cal']] },
+  { h: 'CUSTOMERS', items: [['customers', 'Customers', 'people', 'late'], ['payments', 'Payments', 'card', 'pay'], ['collect', 'Collections', 'card'], ['stmts', 'Statements by email', 'mail'], ['custprofit', 'Profit by store', 'chart'], ['lost', 'Lost items', 'alert'], ['yomtov', 'Yom Tov list', 'cal']] },
   { h: 'SALES & MONEY', items: [['mysales', 'Salesman dashboard', 'chart'], ['reps', 'Sales by rep & commission', 'people'], ['finance', 'Finance', 'chart']] },
   { h: 'PRODUCTS', items: [['items', 'Products & profit', 'chart'], ['pricelist', 'Price list', 'order'], ['pricecheck', 'Price check', 'card']] },
   { h: 'DELIVERIES', items: [['route', 'Deliveries', 'box'], ['stop', 'Driver', 'wheel'], ['live', 'Live trucks', 'pin'], ['loading', 'Loading', 'truck'], ['dsched', 'Delivery days', 'cal']] },
@@ -1223,7 +1225,7 @@ function drawChrome() {
     ['home', 'Dashboard'],
     ['finance', 'Finance'],
     { label: 'Orders', items: [['orders', 'Orders', 'order'], ['order', 'New order', 'order'], ['inbox', 'Incoming orders', 'chat', 'inbox'], ['payments', 'Payments', 'card', 'pay']] },
-    { label: 'Customers', items: [['mysales', 'Salesman dashboard', 'chart'], ['customers', 'Customers', 'people', 'late'], ['collect', 'Collections', 'card'], ['yomtov', 'Yom Tov list', 'cal'], ['lost', 'Lost items', 'alert'], ['custprofit', 'Profit by store', 'chart'], ['pricecheck', 'Price check', 'card'], ['reps', 'Sales by rep & commission', 'people']] },
+    { label: 'Customers', items: [['mysales', 'Salesman dashboard', 'chart'], ['customers', 'Customers', 'people', 'late'], ['collect', 'Collections', 'card'], ['stmts', 'Statements by email', 'mail'], ['yomtov', 'Yom Tov list', 'cal'], ['lost', 'Lost items', 'alert'], ['custprofit', 'Profit by store', 'chart'], ['pricecheck', 'Price check', 'card'], ['reps', 'Sales by rep & commission', 'people']] },
     { label: 'Products', items: [['items', 'Products & profit', 'chart'], ['pricelist', 'Price list', 'order'], ['inventory', 'Inventory', 'box', 'inv'], ['reorder', 'Reorder alerts', 'alert'], ['buying', 'Buying & suppliers', 'card']] },
     { label: 'Packing', items: [['packnext', 'What to pack', 'clip'], ['packing', 'Packing plan', 'clip'], ['packlog', 'Pack log', 'clip'], ['packrep', 'Packing report', 'chart'], ['yield', 'Yield', 'chart']] },
     { label: 'Deliveries', items: [['route', 'Deliveries', 'box'], ['stop', 'Driver', 'wheel'], ['loading', 'Loading', 'truck'], ['dsched', 'Delivery days', 'cal'], ['live', 'Live trucks', 'pin']] },
@@ -3573,6 +3575,45 @@ function colRows() {
   if (f === 'promised') list = list.filter(x => x.n.promise && !x.missed); if (f === 'missed') list = list.filter(x => x.missed);
   return list.sort((x, y) => (y.missed ? 1 : 0) - (x.missed ? 1 : 0) || y.score - x.score);
 }
+Object.assign(S, { sx: loadLS('chuster-sx-v1', {}), sl: loadLS('chuster-sl-v1', {}), sxTest: '' });
+const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+function sxPut(k, v) { S.sx[k] = v; saveLS('chuster-sx-v1', S.sx); SYNC.put('sx', k, v); }
+const sxOff = n => !!(S.sx['x:' + n] || {}).off;
+function sxLists() {
+  const cs = (REAL ? REAL.customers : []).filter(c => c.active !== false);
+  const g90 = cs.filter(c => c.aging[4] > 1).sort((a, b) => b.aging[4] - a.aging[4]);
+  const g60 = cs.filter(c => !(c.aging[4] > 1) && c.aging[3] > 1).sort((a, b) => b.aging[3] - a.aging[3]);
+  return { g90, g60 };
+}
+function sxAgo(iso) { if (!iso) return ''; const d = new Date(iso); return isNaN(d) ? '' : d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }); }
+function renderStmts() {
+  if (!REAL) return needData('Statements by email');
+  const cfg = S.sx.cfg || { on: false, day: 1, hour: 10 }; const can = S.role === 'Owner' || S.role === 'Office';
+  const st = (typeof QB !== 'undefined' && QB.status) || {}; const mail = String(st.mail || '');
+  const ol = mail.startsWith('outlook:') && +mail.split(':')[1] > 0;
+  const mailTxt = !mail ? 'Checking the office PC for Outlook…' : ol ? `✓ Sends from Outlook on the office PC (${esc(mail.split(':').slice(2).join(':').replace(/,/g, ', '))}). Stores' replies come back to that email.` : `<b style="color:var(--bad-text)">Outlook is not set up on the office PC</b>, so statements can't go out yet.`;
+  const { g90, g60 } = sxLists(); const T = S.sl._test, N = S.sl._now;
+  const row = (c, amt) => { const l = S.sl[c.name]; const off = sxOff(c.name);
+    const last = l ? (l.ok === false ? `<span style="color:var(--bad-text)">Not sent ${sxAgo(l.at)}: ${esc(l.err || '')}</span>` : `Sent ${sxAgo(l.at)}`) : 'Not sent yet';
+    return `<label class="sx-row${off ? ' off' : ''}"><input type="checkbox" class="sx-cb" data-n="${esc(c.name)}"${off ? '' : ' checked'}${can ? '' : ' disabled'}><span class="main"><b>${esc(c.name)}</b><span class="meta">${c.email ? esc(c.email) : '<span style="color:var(--bad-text)">No email in QuickBooks</span>'} · ${last}</span></span><strong class="num" style="color:var(--bad-text)">${fm(amt)}</strong></label>`; };
+  const list = (title, sub, arr, key, amtOf) => { const on = arr.filter(c => !sxOff(c.name) && c.email);
+    return `<section class="card stack" style="gap:6px"><div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start;flex-wrap:wrap"><div><h2>${title} · ${arr.length} stores</h2><p class="sub" style="margin:0">${sub}</p></div>${can ? `<button class="btn ghost sm" data-act="sx-now" data-g="${key}"${on.length && ol ? '' : ' disabled'}>Send now to ${on.length}</button>` : ''}</div>
+      ${arr.map(c => row(c, amtOf(c))).join('') || '<p class="sub" style="margin:0">Nobody right now.</p>'}</section>`; };
+  return `${head('Statements by email', 'Stores that owe for a long time get their statement by email, by themselves.')}
+  <section class="card stack" style="gap:10px">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap"><h2>${cfg.on ? '✓ Automatic statements are ON' : 'Automatic statements are OFF'}</h2>
+      ${can ? `<button class="btn ${cfg.on ? 'ghost' : 'primary'}" data-act="sx-on"${ol || cfg.on ? '' : ' disabled'}>${cfg.on ? 'Turn off' : 'Turn on'}</button>` : ''}</div>
+    <p class="sub" style="margin:0">Over 90 days: <b>every week</b>. 61–90 days: <b>every 2 weeks</b>. Unchecked stores are left out.</p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><label class="lbl" for="sx-day" style="margin:0">Send on</label><select id="sx-day" class="inp" style="width:auto"${can ? '' : ' disabled'}>${DAYS.map((d, i) => `<option value="${i}"${+cfg.day === i ? ' selected' : ''}>${d}</option>`).join('')}</select>
+      <label class="lbl" for="sx-hour" style="margin:0">after</label><select id="sx-hour" class="inp" style="width:auto"${can ? '' : ' disabled'}>${[8, 9, 10, 11, 12, 13, 14, 15, 16, 17].map(h => `<option value="${h}"${+cfg.hour === h ? ' selected' : ''}>${h > 12 ? h - 12 : h}:00 ${h >= 12 ? 'PM' : 'AM'}</option>`).join('')}</select><span class="sub" style="margin:0">(office PC time)</span></div>
+    <div class="sub" style="margin:0">${mailTxt}</div>
+    ${can ? `<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><label class="sr" for="sx-test">Your email for a test</label><input id="sx-test" class="inp" type="email" placeholder="Your email, for a test" value="${esc(S.sxTest)}" style="flex:1;min-width:200px"><button class="btn gold" data-act="sx-test"${ol ? '' : ' disabled'}>Send me a test</button></div>
+      ${T ? `<div class="sub" style="margin:0">${T.ok ? `✓ Test sent to ${esc(T.to)} ${sxAgo(T.at)} (${T.n} sample statements). Check your email.` : `<span style="color:var(--bad-text)">The test didn't go out: ${esc(T.err || '')}</span>`}</div>` : (S.sx.test && !T ? '<div class="sub" style="margin:0">Sending the test… about a minute.</div>' : '')}
+      ${N ? `<div class="sub" style="margin:0">Last "Send now": ${N.n} statements, ${sxAgo(N.at)}.</div>` : ''}` : ''}
+  </section>
+  ${list('Over 90 days', 'Gets a statement every week', g90, '90', c => c.aging[4])}
+  ${list('61 to 90 days', 'Gets a statement every 2 weeks', g60, '60', c => c.aging[3])}`;
+}
 function renderCollect() {
   if (!REAL) return needData('Collections');
   const all = REAL.customers.filter(c => pastDue(c) > 1);
@@ -4389,7 +4430,7 @@ const SYNC = (function () {
     if (!viaApp && onNetlify && e && e.name === 'TypeError') { viaApp = true; try { localStorage.setItem('chuster-db-via-app', '1'); } catch (x) { /* ignore */ } setTimeout(() => tick(), 500); }
   }
   const st = { ok: null, err: '', last: 0, since: loadLS('chuster-sync-since', {}), out: loadLS('chuster-sync-out', {}), seen: {}, key: null, flushing: false, pulling: false, started: false };
-  const COLLS = ['ds', 'rd', 'll', 'do', 'sc', 'tr', 'lq', 'ls', 'lm', 'lx', 'lh', 'qi', 'qo', 'qc', 'qs', 'qp', 'qh', 'qw', 'qr', 'ps', 'pp', 'pn', 'pq'];
+  const COLLS = ['ds', 'rd', 'll', 'do', 'sc', 'tr', 'lq', 'ls', 'lm', 'lx', 'lh', 'qi', 'qo', 'qc', 'qs', 'qp', 'qh', 'qw', 'qr', 'ps', 'pp', 'pn', 'pq', 'sx', 'sl'];
   const h = s => { let a = 0x811c9dc5, b = 0x9e3779b9; for (let i = 0; i < s.length; i++) { const c = s.charCodeAt(i); a = Math.imul(a ^ c, 16777619) >>> 0; b = Math.imul(b ^ c, 2246822519) >>> 0; } return a.toString(36) + b.toString(36); };
   const b64 = u8 => { let s = ''; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); return btoa(s); };
   const unb64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -5044,6 +5085,8 @@ document.addEventListener('input', e => { if (e.target.id === 'lx-q') { S.lxQ = 
 // qw = what the app asks for (scrambled the same way as the PC's records) · qr = what the PC did (QuickBooks number or the problem)
 Object.assign(S, { qw: loadLS('chuster-qw-v1', {}), qr: loadLS('chuster-qr-v1', {}), qbTab: 'wait', qbSheet: null, payForm: null, cmForm: null });
 (function qwPrune() { const cut = isoOf(TODAY - 45); let ch = false; Object.keys(S.qw).forEach(id => { const r = S.qw[id]; if (!r || (r.at || '').slice(0, 10) < cut) { delete S.qw[id]; delete S.qr[id]; ch = true; } }); if (ch) { saveLS('chuster-qw-v1', S.qw); saveLS('chuster-qr-v1', S.qr); } })();
+SYNC.on('sx', (k, v) => { if (v == null) delete S.sx[k]; else S.sx[k] = v; saveLS('chuster-sx-v1', S.sx); });
+SYNC.on('sl', (k, v) => { if (v == null) delete S.sl[k]; else S.sl[k] = v; saveLS('chuster-sl-v1', S.sl); });
 SYNC.on('ps', (k, v) => { if (v == null) delete S.pkSet[k]; else S.pkSet[k] = v; saveLS('chuster-pkset-v1', S.pkSet); });
 SYNC.on('pp', (k, v) => { if (v == null) delete S.pkProg[k]; else S.pkProg[k] = v; saveLS('chuster-pkprog-v1', S.pkProg); });
 SYNC.on('pn', (k, v) => { if (v == null) delete S.pkNote[k]; else S.pkNote[k] = v; saveLS('chuster-pknote-v1', S.pkNote); });
@@ -5450,6 +5493,11 @@ document.addEventListener('click', e => {
       qwSave({ id: qwId(), kind: 'invmod', n: o.n, st: 'ok', try: 0, c: o.c, d: o.d, lines, total: Math.round(total * 100) / 100, memo: 'Change to invoice #' + o.n, by: byName(), at: nowIso(), okBy: byName(), okAt: nowIso() });
       S.ivEdit = null; toast('Change sent. QuickBooks updates the invoice in a few seconds.'); render(); break; }
     case 'iv-info': S.ivInfo = !S.ivInfo; render(); break;
+    case 'sx-on': { const c = Object.assign({ day: 1, hour: 10 }, S.sx.cfg || {}); c.on = !c.on; c.by = byName(); sxPut('cfg', c); toast(c.on ? `Statements turned on. They go out every ${DAYS[c.day]}.` : 'Automatic statements turned off.'); render(); break; }
+    case 'sx-test': { const to = (document.getElementById('sx-test') || {}).value || ''; if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(to.trim())) { toast('Type your email first.'); break; } S.sxTest = to.trim(); delete S.sl._test; sxPut('test', { id: qwId(), to: to.trim(), at: nowIso() }); toast('Test sent to the office PC. It arrives in about a minute.'); render(); break; }
+    case 'sx-now': { const { g90, g60 } = sxLists(); const arr = (d.g === '90' ? g90 : g60).filter(c => !sxOff(c.name) && c.email); if (!arr.length) break;
+      if (S.sxConfirm !== d.g) { S.sxConfirm = d.g; toast(`Tap again to email ${arr.length} statements now.`); setTimeout(() => { S.sxConfirm = null; }, 6000); break; }
+      S.sxConfirm = null; sxPut('now', { id: qwId(), names: arr.map(c => c.name), at: nowIso() }); toast(`Sending ${arr.length} statements… they go out over the next few minutes.`); render(); break; }
     case 'iv-void': S.ivVoid = S.ivVoid === d.n ? null : d.n; render(); break;
     case 'iv-void-no': S.ivVoid = null; render(); break;
     case 'iv-void-yes': { const o = REAL.orders.list.find(x => x.n === d.n); if (!o) break;
@@ -5665,6 +5713,8 @@ document.addEventListener('change', e => {
   if (cl.contains('pay-pick')) { S.payments[+t.dataset.i].pick = t.value || null; }
   if (t.id === 'cust-sort') { S.custSort = t.value; render(); }
   if (t.id === 'ord-date' && t.value) { S.ordFrom = t.value; S.ordDays = 10; render(); }
+  if (t.classList && t.classList.contains('sx-cb')) { const n = t.dataset.n; sxPut('x:' + n, { off: !t.checked }); render(); return; }
+  if (t.id === 'sx-day' || t.id === 'sx-hour') { const c = Object.assign({ on: false, day: 1, hour: 10 }, S.sx.cfg || {}); c[t.id === 'sx-day' ? 'day' : 'hour'] = +t.value; sxPut('cfg', c); render(); return; }
   if (t.classList && t.classList.contains('pk-egg-cb')) { const f = t.dataset.f; const st = Object.assign({}, pkSetOf(f)); st.egg = t.checked; S.pkSet[f] = st; saveLS('chuster-pkset-v1', S.pkSet); SYNC.put('ps', f, st); return; }
   if (t.id === 'pn-from' && t.value) { S.pnFrom = isoRd(t.value); if (S.pnTo && S.pnTo < S.pnFrom) S.pnTo = S.pnFrom; render(); }
   if (t.id === 'pn-to' && t.value) { S.pnTo = isoRd(t.value); if (!S.pnFrom) S.pnFrom = pnDefault(); if (S.pnTo < S.pnFrom) S.pnFrom = S.pnTo; render(); }
@@ -5724,6 +5774,7 @@ document.addEventListener('input', e => {
   }
   if (e.target.classList && e.target.classList.contains('ive-inp') && S.ivEdit) { S.ivEdit.q[e.target.dataset.k] = Math.max(0, parseInt(e.target.value, 10) || 0); return; }
   if (e.target.id === 'ive-find' && S.ivEdit) { S.ivEdit.find = e.target.value; const el = document.getElementById('ive-res'); if (el) el.innerHTML = ivFind(S.ivEdit); return; }
+  if (e.target.id === 'sx-test') { S.sxTest = e.target.value; return; }
   if (e.target.id === 'pk-ai-t') { S.pkAiT = e.target.value; return; }
   if (e.target.id === 'pk-set-q') { S.pkSetQ = e.target.value; const el = document.getElementById('pk-set-list'); if (el) { const h = pkSettings(); const m = h.match(/<div id="pk-set-list">([\s\S]*)<\/div>\s*<\/section>/); if (m) el.innerHTML = m[1]; } return; }
   if (e.target.id === 'inv-num') { S.orderRef = e.target.value; return; }
