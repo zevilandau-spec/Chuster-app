@@ -2122,9 +2122,9 @@ function renderHomeReal() {
 
   <!--@tiles--><div class="tiles">
     <div class="tile ct ct-blue"><div class="k">Sales</div><div class="row2"><span>${PY}</span><strong>${fm(D.years[PY] || 0)}</strong></div><div class="row2"><span>${CY} so far</span><strong>${fm(D.ytd)}</strong></div><div class="s" style="color:${g >= 0 ? 'var(--good-text)' : 'var(--bad-text)'};font-weight:700">${sgn(g)} vs same days in 2025</div></div>
-    <div class="tile ct ct-green"><div class="k">Cases sold</div><div class="row2"><span>${PY}</span><strong>${fn(D.cases[PY] || 0)}</strong></div><div class="row2"><span>${CY} so far</span><strong>${fn(D.cases[CY] || 0)}</strong></div><div class="s">${sgn(pct(D.cases[CY], D.cases[PY + 'same']))} vs same days in ${PY}</div></div>
+    <div class="tile ct ct-green"><div class="k">Cases sold</div><div class="row2"><span>${PY}</span><strong>${fn(D.cases[PY] || 0)}</strong></div><div class="row2"><span>${CY} so far</span><strong>${fn(D.cases[CY] || 0)}</strong></div><div class="s">${D.itemsPartial ? '<span style="color:var(--gold-text)">Still loading item details from QuickBooks · full counts after the next night read</span>' : `${sgn(pct(D.cases[CY], D.cases[PY + 'same']))} vs same days in ${PY}`}</div></div>
     <div class="tile ct ct-red"><div class="k">Stores owe us</div><div class="v">${fm(D.ar.total)}</div><div class="s" style="color:var(--bad-text);font-weight:700">${fm(past)} past due · ${fm(over60)} over 60 days</div></div>
-    <div class="tile ct ct-gold"><div class="k">${fmtShort(prevRd)}</div><div class="v">${D.prevDay.count} invoices</div><div class="s">${fm(D.prevDay.amount)} · last full day in the export</div></div>
+    <div class="tile ct ct-gold"><div class="k">${fmtShort(prevRd)}</div><div class="v">${D.prevDay.count} invoices</div><div class="s">${fm(D.prevDay.amount)} · ${prevRd === TODAY - 1 ? 'yesterday' : 'last full day'}</div></div>
   </div>
 
   <!--@charts--><div class="split">

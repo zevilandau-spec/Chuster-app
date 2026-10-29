@@ -90,6 +90,7 @@ last_day = inv_days[-1]; prev_day = inv_days[-2]
 
 # ---------------- sales lines (items, cases) ----------------
 lines = []
+line_invs = set()
 inv_lines = collections.defaultdict(lambda: collections.defaultdict(float))
 last_inv = {}
 cust_invs = collections.defaultdict(dict)
@@ -101,6 +102,7 @@ for y in YEARS:
         full = it.rsplit(' (', 1)[0].strip() if it.endswith(')') else it.strip()
         desc = it.rsplit(' (', 1)[1][:-1].strip() if it.endswith(')') and ' (' in it else ''
         lines.append((day(r['Date']), r['Customer'], full, desc, num(r['Qty']), num(r['Amount'])))
+        if r['Type'] == 'Invoice': line_invs.add((r['Customer'], r['Num']))
         if r['Type'] == 'Invoice' and full.startswith('Packs') or (r['Type'] == 'Invoice' and full.startswith(('Chuster Loose', 'Landaus Loose'))):
             inv_lines[(r['Customer'], r['Num'])][full] += num(r['Qty'])
         if r['Type'] == 'Invoice':
@@ -328,6 +330,8 @@ _m1 = AS_OF.replace(day=1); _pm1 = _m1.replace(year=_m1.year - 1); _pm_end = (_p
 oct_now = net_sales(_m1, AS_OF); oct_prev_same = net_sales(_pm1, min(_pe if _pe.month == _pm1.month else same_day(AS_OF, _pm1.year), _pm_end)); oct_prev_full = net_sales(_pm1, _pm_end)
 years = {str(y): r2(net_sales(max(FROM, dt.date(y, 1, 1)), dt.date(y, 12, 31))) for y in range(FROM.year, AS_OF.year)}
 years[str(AS_OF.year)] = r2(ytd)
+_yr = [r for r in inv_rows if day(r['Date']) >= dt.date(AS_OF.year - 1, 1, 1) and num(r['Debit']) > 0]
+items_partial = bool(_yr) and sum(1 for r in _yr if (r['Customer'], r['Num']) in line_invs) / len(_yr) < 0.85
 cases_y = {str(AS_OF.year - 1): int(cases(prev_start, dt.date(AS_OF.year - 1, 12, 31))), str(AS_OF.year): int(cases(y_start, AS_OF)), str(AS_OF.year - 1) + 'same': int(cases(prev_start, prev_end))}
 
 data = {
@@ -336,7 +340,7 @@ data = {
     'lastDay': {'date': iso(last_day), 'count': daily[last_day][0], 'amount': r2(daily[last_day][1])},
     'prevDay': {'date': iso(prev_day), 'count': daily[prev_day][0], 'amount': r2(daily[prev_day][1])},
     'paidLast7': r2(sum(v for d, v in pay_daily.items() if (AS_OF - d).days < 7)),
-    'ytd': r2(ytd), 'ytdPrev': r2(ytd_prev), 'years': years, 'cases': cases_y,
+    'ytd': r2(ytd), 'ytdPrev': r2(ytd_prev), 'years': years, 'cases': cases_y, 'itemsPartial': items_partial,
     'oct': {'now': r2(oct_now), 'prevSame': r2(oct_prev_same), 'prevFull': r2(oct_prev_full)},
     'monthly': [[k, r2(v)] for k, v in sorted(monthly.items())],
     'ar': {'buckets': BUCKETS, 'totals': [r2(x) for x in ar_tot], 'total': r2(sum(ar_tot)), 'customerBalanceTotal': r2(sum(num(r['Balance']) for r in cust_src))},
