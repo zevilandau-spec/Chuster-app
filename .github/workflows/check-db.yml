@@ -47,7 +47,7 @@ jobs:
           b = base64.b64decode(r['v'][3:]); iv, ct = b[:16], b[16:-32]
           d = Cipher(algorithms.AES(ek), modes.CBC(iv)).decryptor(); pt = d.update(ct) + d.finalize(); pt = pt[:-pt[-1]]
           v = json.loads(pt)['val']
-          print('::notice::pc ver=%s ok=%s at=%s err=%s' % (v.get('ver'), v.get('ok'), v.get('at'), (v.get('err') or '')[:120]))
+          m = str(v.get('mail') or ''); print('::notice::pc ver=%s ok=%s at=%s err=%s mail=%s' % (v.get('ver'), v.get('ok'), v.get('at'), (v.get('err') or '')[:120], ':'.join(m.split(':')[:2]) if m.startswith('outlook') else m[:90]))
           PY
       - name: How the other app talks to its server
         if: false
