@@ -5075,7 +5075,7 @@ function nextInvNum() {
   let mx = 0; const see = n => { const v = parseInt(String(n || '').replace(/\D/g, ''), 10); if (/^\d+$/.test(String(n || '').trim()) && v > mx && v < 1e9) mx = v; };
   ((REAL && REAL.orders && REAL.orders.list) || []).forEach(o => { if (o.t === 'inv') see(o.n); });
   if (typeof QB !== 'undefined') Object.values(QB.inv || {}).forEach(o => { if (o && o.t !== 'cm') see(o.n); });
-  Object.values(S.qw || {}).forEach(r => { if (r.kind === 'inv') { see(r.ref); const q = S.qr[r.id]; if (q) see(q.num); } });
+  Object.values(S.qw || {}).forEach(r => { if (r.kind === 'inv' && !(r.st === 'cancel' && !S.qr[r.id])) { see(r.ref); const q = S.qr[r.id]; if (q) see(q.num); } });
   return mx ? String(mx + 1) : '';
 }
 function qwFromOrder() {
@@ -5431,7 +5431,7 @@ document.addEventListener('click', e => {
       }
       break;
     }
-    case 'clear-order': { const had = Object.values(S.oq).some(q => q > 0); S.oq = {}; S.orderGroup = 'All'; S.orderStore = ''; keep(); toast(had ? 'Order canceled. Nothing was sent to QuickBooks.' : 'Cleared.'); render(); break; }
+    case 'clear-order': { const had = Object.values(S.oq).some(q => q > 0); S.oq = {}; S.orderGroup = 'All'; S.orderStore = ''; S.orderRef = ''; keep(); toast(had ? 'Order canceled. Nothing was sent to QuickBooks.' : 'Cleared.'); render(); break; }
     case 'save-order': if (qwFromOrder()) { S.catalog.forEach(p => { delete S.oq[keyOf(p)]; }); toast(SYNC.ready() ? 'Sent to QuickBooks. The invoice number shows in To QuickBooks in a minute or two.' : 'Saved. It goes to QuickBooks once the shared database is set up.'); render(); } break;
     case 'inv-filter': S.invFilter = d.f; S.invEdit = null; keep(); break;
     case 'inv-brand': S.invBrand = d.b; S.invEdit = null; keep(); break;
