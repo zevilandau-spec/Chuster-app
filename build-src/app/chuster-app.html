@@ -1070,6 +1070,12 @@ try { const v = JSON.parse(localStorage.getItem('chuster-packlog-v1') || 'null')
 function savePL() { try { localStorage.setItem('chuster-packlog-v1', JSON.stringify(S.plSaved)); } catch (e) { /* storage blocked */ } }
 function keyOf(p) { return p.full || p.name; }
 if (REAL) {
+  // case sizes QuickBooks doesn't have in the item name (from the case labels), then the same product from the other brand
+  const PACK_KNOWN = { 'chuster medium': '18/11', 'chuster kugel': '18/11', 'chuster barley': '24/11', 'chuster toast barley': '24/11', 'chuster garlic farfel': '24/11', 'chuster lg. bow': '24/10', 'chuster sm. bow': '24/10', 'chuster lg. flakes': '24/10', 'chuster sm. flakes': '24/10', 'chuster farfalie': '24/10', 'chuster tri color': '24/12', 'chuster orzo': '24/12', 'chuster soup mandlen': '24/7' };
+  const baseName = n => n.toLowerCase().replace(/^(chuster|landaus?)\s+/, '');
+  const otherPack = c => { const m = REAL.catalog.find(x => x !== c && x.pack && !/Loose/.test(x.group) && baseName(x.name) === baseName(c.name)); return m ? m.pack : ''; };
+  const packOf = c => c.pack || PACK_KNOWN[c.name.toLowerCase()] || (/Loose/.test(c.group) ? '' : otherPack(c));
+  REAL.catalog.forEach(c => { if (!c.pack) c.pack = packOf(c); });
   const realCat = REAL.catalog.map(c => ({ name: c.name, code: c.code || '—', pack: c.pack || '', brand: c.group, cat: c.group, price: c.price != null ? c.price.toFixed(2) : '', stock: c.stock, full: c.full }));
   S.catalog = realCat.concat(S.catalog.filter(x => !SAMPLE_CAT.has(x.name) && !realCat.some(b => b.name === x.name)));
   const realStores = REAL.customers.filter(c => c.active).map(c => ({ name: c.name, address: c.address, phone: c.phone, email: c.email, truck: '', note: '' }));
