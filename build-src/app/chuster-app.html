@@ -1676,24 +1676,31 @@ const pkSetOf = full => S.pkSet[full] || {};
 function pkPlan() {
   const P = packNext(); const day = pkDay();
   let items = P.rows.filter(r => r.pack > 0).map(r => { const st = pkSetOf(r.c.full); const pr = S.pkProg[day + '|' + r.c.full] || {}; return { r, full: r.c.full, tube: +st.tube || 0, egg: !!st.egg, done: +pr.done || 0, st: pr.st || '' }; });
-  // automatic order: no-egg products first (grouped by tube), then the egg block (grouped by tube), so the egg cleaning happens once
+  // snack products (pretzels, chips) also need a clean machine before them
+  items.forEach(x => { x.snack = /Snacks/.test(x.r.c.group || '') || /pretzel|tortilla|chips|flips/i.test(x.r.c.name || ''); if (x.snack) x.egg = false; });
+  // automatic order: noodles without egg (by tube), then the egg block (by tube), then snacks (by tube),
+  // so one cleaning before the egg, and one after the egg that is also the cleaning before the snacks
   const tubesOf = L => [...new Set(L.map(x => x.tube))];
   const byTube = (L, first) => { const ts = tubesOf(L).sort((a, b) => (a || 9) - (b || 9)); if (first && ts.includes(first)) { ts.splice(ts.indexOf(first), 1); ts.unshift(first); } return ts.flatMap(t => L.filter(x => x.tube === t).sort((a, b) => b.r.pack - a.r.pack)); };
-  const egg = items.filter(x => x.egg), plain = items.filter(x => !x.egg);
-  const eggFirstTube = byTube(egg)[0] ? byTube(egg)[0].tube : 0;
+  const plain = items.filter(x => !x.egg && !x.snack), egg = items.filter(x => x.egg), snack = items.filter(x => x.snack);
+  const eggOrd0 = byTube(egg); const eggFirstTube = eggOrd0[0] ? eggOrd0[0].tube : 0;
   let plainOrd = byTube(plain); if (eggFirstTube) { const last = plainOrd.filter(x => x.tube === eggFirstTube); plainOrd = plainOrd.filter(x => x.tube !== eggFirstTube).concat(last); }
-  let ord = plainOrd.concat(byTube(egg, plainOrd.length ? plainOrd[plainOrd.length - 1].tube : 0));
+  const eggOrd = byTube(egg, plainOrd.length ? plainOrd[plainOrd.length - 1].tube : 0);
+  const before = eggOrd.length ? eggOrd : plainOrd;
+  let ord = plainOrd.concat(eggOrd, byTube(snack, before.length ? before[before.length - 1].tube : 0));
   const man = (S.pkOrder[day] || {}).order;
   if (man && man.length) { const pos = f => { const i = man.indexOf(f); return i < 0 ? 1e6 : i; }; const auto = ord.map(x => x.full); ord = ord.slice().sort((a, b) => (pos(a.full) - pos(b.full)) || (auto.indexOf(a.full) - auto.indexOf(b.full))); }
-  // steps: change tube, clean before and after egg
-  const steps = []; let tube = null, inEgg = false;
+  // steps: change tube; clean before the egg, after the egg, and before snacks (one cleaning when they come together)
+  const steps = []; let tube = null, prev = null;
+  const cleanText = (from, to) => from && from.egg && to.snack ? 'Clean the machine after the egg products, before the snacks'
+    : to.egg ? 'Clean the machine before the egg products' : to.snack ? 'Clean the machine before the snacks' : 'Clean the machine after the egg products';
   ord.forEach((x, i) => {
-    if (x.egg && !inEgg) { steps.push({ kind: 'clean', text: 'Clean the machine before the egg products' }); inEgg = true; }
-    if (!x.egg && inEgg) { steps.push({ kind: 'clean', text: 'Clean the machine after the egg products' }); inEgg = false; }
+    const needClean = (x.egg && !(prev && prev.egg)) || (prev && prev.egg && !x.egg) || (x.snack && !(prev && prev.snack));
+    if (needClean) steps.push({ kind: 'clean', text: cleanText(prev, x) });
     if (x.tube !== tube) { if (tube !== null) steps.push({ kind: 'tube', text: x.tube ? `Change to Tube ${x.tube}` : 'Next products have no tube set yet' }); else if (x.tube) steps.push({ kind: 'tube', text: `Start on Tube ${x.tube}`, start: true }); tube = x.tube; }
-    steps.push({ kind: 'job', x, n: i + 1 });
+    steps.push({ kind: 'job', x, n: i + 1 }); prev = x;
   });
-  if (inEgg) steps.push({ kind: 'clean', text: 'Clean the machine after the egg products' });
+  if (prev && prev.egg) steps.push({ kind: 'clean', text: 'Clean the machine after the egg products' });
   return { P, ord, steps, day };
 }
 function renderPacking() {
@@ -1724,7 +1731,7 @@ function renderPacking() {
   <div class="tiles">
     <div class="tile"><div class="k">To pack</div><div class="v">${fn(total)} <span style="font-size:14px">cases</span></div><div class="s">${ord.length} products</div></div>
     <div class="tile good"><div class="k">Packed today</div><div class="v">${fn(done)} · ${pct}%</div><div class="bar good" style="margin-top:4px"><i style="width:${pct}%"></i></div></div>
-    <div class="tile"><div class="k">Tube changes</div><div class="v">${tubeCh}</div><div class="s">${cleans ? cleans + ' cleaning' + (cleans > 1 ? 's' : '') + ' for egg' : 'no egg products'}</div></div>
+    <div class="tile"><div class="k">Tube changes</div><div class="v">${tubeCh}</div><div class="s">${cleans ? cleans + ' cleaning' + (cleans > 1 ? 's' : '') + ' (egg / snacks)' : 'no cleaning needed'}</div></div>
     ${noSet ? `<div class="tile warn"><div class="k">No tube set</div><div class="v">${noSet}</div><div class="s"><a href="#packing" data-act="pk-set">set tubes &amp; egg</a></div></div>` : ''}
   </div>
   <div class="split">
@@ -1733,7 +1740,7 @@ function renderPacking() {
       <section class="card stack"><h2>Note from the office</h2>
         ${pkCanEdit() ? `<textarea class="inp" id="pk-note" rows="3" placeholder="e.g. Pack Chuster Fine first, Truck 2 leaves early">${esc(note)}</textarea><button class="btn primary sm" data-act="pk-note">Save note</button>` : `<p style="margin:0">${note ? esc(note) : '<span class="sub">No note today.</span>'}</p>`}
       </section>
-      <section class="card stack"><h2>How the order is made</h2><p class="sub" style="margin:0">Products without egg first, grouped by tube, then all egg products together, so the machine is cleaned only before and after the egg. Biggest amounts first on each tube.${pkCanEdit() ? ' Use ↑ ↓ to move a product; the tube changes and cleanings update by themselves.' : ''}</p>
+      <section class="card stack"><h2>How the order is made</h2><p class="sub" style="margin:0">Noodles without egg first, then all egg products together, then the snacks, each grouped by tube. So the machine is cleaned once before the egg, and once after the egg, which is also the cleaning before the snacks. Biggest amounts first on each tube.${pkCanEdit() ? ' Use ↑ ↓ to move a product; the tube changes and cleanings update by themselves.' : ''}</p>
         ${pkCanEdit() && (S.pkOrder[day] || {}).order ? `<button class="btn ghost sm" data-act="pk-reset">Back to the automatic order</button>` : ''}</section>
     </aside>
   </div>`;
