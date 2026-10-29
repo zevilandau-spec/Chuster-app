@@ -758,6 +758,9 @@ body:has(#ai-fab:not([hidden])) #view { padding-bottom: 72px; }
 .pk-step { padding: 7px 12px; border-radius: 10px; font-size: 13px; font-weight: 800; }
 .pk-step.clean { background: var(--gold-soft); color: var(--gold-text); } .pk-step.tube { background: var(--brand-soft); color: var(--brand-text); }
 .pk-tubes { display: flex; gap: 4px; flex: none; } .pk-tubes .chip { min-width: 34px; padding: 0 8px; }
+.pk-sum { display: flex; gap: 8px; font-size: 14px; padding: 4px 0; border-bottom: 1px solid var(--line); } .pk-sum b { flex: none; width: 104px; } .pk-sum .pk-eggc { color: var(--gold-text, #8a5a00); }
+#pk-ai-t { font: inherit; font-size: 16px; width: 100%; padding: 8px 10px; resize: vertical; }
+.pk-aiprev { background: var(--bg2, #f4efe2); border-radius: 12px; padding: 10px; }
 .pk-egg { flex: none; display: flex; align-items: center; gap: 4px; font-size: 13px; font-weight: 700; }
 @media (max-width: 600px) { .pk-job { flex-wrap: wrap; } .pk-act { max-width: none; width: 100%; justify-content: flex-start; } .irow.or-row:has(.pk-tubes) { flex-wrap: wrap; } .irow.or-row:has(.pk-tubes) .main { flex-basis: 100%; } .pk-tubes { flex-wrap: wrap; } }
 /* ===== compact everywhere ===== */
@@ -1670,7 +1673,7 @@ function packDays() {
   return out;
 }
 /* ---------- Packing plan: real amounts, 4 tubes, egg block with cleaning, live progress for everyone ---------- */
-Object.assign(S, { pkSet: loadLS('chuster-pkset-v1', {}), pkProg: loadLS('chuster-pkprog-v1', {}), pkNote: loadLS('chuster-pknote-v1', {}), pkOrder: loadLS('chuster-pkorder-v1', {}), pkSetOpen: false, pkSetQ: '' });
+Object.assign(S, { pkSet: loadLS('chuster-pkset-v1', {}), pkProg: loadLS('chuster-pkprog-v1', {}), pkNote: loadLS('chuster-pknote-v1', {}), pkOrder: loadLS('chuster-pkorder-v1', {}), pkSetOpen: false, pkSetQ: '', pkAiT: '', pkAi: null, pkAll: false });
 const TUBE = ['', 'Large', 'Medium', 'Small', 'Potato Flips'];
 const tubeName = t => TUBE[+t] ? TUBE[+t] + ' tube' : 'no tube set';
 const pkDay = () => isoOf(TODAY);
@@ -1749,17 +1752,50 @@ function renderPacking() {
     </aside>
   </div>`;
 }
+function pkSetItems() { return (REAL.catalog || []).filter(c => /^Packs/.test(c.full || '') && !c.off).sort((a, b) => grank(a.group) - grank(b.group) || String(a.code).localeCompare(String(b.code))); }
+async function pkAiGo() {
+  const txt = S.pkAiT.trim(); if (!txt) { toast('Write what goes on each tube first.'); return; }
+  const items = pkSetItems(); S.pkAi = { busy: true }; render();
+  const list = items.map((c, i) => `${i}\t${c.name}${c.pack ? ' ' + c.pack : ''}\t#${c.code || ''}\t${c.group}\tnow: ${TUBE[+pkSetOf(c.full).tube] || 'no tube'}${pkSetOf(c.full).egg ? ', egg' : ''}`).join('\n');
+  const sys = `You set up the packing machine settings for Chuster Noodle. The machine has 4 tubes: 1 = Large, 2 = Medium, 3 = Small, 4 = Potato Flips (only the Potato Flips product uses tube 4). Some products are egg products (the machine is cleaned before and after them). The owner tells you in plain words (maybe with typos, Yiddish/English mix, or speech-to-text mistakes) which products go on which tube and which are egg. Match his words to the products below generously (a name like "fine" means every Fine product in every pack size and brand, unless he says otherwise; "all egg noodles" means every product whose name says egg). Only include products he talked about, plus Potato Flips on tube 4 if it is not set. Keep what is "now" for products he did not mention by leaving them out. Call save_settings once. In "say", write one short plain sentence for him, and mention anything you were not sure about.\n\nProducts (index, name, code, group, current setting):\n${list}`;
+  try {
+    let input = null;
+    await aiStream(() => {}, { system: sys, messages: [{ role: 'user', content: txt }], max_tokens: 4000,
+      tools: [{ name: 'save_settings', description: 'Save tube and egg settings', input_schema: { type: 'object', properties: { say: { type: 'string' }, items: { type: 'array', items: { type: 'object', properties: { i: { type: 'integer', description: 'product index' }, tube: { type: 'integer', description: '1-4, or 0 to keep as is' }, egg: { type: 'boolean' } }, required: ['i'] } } }, required: ['items'] } }],
+      tool_choice: { type: 'tool', name: 'save_settings' } }).then(r => { const b = r.blocks.find(x => x.type === 'tool_use'); input = b && b.input; });
+    if (!input || !Array.isArray(input.items) || !input.items.length) throw new Error('The AI did not understand. Try saying it a little differently.');
+    const plan = input.items.filter(x => items[x.i]).map(x => { const c = items[x.i], cur = pkSetOf(c.full); return { c, tube: x.tube >= 1 && x.tube <= 4 ? x.tube : +cur.tube || 0, egg: typeof x.egg === 'boolean' ? x.egg : !!cur.egg }; });
+    S.pkAi = { plan, say: input.say || '' };
+  } catch (e) { S.pkAi = { err: e.message || 'The AI is not available right now.' }; }
+  render();
+}
 function pkSettings() {
   const q = S.pkSetQ.trim().toLowerCase();
   const items = (REAL.catalog || []).filter(c => /^Packs/.test(c.full || '') && !c.off && (!q || (c.name + ' ' + c.code).toLowerCase().includes(q))).sort((a, b) => grank(a.group) - grank(b.group) || String(a.code).localeCompare(String(b.code)));
   const can = pkCanEdit() || S.role === 'Warehouse';
-  return `${head('Tubes & egg', 'Set once per product. Saved for everyone.', `<button class="btn primary" data-act="pk-set-close">Back to Packing plan</button>`)}
+  const all = pkSetItems(), A = S.pkAi;
+  const sumRow = (lbl, list, cls) => `<div class="pk-sum"><b class="${cls || ''}">${lbl}</b><span>${list.length ? list.map(c => esc(c.name + (c.pack ? ' ' + c.pack : ''))).join(', ') : '<i style="color:var(--muted)">none yet</i>'}</span></div>`;
+  const summary = [1, 2, 3, 4].map(t => sumRow(TUBE[t] + ' tube', all.filter(c => +pkSetOf(c.full).tube === t))).join('') + sumRow('Egg', all.filter(c => pkSetOf(c.full).egg), 'pk-eggc')
+    + (all.some(c => !+pkSetOf(c.full).tube) ? `<div class="pk-sum"><b style="color:var(--bad-text)">No tube yet</b><span>${all.filter(c => !+pkSetOf(c.full).tube).length} products</span></div>` : '');
+  const preview = A && A.plan ? `<div class="pk-aiprev stack" style="gap:6px"><b>✨ The AI will set:</b>${A.say ? `<div class="sub" style="margin:0">${esc(A.say)}</div>` : ''}
+      ${[1, 2, 3, 4].map(t => { const l = A.plan.filter(x => +x.tube === t); return l.length ? sumRow(TUBE[t] + ' tube', l.map(x => x.c)) : ''; }).join('')}${sumRow('Egg', A.plan.filter(x => x.egg).map(x => x.c), 'pk-eggc')}
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn primary" data-act="pk-ai-save">✓ Looks right, save it</button><button class="btn ghost" data-act="pk-ai-cancel">Cancel</button></div></div>` : '';
+  return `${head('Tubes & egg', 'Saved for everyone.', `<button class="btn primary" data-act="pk-set-close">Back to Packing plan</button>`)}
+  <section class="card stack" style="gap:8px"><h2>✨ Just tell the AI</h2>
+    <p class="sub" style="margin:0">Write it (or talk, with the 🎤 on your phone keyboard) the way you would tell a worker. Example: “Fine, Medium and Spaghetti go on the small tube. Kugel and Barley on large. All the egg noodles are egg. Potato Flips on its own tube.”</p>
+    <label class="sr" for="pk-ai-t">Tell the AI</label><textarea id="pk-ai-t" class="inp" rows="3" placeholder="Type or talk here…"${can ? '' : ' disabled'}>${esc(S.pkAiT)}</textarea>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><button class="btn primary" data-act="pk-ai-go"${can && !(A && A.busy) ? '' : ' disabled'}>${A && A.busy ? 'Working…' : '✨ Set it for me'}</button>${A && A.err ? `<span style="color:var(--bad-text);font-size:13px">${esc(A.err)}</span>` : ''}</div>
+    ${preview}
+  </section>
+  <section class="card stack" style="gap:4px"><h2>What is set now</h2>${summary}</section>
+  <button class="btn ghost" data-act="pk-all">${S.pkAll ? 'Hide the product list' : 'Fix one product by hand'}</button>
+  ${S.pkAll ? '' : '<div hidden>'}
   <section class="card stack" style="gap:6px">
     <div class="field">${ic('search')}<label class="sr" for="pk-set-q">Find a product</label><input id="pk-set-q" value="${esc(S.pkSetQ)}" placeholder="Find a product" autocomplete="off"></div>
     <div id="pk-set-list">${items.map(c => { const st = pkSetOf(c.full); return `<div class="irow or-row ${gcls(c.group)}"><div class="main"><div class="name">${esc(c.name)}</div><div class="meta">${c.code ? '#' + esc(c.code) : ''}${c.pack ? ' · ' + esc(c.pack) : ''}</div></div>
       <div class="pk-tubes" role="group" aria-label="Tube">${[1, 2, 3, 4].map(t => `<button class="chip" data-act="pk-tube" data-f="${esc(c.full)}" data-t="${t}" aria-pressed="${+st.tube === t}"${can ? '' : ' disabled'}>${TUBE[t]}</button>`).join('')}</div>
       <label class="pk-egg"><input type="checkbox" class="pk-egg-cb" data-f="${esc(c.full)}"${st.egg ? ' checked' : ''}${can ? '' : ' disabled'}> Egg</label></div>`; }).join('')}</div>
-  </section>`;
+  </section>${S.pkAll ? '' : '</div>'}`;
 }
 
 function renderCalendar() {
@@ -3430,9 +3466,10 @@ ${AI_SCHEMA}`;
 }
 const AI_TOOLS = [{ name: 'run_code', description: 'Run a JavaScript function body over the app data D (see the system prompt) and return its result. Use `return`. No internet. 10 second limit.', input_schema: { type: 'object', properties: { code: { type: 'string', description: 'Function body, e.g. `const c = findCustomers("bingo")[0]; return {name: c.name, balance: c.balance};`' } }, required: ['code'] } }];
 
-async function aiStream(onText) {
+async function aiStream(onText, over) {
   const tok = await SYNC.aiToken();
   const body = { model: AI_MODEL, max_tokens: 8000, system: [{ type: 'text', text: aiSystem(), cache_control: { type: 'ephemeral' } }], tools: AI_TOOLS, messages: S.aiMsgs };
+  if (over) Object.assign(body, over);
   const res = await fetch(location.origin + '/ai/msg', { method: 'POST', headers: { 'content-type': 'application/json', 'x-chuster': tok }, body: JSON.stringify(body) });
   if (!res.ok) {
     const t = await res.text(); let m = t; try { const j = JSON.parse(t); m = (j.error && j.error.message) || t; } catch (e) { m = /meshimer|access restricted/i.test(t) ? 'Your internet filter blocked the AI. Ask Meshimer to allow chuster.netlify.app/ai/' : t.replace(/<[^>]+>/g, ' ').trim(); }
@@ -5447,6 +5484,10 @@ document.addEventListener('click', e => {
     case 'po': toast(`Purchase order made for ${S.reorder.length} items (example).`); break;
     case 'pk-set': S.pkSetOpen = true; render(); window.scrollTo(0, 0); break;
     case 'pk-set-close': S.pkSetOpen = false; render(); break;
+    case 'pk-ai-go': pkAiGo(); break;
+    case 'pk-ai-cancel': S.pkAi = null; render(); break;
+    case 'pk-all': S.pkAll = !S.pkAll; render(); break;
+    case 'pk-ai-save': { const A = S.pkAi; if (!A || !A.plan) break; A.plan.forEach(x => { const st = Object.assign({}, pkSetOf(x.c.full), { tube: x.tube, egg: x.egg }); S.pkSet[x.c.full] = st; SYNC.put('ps', x.c.full, st); }); saveLS('chuster-pkset-v1', S.pkSet); toast(`Saved ${A.plan.length} products.`); S.pkAi = null; S.pkAiT = ''; render(); break; }
     case 'pk-tube': { const f = d.f; const st = Object.assign({}, pkSetOf(f)); st.tube = +st.tube === +d.t ? 0 : +d.t; S.pkSet[f] = st; saveLS('chuster-pkset-v1', S.pkSet); SYNC.put('ps', f, st); render(); break; }
     case 'pkp': { const k = pkDay() + '|' + d.f; const pr = Object.assign({ done: 0 }, S.pkProg[k] || {}); const row = packNext().rows.find(r => r.c.full === d.f); const goal = row ? row.pack : 0;
       if (d.do === 'start') pr.st = 'now'; else if (d.do === 'add') { pr.done = (+pr.done || 0) + (+d.n || 1); pr.st = goal && pr.done >= goal ? 'done' : 'now'; } else if (d.do === 'done') { pr.st = 'done'; pr.done = Math.max(+pr.done || 0, goal); } else if (d.do === 'undo') { pr.st = 'now'; }
@@ -5674,6 +5715,7 @@ document.addEventListener('input', e => {
   }
   if (e.target.classList && e.target.classList.contains('ive-inp') && S.ivEdit) { S.ivEdit.q[e.target.dataset.k] = Math.max(0, parseInt(e.target.value, 10) || 0); return; }
   if (e.target.id === 'ive-find' && S.ivEdit) { S.ivEdit.find = e.target.value; const el = document.getElementById('ive-res'); if (el) el.innerHTML = ivFind(S.ivEdit); return; }
+  if (e.target.id === 'pk-ai-t') { S.pkAiT = e.target.value; return; }
   if (e.target.id === 'pk-set-q') { S.pkSetQ = e.target.value; const el = document.getElementById('pk-set-list'); if (el) { const h = pkSettings(); const m = h.match(/<div id="pk-set-list">([\s\S]*)<\/div>\s*<\/section>/); if (m) el.innerHTML = m[1]; } return; }
   if (e.target.id === 'inv-num') { S.orderRef = e.target.value; return; }
   if (e.target.id === 'ord-q') { S.ordQ = e.target.value; const ol = document.getElementById('ord-list'); if (ol) ol.innerHTML = ordList(); return; }
