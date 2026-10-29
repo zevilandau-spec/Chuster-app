@@ -2043,9 +2043,11 @@ function renderHomeReal() {
   const pts = arr => arr.map((v, i) => `${X(i)},${Y(v).toFixed(1)}`).join(' ');
   const grid = [0.25, 0.5, 0.75, 1].map(f => `<path class="grid" d="M56 ${Y(top * f).toFixed(1)}H690"/>`).join('') + [0, 0.25, 0.5, 0.75, 1].map(f => `<text x="50" y="${(Y(top * f) + 4).toFixed(1)}" text-anchor="end">${f ? fm(top * f) : '0'}</text>`).join('');
   const months = MONS.map((m, i) => `<text x="${X(i)}" y="252" text-anchor="middle">${m}</text>`).join('');
-  const yrs = [[String(PPY), D.years[PPY] || 0, 'bm'], [String(PY), D.years[PY] || 0, 'ba'], [String(CY), D.years[CY] || 0, 'bb']];
+  const yrs = Object.keys(D.years || {}).map(Number).filter(y => y <= CY && (D.years[y] || 0) > 0).sort((a, b) => a - b).map(y => [String(y), D.years[y] || 0, y === CY ? 'bb' : y === PY ? 'ba' : 'bm']);
+  if (!yrs.length) yrs.push([String(CY), 0, 'bb']);
   const ymax = Math.max(...yrs.map(y => y[1]));
-  const bars = yrs.map(([y, v, cls], i) => { const h = v / ymax * 186, x = 36 + i * 110; return `<rect class="${cls}" x="${x}" y="${(230 - h).toFixed(1)}" width="76" height="${h.toFixed(1)}" rx="6"/><text class="lbl-strong" x="${x + 38}" y="${(222 - h).toFixed(1)}" text-anchor="middle">${fm(v)}</text><text x="${x + 38}" y="250" text-anchor="middle">${y === String(CY) ? CY + ' so far' : y}</text>`; }).join('');
+  const slot = 340 / yrs.length, bw = Math.min(76, slot * 0.72), fs = yrs.length > 4 ? 10 : 13;
+  const bars = yrs.map(([y, v, cls], i) => { const h = v / ymax * 186, x = 10 + i * slot + (slot - bw) / 2, cx = x + bw / 2; return `<rect class="${cls}" x="${x.toFixed(1)}" y="${(230 - h).toFixed(1)}" width="${bw.toFixed(1)}" height="${h.toFixed(1)}" rx="5"/><text class="lbl-strong" x="${cx.toFixed(1)}" y="${(222 - h).toFixed(1)}" text-anchor="middle" style="font-size:${fs}px">${fm(v)}</text><text x="${cx.toFixed(1)}" y="250" text-anchor="middle" style="font-size:${fs}px">${y === String(CY) && yrs.length <= 4 ? CY + ' so far' : y}</text>`; }).join('');
   const agingBar = `<div class="aging" role="img" aria-label="Money owed by age">${t.map((v, i) => v > 0 ? `<i style="width:${(v / t.reduce((s, x) => s + Math.max(x, 0), 0) * 100).toFixed(1)}%;background:${AGE_COLORS[i]}"></i>` : '').join('')}</div>`;
   return `
   ${head('Dashboard', todayLine(), `${qbTag()}<button class="btn gold" data-act="sum-open">Send morning summary</button><a class="btn ghost" href="#customers" data-go="customers">Customers</a><a class="btn primary" href="#order" data-go="order">+ New order</a>`)}
@@ -2089,8 +2091,8 @@ function renderHomeReal() {
       </svg></div>
     </figure>
     <figure class="card" style="margin:0">
-      <figcaption class="card-head"><h2>Per year</h2></figcaption>
-      <svg class="chart" viewBox="0 0 360 262" style="width:100%;height:auto;display:block" role="img" aria-label="Sales per year: ${PPY} ${fm(D.years[PPY] || 0)}, ${PY} ${fm(D.years[PY] || 0)}, ${CY} so far ${fm(D.years[CY] || 0)}">
+      <figcaption class="card-head"><h2>Per year${yrs.length > 3 ? ` · ${yrs[0][0]} to ${CY} (${CY} so far)` : ''}</h2></figcaption>
+      <svg class="chart" viewBox="0 0 360 262" style="width:100%;height:auto;display:block" role="img" aria-label="Sales per year: ${yrs.map(y => y[0] + ' ' + fm(y[1])).join(', ')}">
         <path class="axis" d="M10 230H350"/>${bars}
       </svg>
     </figure>
