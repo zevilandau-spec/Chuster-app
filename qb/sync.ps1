@@ -8,7 +8,7 @@
 param([switch]$Install, [switch]$Test, [switch]$Full, [switch]$Other, [switch]$History, [switch]$Watch)
 
 $ErrorActionPreference = 'Stop'
-$Ver = '3.4'
+$Ver = '3.5'
 $AppName = 'Chuster App Sync'
 $TaskName = 'Chuster QB Sync'
 $Here = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -391,7 +391,7 @@ function Sync-Once([bool]$upload) {
     $count['made'] = $made
     $mins = if ($st.full) { ($started - [datetime]::Parse($st.full, $Inv)).TotalMinutes } else { 999 }
     if (-not $first -and -not $Full -and -not $script:ForceRead -and $made -eq 0 -and $mins -lt 14) {
-      if ($upload) { $status = [ordered]@{ at = $started.ToString('yyyy-MM-ddTHH:mm:ss'); full = $st.full; ok = $true; ver = $Ver; from = $from; pc = $env:COMPUTERNAME; counts = $count }
+      if ($upload) { $status = [ordered]@{ at = $started.ToString('yyyy-MM-ddTHH:mm:ss'); full = $st.full; ok = $true; ver = $Ver; from = $from; pc = $env:COMPUTERNAME; counts = $count; mail = (Mail-Probe) }
         Db-Patch ([ordered]@{ 'qh/status' = [ordered]@{ v = (Protect (ToJson ([ordered]@{ k = 'status'; val = $status; by = 'QuickBooks' }))); t = @{ '.sv' = 'timestamp' } } }) }
       Log ('Checked the To QuickBooks list: nothing new. Next full QuickBooks read in ' + [Math]::Ceiling(14 - $mins) + ' min.')
       return
@@ -504,7 +504,7 @@ function Sync-Once([bool]$upload) {
   foreach ($id in @($st.dates.Keys)) { if ($recs.ContainsKey($id) -and $null -eq $recs[$id][2]) { $st.dates.Remove($id) } }
   $st.last = $started.ToString('yyyy-MM-ddTHH:mm:ss'); $st.full = $st.last
   Save-State $st
-  $status = [ordered]@{ at = $started.ToString('yyyy-MM-ddTHH:mm:ss'); full = $started.ToString('yyyy-MM-ddTHH:mm:ss'); ok = $true; ver = $Ver; from = $from; pc = $env:COMPUTERNAME; counts = $count }
+  $status = [ordered]@{ at = $started.ToString('yyyy-MM-ddTHH:mm:ss'); full = $started.ToString('yyyy-MM-ddTHH:mm:ss'); ok = $true; ver = $Ver; from = $from; pc = $env:COMPUTERNAME; counts = $count; mail = (Mail-Probe) }
   Db-Patch ([ordered]@{ 'qh/status' = [ordered]@{ v = (Protect (ToJson ([ordered]@{ k = 'status'; val = $status; by = 'QuickBooks' }))); t = @{ '.sv' = 'timestamp' } } })
   Log ('Sent ' + $sentNow.Count + ' changes to the app.')
 }
@@ -901,6 +901,19 @@ function Queue-HasNew($st) {
   $since = [double]$st.qwT + 1
   $w = Invoke-RestMethod -Method Get -Uri ((Url) + '/' + $cfg.space + '/qw.json?orderBy=%22t%22&startAt=' + $since.ToString('0', $Inv) + '&limitToFirst=1') -TimeoutSec 20
   ($null -ne $w) -and (@($w.PSObject.Properties).Count -gt 0)
+}
+# Is Outlook set up on this PC (for sending statements)? Checked once per start.
+$script:MailInfo = $null
+function Mail-Probe {
+  if ($null -ne $script:MailInfo) { return $script:MailInfo }
+  $script:MailInfo = 'none'
+  try {
+    $reg = Get-ItemProperty 'Registry::HKEY_CLASSES_ROOT\Outlook.Application\CLSID' -ErrorAction Stop
+    $ol = New-Object -ComObject Outlook.Application
+    $acc = @($ol.Session.Accounts | ForEach-Object { [string]$_.SmtpAddress } | Where-Object { $_ })
+    $script:MailInfo = 'outlook:' + $acc.Count + ':' + ($acc -join ',')
+  } catch { $script:MailInfo = 'none:' + ([string]$_.Exception.Message).Substring(0, [Math]::Min(80, ([string]$_.Exception.Message).Length)) }
+  $script:MailInfo
 }
 # Self-update: picks up new versions of this program from the app's site, only when signed with this office's key.
 $CodeKey = $hm.ComputeHash([Text.Encoding]::UTF8.GetBytes('chuster-qb-code'))
