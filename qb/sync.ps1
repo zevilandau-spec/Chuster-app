@@ -1108,6 +1108,13 @@ function Watch-Loop {
 
 # ---------------- main ----------------
 if (-not $Install -and -not $Test -and (Test-Path $LockPath)) {
+  # a sync that stopped answering (no sign of life for 15 minutes): stop it and take over
+  if ((Get-Item $LockPath).LastWriteTime -lt (Get-Date).AddMinutes(-15)) {
+    try { $old = [int](Get-Content $LockPath -Raw).Trim(); if ($old -and $old -ne $PID) { $pr = Get-Process -Id $old -ErrorAction SilentlyContinue; if ($pr -and $pr.ProcessName -match 'powershell') { Stop-Process -Id $old -Force -ErrorAction SilentlyContinue; Log "Stopped a sync that was frozen (process $old)." } } } catch { }
+    Remove-Item $LockPath -Force -ErrorAction SilentlyContinue
+  }
+}
+if (-not $Install -and -not $Test -and (Test-Path $LockPath)) {
   if ((Get-Item $LockPath).LastWriteTime -gt (Get-Date).AddMinutes(-90)) {
     if ($History) { Set-Content -Path $HistFlag -Value 1; Write-Host 'The sync is running. It starts reading the history in a few seconds (one month at a time). See sync-log.txt.' -ForegroundColor Green }
     elseif (-not $Watch) { Set-Content -Path $ReadFlag -Value 1; Write-Host 'The sync is running. It reads QuickBooks again in a few seconds. See sync-log.txt.' -ForegroundColor Green }
