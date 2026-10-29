@@ -1584,7 +1584,7 @@ function renderOrder() {
         <div style="display:flex;flex-wrap:wrap;gap:8px">${info}</div>` : ''}
         ${!storeName || S.storeOpen ? `<div class="field">${ic('search')}<label class="sr" for="store-q">Find a store</label><input id="store-q" value="${esc(S.storeQ)}" placeholder="Find a store by name, area or phone" autocomplete="off"></div>
         <div id="store-list" style="max-height:440px;overflow-y:auto;padding-right:2px">${storeRows()}</div>` : ''}
-        ${storeName && !S.storeOpen ? `<div class="actions"><button class="btn gold" data-act="repeat">Repeat last order</button><button class="btn ghost" data-act="soon" data-name="Say an order">Say an order</button><button class="btn ghost" data-act="soon" data-name="Upload PDF or photo">Upload PDF / photo</button><button class="btn ghost" data-act="clear-order">Clear</button></div>` : ''}
+        ${storeName && !S.storeOpen ? `<div class="actions"><button class="btn gold" data-act="repeat">Repeat last order</button><button class="btn ghost" data-act="soon" data-name="Say an order">Say an order</button><button class="btn ghost" data-act="soon" data-name="Upload PDF or photo">Upload PDF / photo</button><button class="btn ghost" data-act="clear-order" style="color:var(--bad-text)">✕ Cancel order</button></div>` : ''}
       </section>
       ${storeName ? `<section class="card">
         <div class="field" style="margin-bottom:10px">${ic('search')}<label for="add" class="sr">Find an item</label><input id="add" value="${esc(S.orderQ)}" placeholder="Find an item by name or number" autocomplete="off"></div>
@@ -2742,13 +2742,15 @@ function ivInfo(c) {
     <div class="iv-info-acts">${c.phone ? `<a class="btn primary sm" href="${telHref(c.phone)}">${ic('phone')} Call</a><a class="btn good sm" href="${esc(waHref(waNum(c.phone), ''))}" target="_blank" rel="noopener">WhatsApp</a>` : ''}<button class="btn ghost sm" data-act="cust-sel-go" data-n="${esc(c.name)}">Full store page</button></div>
   </div>`;
 }
+const SVG_X = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>';
 const SVG_EDIT = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4zM14 6l4 4" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>';
 const ivCanEdit = () => S.role === 'Owner' || S.role === 'Office' || isSales();
 const ivKey = r => r.p ? keyOf(r.p) : String(r.ref);
 function ivPending(o) {
-  const recs = Object.values(S.qw || {}).filter(r => r.kind === 'invmod' && r.n === o.n).sort((a, b) => (b.upd || 0) - (a.upd || 0));
+  const recs = Object.values(S.qw || {}).filter(r => (r.kind === 'invmod' || r.kind === 'invvoid') && r.n === o.n).sort((a, b) => (b.upd || 0) - (a.upd || 0));
   if (!recs.length) return '';
   const r = recs[0]; const st = qwState(r); const res = S.qr[r.id] || {};
+  if (r.kind === 'invvoid') return `<div class="iv-pend ${st}">${st === 'done' ? '✓ Canceled in QuickBooks (voided, now $0).' : st === 'error' ? `The cancel didn't go in: ${esc(res.err || 'problem')}. Open To QuickBooks to try again.` : 'Canceling in QuickBooks… a few seconds.'}</div>`;
   const txt = st === 'done' ? `✓ Change saved in QuickBooks${res.amt != null ? ' · new total ' + money(res.amt) : ''}. The lines below update with the next QuickBooks read.` : st === 'error' ? `The change didn't go in: ${esc(res.err || 'problem')}. Open To QuickBooks to try again.` : 'Change sent… QuickBooks updates the invoice in a few seconds.';
   return `<div class="iv-pend ${st}">${txt}</div>`;
 }
@@ -2790,12 +2792,13 @@ function invView(o) {
   }).join('') + '</div>'; }).join('');
   return `<div class="iv">
     <div class="iv-bar"><button class="iv-ico" data-act="ord-open" data-n="${esc(o.n)}" aria-label="Back to orders">${ic('back')}</button><span class="iv-num">${cm ? 'Credit ' : ''}${esc(o.n)}</span>
-      ${!cm && ivCanEdit() ? `<button class="iv-ico" data-act="ive-start" data-n="${esc(o.n)}" aria-label="Change this order" title="Change this order">${SVG_EDIT}</button>` : ''}
+      ${!cm && ivCanEdit() ? `<button class="iv-ico" data-act="ive-start" data-n="${esc(o.n)}" aria-label="Change this order" title="Change this order">${SVG_EDIT}</button><button class="iv-ico" data-act="iv-void" data-n="${esc(o.n)}" aria-label="Cancel this order" title="Cancel this order" style="color:var(--bad-text)">${SVG_X}</button>` : ''}
       <button class="iv-ico" data-act="ord-copy" data-n="${esc(o.n)}" aria-label="Copy into a new order" title="Copy into a new order">${SVG_COPY}</button>
       <button class="iv-ico" data-act="cust-sel-go" data-n="${esc(o.c)}" aria-label="Open the store" title="Open the store">${ic('people')}</button>
       <button class="iv-ico" data-act="ord-stmt" data-n="${esc(o.c)}" aria-label="Send statement" title="Send statement">${ic('mail')}</button>
       <button class="iv-ico" data-act="inv-print" data-n="${esc(o.n)}" aria-label="Print" title="Print">${SVG_PRINT}</button></div>
     <div class="iv-head"><div><button class="iv-store" data-act="iv-info" aria-expanded="${!!S.ivInfo}">${esc(o.c)}&nbsp;<span class="iv-caret">${S.ivInfo ? '▲' : '▼'}</span></button><div class="iv-meta">${fmtShort(isoRd(o.d))}${c && c.area ? ' · ' + esc(c.area) : ''}${o.due ? ' · due ' + esc(fmtShort(isoRd(o.due))) : ''}</div></div>${c && pastDue(c) > 1 ? `<span class="iv-owe">owes ${fm(pastDue(c))} past due</span>` : ''}</div>
+    ${S.ivVoid === o.n ? `<div class="iv-void card stack" style="gap:8px;margin:8px;border:2px solid var(--bad-text)"><b>Cancel invoice #${esc(o.n)} for ${esc(o.c)} (${money(Math.abs(o.a))})?</b><span class="sub" style="margin:0">QuickBooks will void it: the invoice stays with its number, but it becomes $0 and the store won't owe it. The items go back in stock.</span><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn primary" data-act="iv-void-yes" data-n="${esc(o.n)}" style="background:var(--bad-text);border-color:var(--bad-text)">Yes, cancel it</button><button class="btn ghost" data-act="iv-void-no">No, keep it</button></div></div>` : ''}
     ${ivPending(o)}
     ${S.ivInfo && c ? ivInfo(c) : ''}
     ${body || '<p class="sub" style="padding:16px;margin:0">No items on this invoice.</p>'}
@@ -5048,7 +5051,7 @@ SYNC.on('pq', (k, v) => { if (v == null) delete S.pkOrder[k]; else S.pkOrder[k] 
 SYNC.on('qw', (k, v) => { if (v == null) delete S.qw[k]; else S.qw[k] = v; saveLS('chuster-qw-v1', S.qw); });
 SYNC.on('qr', (k, v) => { const was = S.qr[k]; if (v == null) delete S.qr[k]; else S.qr[k] = v; saveLS('chuster-qr-v1', S.qr);
   if (v && v.st === 'done' && (!was || was.st !== 'done') && S.qw[k]) toast(`In QuickBooks: ${QB_KIND[S.qw[k].kind]} #${v.num || ''} for ${S.qw[k].c}`); });
-const QB_KIND = { inv: 'Invoice', invmod: 'Invoice change', pay: 'Payment', cm: 'Credit memo' };
+const QB_KIND = { inv: 'Invoice', invmod: 'Invoice change', invvoid: 'Cancel invoice', pay: 'Payment', cm: 'Credit memo' };
 const qwId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 const nowIso = () => { const n = new Date(); return isoOf(TODAY) + 'T' + String(n.getHours()).padStart(2, '0') + ':' + String(n.getMinutes()).padStart(2, '0'); };
 function qwSave(rec) { rec.upd = Date.now(); S.qw[rec.id] = rec; saveLS('chuster-qw-v1', S.qw); SYNC.put('qw', rec.id, rec); }
@@ -5060,7 +5063,7 @@ function qwState(rec) {
   if (r && r.st === 'error' && (r.try || 0) === (rec.try || 0)) return 'error';
   return 'sending';
 }
-const canSend = kind => kind === 'cm' ? S.role === 'Owner' : kind === 'invmod' ? ivCanEdit() : (S.role === 'Owner' || S.role === 'Office');
+const canSend = kind => kind === 'cm' ? S.role === 'Owner' : (kind === 'invmod' || kind === 'invvoid') ? ivCanEdit() : (S.role === 'Owner' || S.role === 'Office');
 const qwList = () => Object.values(S.qw).filter(Boolean).sort((a, b) => (b.upd || 0) - (a.upd || 0));
 const qwCount = () => qwList().filter(r => { const s = qwState(r); return (s === 'wait' || s === 'error') && (r.kind !== 'cm' || S.role === 'Owner'); }).length;
 const fullOf = (ref, full) => typeof ref === 'number' && REAL.catalog[ref] ? REAL.catalog[ref].full : (full || String(ref));
@@ -5428,7 +5431,7 @@ document.addEventListener('click', e => {
       }
       break;
     }
-    case 'clear-order': S.oq = {}; S.orderGroup = 'All'; keep(); break;
+    case 'clear-order': { const had = Object.values(S.oq).some(q => q > 0); S.oq = {}; S.orderGroup = 'All'; S.orderStore = ''; keep(); toast(had ? 'Order canceled. Nothing was sent to QuickBooks.' : 'Cleared.'); render(); break; }
     case 'save-order': if (qwFromOrder()) { S.catalog.forEach(p => { delete S.oq[keyOf(p)]; }); toast(SYNC.ready() ? 'Sent to QuickBooks. The invoice number shows in To QuickBooks in a minute or two.' : 'Saved. It goes to QuickBooks once the shared database is set up.'); render(); } break;
     case 'inv-filter': S.invFilter = d.f; S.invEdit = null; keep(); break;
     case 'inv-brand': S.invBrand = d.b; S.invEdit = null; keep(); break;
@@ -5446,6 +5449,11 @@ document.addEventListener('click', e => {
       qwSave({ id: qwId(), kind: 'invmod', n: o.n, st: 'ok', try: 0, c: o.c, d: o.d, lines, total: Math.round(total * 100) / 100, memo: 'Change to invoice #' + o.n, by: byName(), at: nowIso(), okBy: byName(), okAt: nowIso() });
       S.ivEdit = null; toast('Change sent. QuickBooks updates the invoice in a few seconds.'); render(); break; }
     case 'iv-info': S.ivInfo = !S.ivInfo; render(); break;
+    case 'iv-void': S.ivVoid = S.ivVoid === d.n ? null : d.n; render(); break;
+    case 'iv-void-no': S.ivVoid = null; render(); break;
+    case 'iv-void-yes': { const o = REAL.orders.list.find(x => x.n === d.n); if (!o) break;
+      qwSave({ id: qwId(), kind: 'invvoid', n: o.n, st: 'ok', try: 0, c: o.c, d: o.d, lines: [], total: 0, memo: 'Cancel invoice #' + o.n, by: byName(), at: nowIso(), okBy: byName(), okAt: nowIso() });
+      S.ivVoid = null; toast('Canceling… QuickBooks voids it in a few seconds.'); render(); break; }
     case 'ord-open': S.ivInfo = false; S.ivEdit = null; if (!S.ordOpen) S.ordScroll = window.scrollY; S.ordOpen = S.ordOpen === d.n ? null : d.n; render(); window.scrollTo(0, S.ordOpen ? 0 : (S.ordScroll || 0)); break;
     case 'ord-more': S.ordDays += 10; keep(); break;
     case 'dash-all': if (d.w === 'stores') S.dashAllStores = !S.dashAllStores; else S.dashAllItems = !S.dashAllItems; keep(); break;

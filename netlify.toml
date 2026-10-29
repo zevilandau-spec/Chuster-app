@@ -2,7 +2,7 @@
 [build]
   publish = "."
   # only publish when the app itself changed (saves Netlify credits)
-  ignore = "git diff --quiet $CACHED_COMMIT_REF $COMMIT_REF -- index.html version.json netlify.toml manifest.webmanifest *.png netlify"
+  ignore = "git diff --quiet $CACHED_COMMIT_REF $COMMIT_REF -- index.html version.json netlify.toml manifest.webmanifest *.png netlify qb"
 
 [[headers]]
   for = "/index.html"
@@ -25,3 +25,8 @@
   to = "https://chuster-afb77-default-rtdb.firebaseio.com/:splat"
   status = 200
   force = true
+
+[[headers]]
+  for = "/qb/*"
+  [headers.values]
+    Cache-Control = "no-cache"
