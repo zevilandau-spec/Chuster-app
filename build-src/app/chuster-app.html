@@ -1577,6 +1577,9 @@ function renderOrder() {
     <aside class="card stack" style="position:sticky;top:calc(80px + env(safe-area-inset-top, 0px))">
       <h2>Summary</h2>
       <div id="order-sum" class="stack" style="gap:6px">${orderSumHtml()}</div>
+      <label class="lbl" for="inv-num">Invoice #</label>
+      <input class="inp" id="inv-num" inputmode="numeric" autocomplete="off" value="${esc(S.orderRef || nextInvNum())}" placeholder="next number">
+      <p class="sub" style="margin:-4px 0 0;font-size:12px">The next free number is filled in. You can change it.</p>
       <label class="lbl" for="when">Deliver</label>
       <select class="sel" id="when">${S.trucks.map((t, i) => `<option${i === 1 ? ' selected' : ''}>${fmtShort(next)} · ${esc(t.name)}</option>`).join('')}<option>Pick another day</option></select>
       <p class="sub" style="margin:0">Shabbos and Yom Tov are skipped automatically.</p>
@@ -4960,6 +4963,14 @@ const fullOf = (ref, full) => typeof ref === 'number' && REAL.catalog[ref] ? REA
 const nameOfFull = f => { const c = REAL && REAL.catalog.find(x => x.full === f); return c ? c.name + (c.pack ? ' ' + c.pack : '') : String(f).split(':').pop(); };
 
 // New order -> waits in To QuickBooks
+// the next invoice number: one more than the highest number the app knows (QuickBooks invoices + ones on the way)
+function nextInvNum() {
+  let mx = 0; const see = n => { const v = parseInt(String(n || '').replace(/\D/g, ''), 10); if (/^\d+$/.test(String(n || '').trim()) && v > mx && v < 1e9) mx = v; };
+  ((REAL && REAL.orders && REAL.orders.list) || []).forEach(o => { if (o.t === 'inv') see(o.n); });
+  if (typeof QB !== 'undefined') Object.values(QB.inv || {}).forEach(o => { if (o && o.t !== 'cm') see(o.n); });
+  Object.values(S.qw || {}).forEach(r => { if (r.kind === 'inv') { see(r.ref); const q = S.qr[r.id]; if (q) see(q.num); } });
+  return mx ? String(mx + 1) : '';
+}
 function qwFromOrder() {
   if (!REAL) { toast('This works with your real numbers only.'); return false; }
   if (!S.orderStore) { toast('Pick a store first.'); return false; }
@@ -4967,7 +4978,12 @@ function qwFromOrder() {
   if (!lines.length) { toast('Add at least one item.'); return false; }
   const bad = S.catalog.filter(p => (S.oq[keyOf(p)] || 0) > 0 && !p.full); if (bad.length) { toast(`${bad[0].name} is a sample item, not in QuickBooks.`); return false; }
   const total = lines.reduce((s, l) => s + l[1] * l[2], 0);
-  qwSave({ id: qwId(), kind: 'inv', st: 'ok', try: 0, c: S.orderStore, d: isoOf(TODAY), lines, total: Math.round(total * 100) / 100, memo: '', by: byName(), at: nowIso(), okBy: byName(), okAt: nowIso() });
+  const el = document.getElementById('inv-num'); const ref = String((el ? el.value : S.orderRef) || nextInvNum() || '').trim();
+  if (ref && !/^[A-Za-z0-9-]{1,11}$/.test(ref)) { toast('The invoice number can only have letters and numbers (up to 11).'); return false; }
+  const used = ref && (((REAL.orders && REAL.orders.list) || []).some(o => o.t === 'inv' && o.n === ref) || Object.values(QB.inv || {}).some(o => o && o.n === ref) || Object.values(S.qw || {}).some(r => r.kind === 'inv' && r.ref === ref));
+  if (used) { toast(`Invoice #${ref} is already used. Pick another number.`); return false; }
+  S.orderRef = '';
+  qwSave({ id: qwId(), kind: 'inv', st: 'ok', try: 0, c: S.orderStore, d: isoOf(TODAY), ref, lines, total: Math.round(total * 100) / 100, memo: '', by: byName(), at: nowIso(), okBy: byName(), okAt: nowIso() });
   return true;
 }
 function qwCard(rec) {
@@ -5590,6 +5606,7 @@ document.addEventListener('input', e => {
   }
   if (e.target.classList && e.target.classList.contains('ive-inp') && S.ivEdit) { S.ivEdit.q[e.target.dataset.k] = Math.max(0, parseInt(e.target.value, 10) || 0); return; }
   if (e.target.id === 'ive-find' && S.ivEdit) { S.ivEdit.find = e.target.value; const el = document.getElementById('ive-res'); if (el) el.innerHTML = ivFind(S.ivEdit); return; }
+  if (e.target.id === 'inv-num') { S.orderRef = e.target.value; return; }
   if (e.target.id === 'ord-q') { S.ordQ = e.target.value; const ol = document.getElementById('ord-list'); if (ol) ol.innerHTML = ordList(); return; }
   if (e.target.id === 'cust-q') { S.custQ = e.target.value; const box = document.getElementById('cust-list'); if (box) box.innerHTML = custRows(); return; }
   if (e.target.id === 'store-q') { S.storeQ = e.target.value; const sl = document.getElementById('store-list'); if (sl) sl.innerHTML = storeRows(); return; }
