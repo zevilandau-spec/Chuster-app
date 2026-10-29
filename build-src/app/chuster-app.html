@@ -747,6 +747,19 @@ body:has(#ai-fab:not([hidden])) #view { padding-bottom: 72px; }
 .o3-mix i { display: block; height: 100%; background: var(--gt); }
 .o3-heb { font-weight: 600; opacity: .75; margin-left: 4px; }
 .o2-day b { color: var(--fg); }
+.pk-job { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 10px; background: var(--gs); border: 2px solid transparent; }
+.pk-job.now { border-color: var(--gold); } .pk-job.fin { opacity: .65; }
+.pk-job .main { flex: 1; min-width: 0; } .pk-job .name { font-weight: 800; font-size: 14px; } .pk-job .meta { font-size: 12px; color: var(--muted); }
+.pk-n { width: 26px; height: 26px; flex: none; border-radius: 50%; display: grid; place-items: center; font-weight: 800; font-size: 12px; background: var(--surface); color: var(--gt); }
+.pk-job.fin .pk-n { background: var(--good); color: #fff; }
+.pk-qty { flex: none; text-align: right; font-variant-numeric: tabular-nums; } .pk-qty b { font-size: 18px; }
+.pk-act { flex: none; display: flex; flex-wrap: wrap; gap: 4px; justify-content: flex-end; max-width: 230px; }
+.pk-mv { display: inline-flex; gap: 2px; }
+.pk-step { padding: 7px 12px; border-radius: 10px; font-size: 13px; font-weight: 800; }
+.pk-step.clean { background: var(--gold-soft); color: var(--gold-text); } .pk-step.tube { background: var(--brand-soft); color: var(--brand-text); }
+.pk-tubes { display: flex; gap: 4px; flex: none; } .pk-tubes .chip { min-width: 34px; padding: 0 8px; }
+.pk-egg { flex: none; display: flex; align-items: center; gap: 4px; font-size: 13px; font-weight: 700; }
+@media (max-width: 600px) { .pk-job { flex-wrap: wrap; } .pk-act { max-width: none; width: 100%; justify-content: flex-start; } .irow.or-row:has(.pk-tubes) { flex-wrap: wrap; } }
 /* ===== compact everywhere ===== */
 main { padding-block: 14px 32px; }
 .view { gap: 10px; }
@@ -1654,62 +1667,88 @@ function packDays() {
   }
   return out;
 }
+/* ---------- Packing plan: real amounts, 4 tubes, egg block with cleaning, live progress for everyone ---------- */
+Object.assign(S, { pkSet: loadLS('chuster-pkset-v1', {}), pkProg: loadLS('chuster-pkprog-v1', {}), pkNote: loadLS('chuster-pknote-v1', {}), pkOrder: loadLS('chuster-pkorder-v1', {}), pkSetOpen: false, pkSetQ: '' });
+const pkDay = () => isoOf(TODAY);
+const pkCanEdit = () => S.role === 'Owner' || S.role === 'Office';
+const pkCanPack = () => S.role === 'Owner' || S.role === 'Office' || S.role === 'Warehouse';
+const pkSetOf = full => S.pkSet[full] || {};
+function pkPlan() {
+  const P = packNext(); const day = pkDay();
+  let items = P.rows.filter(r => r.pack > 0).map(r => { const st = pkSetOf(r.c.full); const pr = S.pkProg[day + '|' + r.c.full] || {}; return { r, full: r.c.full, tube: +st.tube || 0, egg: !!st.egg, done: +pr.done || 0, st: pr.st || '' }; });
+  // automatic order: no-egg products first (grouped by tube), then the egg block (grouped by tube), so the egg cleaning happens once
+  const tubesOf = L => [...new Set(L.map(x => x.tube))];
+  const byTube = (L, first) => { const ts = tubesOf(L).sort((a, b) => (a || 9) - (b || 9)); if (first && ts.includes(first)) { ts.splice(ts.indexOf(first), 1); ts.unshift(first); } return ts.flatMap(t => L.filter(x => x.tube === t).sort((a, b) => b.r.pack - a.r.pack)); };
+  const egg = items.filter(x => x.egg), plain = items.filter(x => !x.egg);
+  const eggFirstTube = byTube(egg)[0] ? byTube(egg)[0].tube : 0;
+  let plainOrd = byTube(plain); if (eggFirstTube) { const last = plainOrd.filter(x => x.tube === eggFirstTube); plainOrd = plainOrd.filter(x => x.tube !== eggFirstTube).concat(last); }
+  let ord = plainOrd.concat(byTube(egg, plainOrd.length ? plainOrd[plainOrd.length - 1].tube : 0));
+  const man = (S.pkOrder[day] || {}).order;
+  if (man && man.length) { const pos = f => { const i = man.indexOf(f); return i < 0 ? 1e6 : i; }; const auto = ord.map(x => x.full); ord = ord.slice().sort((a, b) => (pos(a.full) - pos(b.full)) || (auto.indexOf(a.full) - auto.indexOf(b.full))); }
+  // steps: change tube, clean before and after egg
+  const steps = []; let tube = null, inEgg = false;
+  ord.forEach((x, i) => {
+    if (x.egg && !inEgg) { steps.push({ kind: 'clean', text: 'Clean the machine before the egg products' }); inEgg = true; }
+    if (!x.egg && inEgg) { steps.push({ kind: 'clean', text: 'Clean the machine after the egg products' }); inEgg = false; }
+    if (x.tube !== tube) { if (tube !== null) steps.push({ kind: 'tube', text: x.tube ? `Change to Tube ${x.tube}` : 'Next products have no tube set yet' }); else if (x.tube) steps.push({ kind: 'tube', text: `Start on Tube ${x.tube}`, start: true }); tube = x.tube; }
+    steps.push({ kind: 'job', x, n: i + 1 });
+  });
+  if (inEgg) steps.push({ kind: 'clean', text: 'Clean the machine after the egg products' });
+  return { P, ord, steps, day };
+}
 function renderPacking() {
-  const days = packDays();
-  const open = days.filter(d => !d.closed);
-  const sel = open[Math.min(S.packDay, open.length - 1)];
-  const all = S.pack.flatMap(l => l.jobs);
-  const total = all.reduce((s, j) => s + j.cases, 0);
-  const done = all.reduce((s, j) => s + j.done, 0);
-  const pct = Math.round(done / total * 100);
-  const chips = days.map(d => {
-    if (d.closed) return `<span class="chip closed" style="display:inline-flex;align-items:center">${WDS[dow(d.rd)]} · ${d.label} · closed</span>`;
-    const i = open.indexOf(d);
-    return `<button class="chip" data-act="pack-day" data-i="${i}" aria-pressed="${S.packDay === i}">${d.rd === TODAY ? 'Today' : WDS[dow(d.rd)]} ${dateOf(d.rd).getDate()} <small>· ${hebStr(d.rd, false)}${d.short ? ' · short day' : ''}</small></button>`;
-  }).join('');
-  const lines = S.pack.map((l, li) => {
-    const lt = l.jobs.reduce((s, j) => s + j.cases, 0), ld = l.jobs.reduce((s, j) => s + j.done, 0);
-    return `<section class="line-card">
-      <div class="line-head ${l.tone}" style="border-radius:0"><h2 style="font-size:18px">${l.line}</h2><strong class="num">${ld} of ${lt} cases</strong></div>
-      ${l.jobs.map((j, ji) => `<div class="job ${j.st === 'now' ? 'now' : j.st === 'done' ? 'done' : ''}">
-        <div class="n">${j.st === 'done' ? '✓' : ji + 1}</div>
-        <div class="main"><div class="name">${j.name}</div><div class="meta sub" style="margin:0">#${j.code} · ${j.pack}</div><span class="tag ${j.red ? 'red' : 'blue'}" style="margin-top:6px">${j.why}</span></div>
-        <div class="qty"><b>${j.done}</b> <span class="sub">/ ${j.cases} cases</span><div class="bar ${j.st === 'done' ? 'good' : 'gold'}" style="margin-top:6px"><i style="width:${Math.round(j.done / j.cases * 100)}%"></i></div></div>
-        <div class="side-act">${j.st === 'next' ? `<button class="btn primary" data-act="pk" data-l="${li}" data-j="${ji}" data-do="start">Start</button>`
-          : j.st === 'now' ? `<button class="btn good" data-act="pk" data-l="${li}" data-j="${ji}" data-do="add">+ 6 cases</button><button class="btn ghost" data-act="pk" data-l="${li}" data-j="${ji}" data-do="finish">Done</button>`
-          : `<button class="btn ghost" data-act="pk" data-l="${li}" data-j="${ji}" data-do="undo">Undo</button>`}</div>
-      </div>`).join('')}
-    </section>`;
-  }).join('');
-  const extraLines = S.lines.filter(n => !S.pack.some(p => p.line === n)).map(n => `<section class="line-card"><div class="line-head blue" style="border-radius:0"><h2 style="font-size:18px">${esc(n)}</h2><strong>0 cases</strong></div><p class="sub" style="padding:14px 16px;margin:0">No packing jobs on this line yet.</p></section>`).join('');
-  const nextOpen = open[1];
-  return `
-  ${head('Packing plan', `${sel.rd === TODAY ? 'Today' : fmtShort(sel.rd)} · ${hebStr(sel.rd)} · built from orders and stock`)}
-  <div class="chips" role="group" aria-label="Day">${chips}</div>
-  ${sel.short ? `<div class="note"><strong>${sel.label}:</strong> short day. Start early and finish before [time].</div>` : ''}
+  if (!REAL) return needData('Packing plan');
+  if (S.pkSetOpen) return pkSettings();
+  const { P, ord, steps, day } = pkPlan();
+  const [f0, t0] = pnRange(); const d0 = pnDefault();
+  const nextMon = (() => { let r = d0; while (dow(r) !== 1) r++; return r; })(); const fri = (() => { let r = d0; while (dow(r) !== 5) r++; return r; })();
+  const chip = (k, a, b) => `<button class="chip" data-act="pn-range" data-f="${a}" data-t="${b}" aria-pressed="${f0 === a && t0 === b}">${k}</button>`;
+  const total = ord.reduce((t, x) => t + x.r.pack, 0), done = ord.reduce((t, x) => t + Math.min(x.r.pack, x.st === 'done' ? x.r.pack : x.done), 0);
+  const pct = total ? Math.round(done / total * 100) : 0;
+  const tubeCh = steps.filter(s2 => s2.kind === 'tube' && !s2.start).length, cleans = steps.filter(s2 => s2.kind === 'clean').length;
+  const noSet = ord.filter(x => !x.tube).length;
+  const note = (S.pkNote[day] || {}).text || '';
+  const job = s2 => { const x = s2.x, r = x.r, fin = x.st === 'done', now = x.st === 'now', dn = fin ? r.pack : Math.min(x.done, r.pack);
+    return `<div class="pk-job ${gcls(r.c.group)}${fin ? ' fin' : now ? ' now' : ''}">
+      <span class="pk-n">${fin ? '✓' : s2.n}</span>
+      <div class="main"><div class="name">${esc(r.c.name)}${x.egg ? ' <span class="tag gold">egg</span>' : ''}</div><div class="meta">${[r.c.code ? '#' + esc(r.c.code) : '', r.c.pack ? esc(r.c.pack) : '', x.tube ? 'Tube ' + x.tube : '<span style="color:var(--bad-text)">no tube set</span>', 'stock ' + fn(r.stock || 0)].filter(Boolean).join(' · ')}</div>
+        <div class="bar ${fin ? 'good' : 'gold'}" style="margin-top:5px"><i style="width:${r.pack ? Math.round(dn / r.pack * 100) : 0}%"></i></div></div>
+      <div class="pk-qty"><b>${fn(dn)}</b><span class="sub" style="margin:0"> / ${fn(r.pack)}</span></div>
+      ${pkCanPack() ? `<div class="pk-act">${fin ? `<button class="btn ghost sm" data-act="pkp" data-f="${esc(x.full)}" data-do="undo">Undo</button>`
+        : now || x.done ? `<button class="btn good sm" data-act="pkp" data-f="${esc(x.full)}" data-do="add" data-n="6">+6</button><button class="btn ghost sm" data-act="pkp" data-f="${esc(x.full)}" data-do="add" data-n="1">+1</button><button class="btn primary sm" data-act="pkp" data-f="${esc(x.full)}" data-do="done">Done</button>`
+        : `<button class="btn primary sm" data-act="pkp" data-f="${esc(x.full)}" data-do="start">Start</button>`}${pkCanEdit() ? `<span class="pk-mv"><button class="btn ghost sm" data-act="pkmv" data-f="${esc(x.full)}" data-d="-1" aria-label="Move up">↑</button><button class="btn ghost sm" data-act="pkmv" data-f="${esc(x.full)}" data-d="1" aria-label="Move down">↓</button></span>` : ''}</div>` : ''}
+    </div>`; };
+  const list = steps.map(s2 => s2.kind === 'job' ? job(s2) : `<div class="pk-step ${s2.kind}">${s2.kind === 'clean' ? '🧽' : '🔧'} ${esc(s2.text)}</div>`).join('');
+  return `${head('Packing plan', `${pnLabel(P)} · built from usual orders and stock`, `${pkCanEdit() || S.role === 'Warehouse' ? `<button class="btn ghost" data-act="pk-set">Tubes &amp; egg</button>` : ''}<button class="btn gold" data-act="pn-print">Print list</button>`)}
+  <div class="chips">${chip('Next delivery day', d0, d0)}${chip('Till Monday', d0, nextMon)}${chip('Till Friday', d0, fri)}${chip('Next 7 days', d0, d0 + 6)}</div>
   <div class="tiles">
-    <div class="tile"><div class="k">To pack</div><div class="v">${total} <span class="sub" style="font-size:15px">cases</span></div></div>
-    <div class="tile"><div class="k">Packed so far</div><div class="v" style="color:var(--good-text)">${done} <span class="sub" style="font-size:15px">· ${pct}%</span></div><div class="bar good" style="margin-top:6px"><i style="width:${pct}%"></i></div></div>
-    <div class="tile"><div class="k">For the next trucks</div><div class="v">34 <span class="sub" style="font-size:15px">orders</span></div></div>
-    <div class="tile bad"><div class="k">Refill stock</div><div class="v">46 <span style="font-size:15px">below zero</span></div></div>
+    <div class="tile"><div class="k">To pack</div><div class="v">${fn(total)} <span style="font-size:14px">cases</span></div><div class="s">${ord.length} products</div></div>
+    <div class="tile good"><div class="k">Packed today</div><div class="v">${fn(done)} · ${pct}%</div><div class="bar good" style="margin-top:4px"><i style="width:${pct}%"></i></div></div>
+    <div class="tile"><div class="k">Tube changes</div><div class="v">${tubeCh}</div><div class="s">${cleans ? cleans + ' cleaning' + (cleans > 1 ? 's' : '') + ' for egg' : 'no egg products'}</div></div>
+    ${noSet ? `<div class="tile warn"><div class="k">No tube set</div><div class="v">${noSet}</div><div class="s"><a href="#packing" data-act="pk-set">set tubes &amp; egg</a></div></div>` : ''}
   </div>
   <div class="split">
-    <div class="stack" style="gap:16px">${lines}${extraLines}</div>
-    <aside class="stack" style="gap:16px">
-      <section class="note"><strong style="display:block;font-size:16px;margin-bottom:4px">Note from the office</strong>Pack Chuster Fine first. Truck 2 leaves early and needs 22 cases of it.</section>
-      <section class="card stack"><h2>Materials</h2>
-        <div class="truck" style="display:flex;justify-content:space-between"><strong>Cartons 18-pack</strong><span>[#] needed</span></div>
-        <div class="truck" style="display:flex;justify-content:space-between"><strong>Cartons 24-pack</strong><span>[#] needed</span></div>
-        <div class="truck" style="display:flex;justify-content:space-between"><strong>Film rolls</strong><span style="color:var(--bad-text);font-weight:800">Running low</span></div>
-        <div class="truck" style="display:flex;justify-content:space-between"><strong>Case labels</strong><span>[#] needed</span></div>
+    <section class="card stack" style="gap:6px">${list || '<p class="sub" style="margin:0">Nothing to pack for these days. Everything is in stock.</p>'}</section>
+    <aside class="stack">
+      <section class="card stack"><h2>Note from the office</h2>
+        ${pkCanEdit() ? `<textarea class="inp" id="pk-note" rows="3" placeholder="e.g. Pack Chuster Fine first, Truck 2 leaves early">${esc(note)}</textarea><button class="btn primary sm" data-act="pk-note">Save note</button>` : `<p style="margin:0">${note ? esc(note) : '<span class="sub">No note today.</span>'}</p>`}
       </section>
-      ${nextOpen ? `<section class="card stack"><h2>Coming up ${fmtShort(nextOpen.rd)}</h2>${nextOpen.short ? `<span class="tag gold">${nextOpen.label} · short day</span>` : ''}
-        <div style="display:flex;justify-content:space-between"><span>Chuster Barley</span><strong>48 cases</strong></div>
-        <div style="display:flex;justify-content:space-between"><span>Chuster Fine</span><strong>36 cases</strong></div>
-        <div style="display:flex;justify-content:space-between"><span>Sourdough Pretzel Nuggets</span><strong>24 cases</strong></div></section>` : ''}
-      <button class="btn danger big full" data-act="soon" data-name="Problem reports">Report a problem (out of film, machine down)</button>
+      <section class="card stack"><h2>How the order is made</h2><p class="sub" style="margin:0">Products without egg first, grouped by tube, then all egg products together, so the machine is cleaned only before and after the egg. Biggest amounts first on each tube.${pkCanEdit() ? ' Use ↑ ↓ to move a product; the tube changes and cleanings update by themselves.' : ''}</p>
+        ${pkCanEdit() && (S.pkOrder[day] || {}).order ? `<button class="btn ghost sm" data-act="pk-reset">Back to the automatic order</button>` : ''}</section>
     </aside>
   </div>`;
+}
+function pkSettings() {
+  const q = S.pkSetQ.trim().toLowerCase();
+  const items = (REAL.catalog || []).filter(c => /^Packs/.test(c.full || '') && (!q || (c.name + ' ' + c.code).toLowerCase().includes(q))).sort((a, b) => grank(a.group) - grank(b.group) || String(a.code).localeCompare(String(b.code)));
+  const can = pkCanEdit() || S.role === 'Warehouse';
+  return `${head('Tubes & egg', 'Set once per product. Saved for everyone.', `<button class="btn primary" data-act="pk-set-close">Back to Packing plan</button>`)}
+  <section class="card stack" style="gap:6px">
+    <div class="field">${ic('search')}<label class="sr" for="pk-set-q">Find a product</label><input id="pk-set-q" value="${esc(S.pkSetQ)}" placeholder="Find a product" autocomplete="off"></div>
+    <div id="pk-set-list">${items.map(c => { const st = pkSetOf(c.full); return `<div class="irow or-row ${gcls(c.group)}"><div class="main"><div class="name">${esc(c.name)}</div><div class="meta">${c.code ? '#' + esc(c.code) : ''}${c.pack ? ' · ' + esc(c.pack) : ''}</div></div>
+      <div class="pk-tubes" role="group" aria-label="Tube">${[1, 2, 3, 4].map(t => `<button class="chip" data-act="pk-tube" data-f="${esc(c.full)}" data-t="${t}" aria-pressed="${+st.tube === t}"${can ? '' : ' disabled'}>${t}</button>`).join('')}</div>
+      <label class="pk-egg"><input type="checkbox" class="pk-egg-cb" data-f="${esc(c.full)}"${st.egg ? ' checked' : ''}${can ? '' : ' disabled'}> Egg</label></div>`; }).join('')}</div>
+  </section>`;
 }
 
 function renderCalendar() {
@@ -4299,7 +4338,7 @@ const SYNC = (function () {
     if (!viaApp && onNetlify && e && e.name === 'TypeError') { viaApp = true; try { localStorage.setItem('chuster-db-via-app', '1'); } catch (x) { /* ignore */ } setTimeout(() => tick(), 500); }
   }
   const st = { ok: null, err: '', last: 0, since: loadLS('chuster-sync-since', {}), out: loadLS('chuster-sync-out', {}), seen: {}, key: null, flushing: false, pulling: false, started: false };
-  const COLLS = ['ds', 'rd', 'll', 'do', 'sc', 'tr', 'lq', 'ls', 'lm', 'lx', 'lh', 'qi', 'qo', 'qc', 'qs', 'qp', 'qh', 'qw', 'qr'];
+  const COLLS = ['ds', 'rd', 'll', 'do', 'sc', 'tr', 'lq', 'ls', 'lm', 'lx', 'lh', 'qi', 'qo', 'qc', 'qs', 'qp', 'qh', 'qw', 'qr', 'ps', 'pp', 'pn', 'pq'];
   const h = s => { let a = 0x811c9dc5, b = 0x9e3779b9; for (let i = 0; i < s.length; i++) { const c = s.charCodeAt(i); a = Math.imul(a ^ c, 16777619) >>> 0; b = Math.imul(b ^ c, 2246822519) >>> 0; } return a.toString(36) + b.toString(36); };
   const b64 = u8 => { let s = ''; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); return btoa(s); };
   const unb64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -4376,7 +4415,7 @@ const SYNC = (function () {
     st.pulling = false; badge();
     if (changed) refresh();
   }
-  const LIVE = ['route', 'stop', 'loadlist', 'loading', 'toqb', 'dsched', 'home', 'orders', 'customers', 'collect', 'inventory', 'mysales', 'payments', 'tools', 'reorder'];
+  const LIVE = ['route', 'stop', 'loadlist', 'loading', 'toqb', 'dsched', 'home', 'orders', 'customers', 'collect', 'inventory', 'mysales', 'payments', 'tools', 'reorder', 'packing'];
   function refresh() {
     const a = document.activeElement; if (S.sigOpen || (a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) && a.id !== 'ms-end')) { st.pend = true; return; }
     st.pend = false; if (typeof qbAfterPull === 'function') qbAfterPull(); if (LIVE.includes(S.view)) { const y = window.scrollY; render(); window.scrollTo(0, y); }
@@ -4950,6 +4989,10 @@ document.addEventListener('input', e => { if (e.target.id === 'lx-q') { S.lxQ = 
 // qw = what the app asks for (scrambled the same way as the PC's records) · qr = what the PC did (QuickBooks number or the problem)
 Object.assign(S, { qw: loadLS('chuster-qw-v1', {}), qr: loadLS('chuster-qr-v1', {}), qbTab: 'wait', qbSheet: null, payForm: null, cmForm: null });
 (function qwPrune() { const cut = isoOf(TODAY - 45); let ch = false; Object.keys(S.qw).forEach(id => { const r = S.qw[id]; if (!r || (r.at || '').slice(0, 10) < cut) { delete S.qw[id]; delete S.qr[id]; ch = true; } }); if (ch) { saveLS('chuster-qw-v1', S.qw); saveLS('chuster-qr-v1', S.qr); } })();
+SYNC.on('ps', (k, v) => { if (v == null) delete S.pkSet[k]; else S.pkSet[k] = v; saveLS('chuster-pkset-v1', S.pkSet); });
+SYNC.on('pp', (k, v) => { if (v == null) delete S.pkProg[k]; else S.pkProg[k] = v; saveLS('chuster-pkprog-v1', S.pkProg); });
+SYNC.on('pn', (k, v) => { if (v == null) delete S.pkNote[k]; else S.pkNote[k] = v; saveLS('chuster-pknote-v1', S.pkNote); });
+SYNC.on('pq', (k, v) => { if (v == null) delete S.pkOrder[k]; else S.pkOrder[k] = v; saveLS('chuster-pkorder-v1', S.pkOrder); });
 SYNC.on('qw', (k, v) => { if (v == null) delete S.qw[k]; else S.qw[k] = v; saveLS('chuster-qw-v1', S.qw); });
 SYNC.on('qr', (k, v) => { const was = S.qr[k]; if (v == null) delete S.qr[k]; else S.qr[k] = v; saveLS('chuster-qr-v1', S.qr);
   if (v && v.st === 'done' && (!was || was.st !== 'done') && S.qw[k]) toast(`In QuickBooks: ${QB_KIND[S.qw[k].kind]} #${v.num || ''} for ${S.qw[k].c}`); });
@@ -5387,15 +5430,15 @@ document.addEventListener('click', e => {
     case 'inv-save': { const v = parseInt(document.getElementById('cnt').value, 10); if (!isNaN(v)) { S.inv[+d.i].onHand = v; toast(`Count saved: ${S.inv[+d.i].name} is now ${v}.`); } S.invEdit = null; keep(); break; }
     case 'inv-reorder': S.reorder.push(S.inv[+d.i].name); keep(); break;
     case 'po': toast(`Purchase order made for ${S.reorder.length} items (example).`); break;
-    case 'pack-day': S.packDay = +d.i; keep(); break;
-    case 'pk': {
-      const j = S.pack[+d.l].jobs[+d.j];
-      if (d.do === 'start') j.st = 'now';
-      if (d.do === 'add') { j.done = Math.min(j.cases, j.done + 6); if (j.done === j.cases) j.st = 'done'; }
-      if (d.do === 'finish') { j.done = j.cases; j.st = 'done'; }
-      if (d.do === 'undo') { j.st = 'now'; j.done = Math.max(0, j.cases - 6); }
-      keep(); break;
-    }
+    case 'pk-set': S.pkSetOpen = true; render(); window.scrollTo(0, 0); break;
+    case 'pk-set-close': S.pkSetOpen = false; render(); break;
+    case 'pk-tube': { const f = d.f; const st = Object.assign({}, pkSetOf(f)); st.tube = +st.tube === +d.t ? 0 : +d.t; S.pkSet[f] = st; saveLS('chuster-pkset-v1', S.pkSet); SYNC.put('ps', f, st); render(); break; }
+    case 'pkp': { const k = pkDay() + '|' + d.f; const pr = Object.assign({ done: 0 }, S.pkProg[k] || {}); const row = packNext().rows.find(r => r.c.full === d.f); const goal = row ? row.pack : 0;
+      if (d.do === 'start') pr.st = 'now'; else if (d.do === 'add') { pr.done = (+pr.done || 0) + (+d.n || 1); pr.st = goal && pr.done >= goal ? 'done' : 'now'; } else if (d.do === 'done') { pr.st = 'done'; pr.done = Math.max(+pr.done || 0, goal); } else if (d.do === 'undo') { pr.st = 'now'; }
+      pr.by = byName(); pr.at = nowIso(); S.pkProg[k] = pr; saveLS('chuster-pkprog-v1', S.pkProg); SYNC.put('pp', k, pr); render(); break; }
+    case 'pkmv': { const { ord, day } = pkPlan(); const L = ord.map(x => x.full); const i = L.indexOf(d.f), j = i + (+d.d); if (i < 0 || j < 0 || j >= L.length) break; [L[i], L[j]] = [L[j], L[i]]; const v = { order: L, by: byName() }; S.pkOrder[day] = v; saveLS('chuster-pkorder-v1', S.pkOrder); SYNC.put('pq', day, v); render(); break; }
+    case 'pk-reset': { const day = pkDay(); delete S.pkOrder[day]; saveLS('chuster-pkorder-v1', S.pkOrder); SYNC.put('pq', day, null); render(); break; }
+    case 'pk-note': { const el = document.getElementById('pk-note'); const day = pkDay(); const v = { text: el ? el.value.trim() : '', by: byName() }; S.pkNote[day] = v; saveLS('chuster-pknote-v1', S.pkNote); SYNC.put('pn', day, v); toast('Note saved. The warehouse sees it.'); break; }
     case 'cal-move': { let { y, m } = S.calMonth; m += +d.d; if (m < 1) { m = 12; y--; } if (m > 12) { m = 1; y++; } S.calMonth = { y, m }; keep(); break; }
     case 'cal-today': { const t = dateOf(TODAY); S.calMonth = { y: t.getFullYear(), m: t.getMonth() + 1 }; S.calSel = TODAY; keep(); break; }
     case 'cal-sel': S.calSel = +d.rd; keep(); break;
@@ -5557,6 +5600,7 @@ document.addEventListener('change', e => {
   if (cl.contains('pay-pick')) { S.payments[+t.dataset.i].pick = t.value || null; }
   if (t.id === 'cust-sort') { S.custSort = t.value; render(); }
   if (t.id === 'ord-date' && t.value) { S.ordFrom = t.value; S.ordDays = 10; render(); }
+  if (t.classList && t.classList.contains('pk-egg-cb')) { const f = t.dataset.f; const st = Object.assign({}, pkSetOf(f)); st.egg = t.checked; S.pkSet[f] = st; saveLS('chuster-pkset-v1', S.pkSet); SYNC.put('ps', f, st); return; }
   if (t.id === 'pn-from' && t.value) { S.pnFrom = isoRd(t.value); if (S.pnTo && S.pnTo < S.pnFrom) S.pnTo = S.pnFrom; render(); }
   if (t.id === 'pn-to' && t.value) { S.pnTo = isoRd(t.value); if (!S.pnFrom) S.pnFrom = pnDefault(); if (S.pnTo < S.pnFrom) S.pnFrom = S.pnTo; render(); }
   if (t.id === 'ord-area-sel') { S.ordArea = t.value; S.ordOpen = null; render(); }
@@ -5615,6 +5659,7 @@ document.addEventListener('input', e => {
   }
   if (e.target.classList && e.target.classList.contains('ive-inp') && S.ivEdit) { S.ivEdit.q[e.target.dataset.k] = Math.max(0, parseInt(e.target.value, 10) || 0); return; }
   if (e.target.id === 'ive-find' && S.ivEdit) { S.ivEdit.find = e.target.value; const el = document.getElementById('ive-res'); if (el) el.innerHTML = ivFind(S.ivEdit); return; }
+  if (e.target.id === 'pk-set-q') { S.pkSetQ = e.target.value; const el = document.getElementById('pk-set-list'); if (el) { const h = pkSettings(); const m = h.match(/<div id="pk-set-list">([\s\S]*)<\/div>\s*<\/section>/); if (m) el.innerHTML = m[1]; } return; }
   if (e.target.id === 'inv-num') { S.orderRef = e.target.value; return; }
   if (e.target.id === 'ord-q') { S.ordQ = e.target.value; const ol = document.getElementById('ord-list'); if (ol) ol.innerHTML = ordList(); return; }
   if (e.target.id === 'cust-q') { S.custQ = e.target.value; const box = document.getElementById('cust-list'); if (box) box.innerHTML = custRows(); return; }
