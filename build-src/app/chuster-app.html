@@ -759,7 +759,7 @@ body:has(#ai-fab:not([hidden])) #view { padding-bottom: 72px; }
 .pk-step.clean { background: var(--gold-soft); color: var(--gold-text); } .pk-step.tube { background: var(--brand-soft); color: var(--brand-text); }
 .pk-tubes { display: flex; gap: 4px; flex: none; } .pk-tubes .chip { min-width: 34px; padding: 0 8px; }
 .pk-egg { flex: none; display: flex; align-items: center; gap: 4px; font-size: 13px; font-weight: 700; }
-@media (max-width: 600px) { .pk-job { flex-wrap: wrap; } .pk-act { max-width: none; width: 100%; justify-content: flex-start; } .irow.or-row:has(.pk-tubes) { flex-wrap: wrap; } }
+@media (max-width: 600px) { .pk-job { flex-wrap: wrap; } .pk-act { max-width: none; width: 100%; justify-content: flex-start; } .irow.or-row:has(.pk-tubes) { flex-wrap: wrap; } .irow.or-row:has(.pk-tubes) .main { flex-basis: 100%; } .pk-tubes { flex-wrap: wrap; } }
 /* ===== compact everywhere ===== */
 main { padding-block: 14px 32px; }
 .view { gap: 10px; }
@@ -1105,6 +1105,7 @@ const PK = REAL && REAL.pack ? REAL.pack : null;
 try { const v = JSON.parse(localStorage.getItem('chuster-packlog-v1') || 'null'); if (v && typeof v === 'object') S.plSaved = v; } catch (e) { /* storage blocked */ }
 function savePL() { try { localStorage.setItem('chuster-packlog-v1', JSON.stringify(S.plSaved)); } catch (e) { /* storage blocked */ } }
 function keyOf(p) { return p.full || p.name; }
+let OFF_NAMES = new Set();
 if (REAL) {
   const realCat = REAL.catalog.map(c => ({ name: c.name, code: c.code || '—', pack: c.pack || '', brand: c.group, cat: c.group, price: c.price != null ? c.price.toFixed(2) : '', stock: c.stock, full: c.full }));
   S.catalog = realCat.concat(S.catalog.filter(x => !SAMPLE_CAT.has(x.name) && !realCat.some(b => b.name === x.name)));
@@ -1429,6 +1430,7 @@ function orderItems() {
   const q = S.orderQ.trim().toLowerCase();
   const qn = q.replace(/^0+/, '');
   return S.catalog.map((p, i) => ({ p, i })).filter(({ p }) => {
+    if (p.off && !(S.oq[keyOf(p)] > 0)) return false;
     if (S.orderGroup === 'On order') { if (!(S.oq[keyOf(p)] > 0)) return false; }
     else if (S.orderGroup !== 'All' && (p.brand || p.cat) !== S.orderGroup) return false;
     if (q && !(p.name.toLowerCase().includes(q) || (p.pack || '').toLowerCase().includes(q) || (qn && String(p.code).replace(/^0+/, '') === qn))) return false;
@@ -1606,11 +1608,11 @@ function renderOrder() {
 
 function invStatus(r) { return r.onHand < 0 ? 'zero' : r.onHand < r.reorderAt ? 'low' : 'ok'; }
 function renderInventory() {
-  const zero = S.inv.filter(r => invStatus(r) === 'zero').length;
-  const low = S.inv.filter(r => invStatus(r) === 'low').length;
+  const zero = S.inv.filter(r => !OFF_NAMES.has(r.name)).filter(r => invStatus(r) === 'zero').length;
+  const low = S.inv.filter(r => !OFF_NAMES.has(r.name)).filter(r => invStatus(r) === 'low').length;
   const GO = ['Chuster', 'Landaus', 'Chuster Snacks', 'Chuster Loose', 'Landaus Loose'];
   const rankG = g => { const i = GO.indexOf(g); return i < 0 ? 99 : i; };
-  const byStatus = S.inv.filter(r => S.invFilter === 'all' || invStatus(r) === S.invFilter);
+  const byStatus = S.inv.filter(r => !OFF_NAMES.has(r.name)).filter(r => S.invFilter === 'all' || invStatus(r) === S.invFilter);
   const brands = [...new Set(S.inv.map(r => r.brand))].sort((a, b) => rankG(a) - rankG(b) || a.localeCompare(b));
   const list = byStatus.filter(r => S.invBrand === 'All' || r.brand === S.invBrand)
     .sort((a, b) => rankG(a.brand) - rankG(b.brand) || a.brand.localeCompare(b.brand) || a.onHand - b.onHand);
@@ -1669,6 +1671,8 @@ function packDays() {
 }
 /* ---------- Packing plan: real amounts, 4 tubes, egg block with cleaning, live progress for everyone ---------- */
 Object.assign(S, { pkSet: loadLS('chuster-pkset-v1', {}), pkProg: loadLS('chuster-pkprog-v1', {}), pkNote: loadLS('chuster-pknote-v1', {}), pkOrder: loadLS('chuster-pkorder-v1', {}), pkSetOpen: false, pkSetQ: '' });
+const TUBE = ['', 'Large', 'Medium', 'Small', 'Potato Flips'];
+const tubeName = t => TUBE[+t] ? TUBE[+t] + ' tube' : 'no tube set';
 const pkDay = () => isoOf(TODAY);
 const pkCanEdit = () => S.role === 'Owner' || S.role === 'Office';
 const pkCanPack = () => S.role === 'Owner' || S.role === 'Office' || S.role === 'Warehouse';
@@ -1697,7 +1701,7 @@ function pkPlan() {
   ord.forEach((x, i) => {
     const needClean = (x.egg && !(prev && prev.egg)) || (prev && prev.egg && !x.egg) || (x.snack && !(prev && prev.snack));
     if (needClean) steps.push({ kind: 'clean', text: cleanText(prev, x) });
-    if (x.tube !== tube) { if (tube !== null) steps.push({ kind: 'tube', text: x.tube ? `Change to Tube ${x.tube}` : 'Next products have no tube set yet' }); else if (x.tube) steps.push({ kind: 'tube', text: `Start on Tube ${x.tube}`, start: true }); tube = x.tube; }
+    if (x.tube !== tube) { if (tube !== null) steps.push({ kind: 'tube', text: x.tube ? `Change to the ${tubeName(x.tube)}` : 'Next products have no tube set yet' }); else if (x.tube) steps.push({ kind: 'tube', text: `Start on the ${tubeName(x.tube)}`, start: true }); tube = x.tube; }
     steps.push({ kind: 'job', x, n: i + 1 }); prev = x;
   });
   if (prev && prev.egg) steps.push({ kind: 'clean', text: 'Clean the machine after the egg products' });
@@ -1718,7 +1722,7 @@ function renderPacking() {
   const job = s2 => { const x = s2.x, r = x.r, fin = x.st === 'done', now = x.st === 'now', dn = fin ? r.pack : Math.min(x.done, r.pack);
     return `<div class="pk-job ${gcls(r.c.group)}${fin ? ' fin' : now ? ' now' : ''}">
       <span class="pk-n">${fin ? '✓' : s2.n}</span>
-      <div class="main"><div class="name">${esc(r.c.name)}${x.egg ? ' <span class="tag gold">egg</span>' : ''}</div><div class="meta">${[r.c.code ? '#' + esc(r.c.code) : '', r.c.pack ? esc(r.c.pack) : '', x.tube ? 'Tube ' + x.tube : '<span style="color:var(--bad-text)">no tube set</span>', 'stock ' + fn(r.stock || 0)].filter(Boolean).join(' · ')}</div>
+      <div class="main"><div class="name">${esc(r.c.name)}${x.egg ? ' <span class="tag gold">egg</span>' : ''}</div><div class="meta">${[r.c.code ? '#' + esc(r.c.code) : '', r.c.pack ? esc(r.c.pack) : '', x.tube ? tubeName(x.tube) : '<span style="color:var(--bad-text)">no tube set</span>', 'stock ' + fn(r.stock || 0)].filter(Boolean).join(' · ')}</div>
         <div class="bar ${fin ? 'good' : 'gold'}" style="margin-top:5px"><i style="width:${r.pack ? Math.round(dn / r.pack * 100) : 0}%"></i></div></div>
       <div class="pk-qty"><b>${fn(dn)}</b><span class="sub" style="margin:0"> / ${fn(r.pack)}</span></div>
       ${pkCanPack() ? `<div class="pk-act">${fin ? `<button class="btn ghost sm" data-act="pkp" data-f="${esc(x.full)}" data-do="undo">Undo</button>`
@@ -1747,13 +1751,13 @@ function renderPacking() {
 }
 function pkSettings() {
   const q = S.pkSetQ.trim().toLowerCase();
-  const items = (REAL.catalog || []).filter(c => /^Packs/.test(c.full || '') && (!q || (c.name + ' ' + c.code).toLowerCase().includes(q))).sort((a, b) => grank(a.group) - grank(b.group) || String(a.code).localeCompare(String(b.code)));
+  const items = (REAL.catalog || []).filter(c => /^Packs/.test(c.full || '') && !c.off && (!q || (c.name + ' ' + c.code).toLowerCase().includes(q))).sort((a, b) => grank(a.group) - grank(b.group) || String(a.code).localeCompare(String(b.code)));
   const can = pkCanEdit() || S.role === 'Warehouse';
   return `${head('Tubes & egg', 'Set once per product. Saved for everyone.', `<button class="btn primary" data-act="pk-set-close">Back to Packing plan</button>`)}
   <section class="card stack" style="gap:6px">
     <div class="field">${ic('search')}<label class="sr" for="pk-set-q">Find a product</label><input id="pk-set-q" value="${esc(S.pkSetQ)}" placeholder="Find a product" autocomplete="off"></div>
     <div id="pk-set-list">${items.map(c => { const st = pkSetOf(c.full); return `<div class="irow or-row ${gcls(c.group)}"><div class="main"><div class="name">${esc(c.name)}</div><div class="meta">${c.code ? '#' + esc(c.code) : ''}${c.pack ? ' · ' + esc(c.pack) : ''}</div></div>
-      <div class="pk-tubes" role="group" aria-label="Tube">${[1, 2, 3, 4].map(t => `<button class="chip" data-act="pk-tube" data-f="${esc(c.full)}" data-t="${t}" aria-pressed="${+st.tube === t}"${can ? '' : ' disabled'}>${t}</button>`).join('')}</div>
+      <div class="pk-tubes" role="group" aria-label="Tube">${[1, 2, 3, 4].map(t => `<button class="chip" data-act="pk-tube" data-f="${esc(c.full)}" data-t="${t}" aria-pressed="${+st.tube === t}"${can ? '' : ' disabled'}>${TUBE[t]}</button>`).join('')}</div>
       <label class="pk-egg"><input type="checkbox" class="pk-egg-cb" data-f="${esc(c.full)}"${st.egg ? ' checked' : ''}${can ? '' : ' disabled'}> Egg</label></div>`; }).join('')}</div>
   </section>`;
 }
@@ -2906,7 +2910,7 @@ function renderItems() {
 }
 /* ---- price list sheet (print / save as PDF) ---- */
 function prItems(k) {
-  return REAL.catalog.map((c, i) => ({ c, o: IT.list[i] })).filter(({ c, o }) => o.kind === k && (o.list || o.common) && (S.prAll || o.q12 > 0))
+  return REAL.catalog.map((c, i) => ({ c, o: IT.list[i] })).filter(({ c, o }) => o.kind === k && !c.off && (o.list || o.common) && (S.prAll || o.q12 > 0))
     .sort((x, y) => grank(x.c.group) - grank(y.c.group) || String(x.c.code || 'zzz').localeCompare(String(y.c.code || 'zzz'), 'en', { numeric: true }) || x.c.name.localeCompare(y.c.name));
 }
 function prSheet(k) {
@@ -3710,7 +3714,7 @@ function packNext() {
   const tot = {}; deliv.forEach(r => { const A = pnAvgFor(dow(r)).avg; Object.keys(A).forEach(k => { tot[k] = (tot[k] || 0) + A[k]; }); });
   const week = {};
   OR.list.forEach(o => { if (o.t !== 'inv') return; const r = isoRd(o.d); if (r > to - 56) rowsOf(o.l).forEach(([ref, q]) => { if (typeof ref === 'number') week[ref] = (week[ref] || 0) + q / 8; }); });
-  const rows = REAL.catalog.map((c, i) => ({ c, i, day: tot[i] || 0, wk: week[i] || 0, stock: c.stock })).filter(r => (r.day > 0 || r.c.full) && (!/Loose/.test(r.c.group) || /\s(60|120)\s*$/.test(r.c.full)));
+  const rows = REAL.catalog.map((c, i) => ({ c, i, day: tot[i] || 0, wk: week[i] || 0, stock: c.stock })).filter(r => (r.day > 0 || (r.c.full && !r.c.off)) && (!/Loose/.test(r.c.group) || /\s(60|120)\s*$/.test(r.c.full)));
   rows.forEach(r => { r.need = Math.ceil(r.day * 1.1); r.pack = Math.max(0, r.need - Math.max(0, r.stock || 0)); r.wks = r.wk > 0 ? (r.stock || 0) / r.wk : null; });
   const codeN = r => { const n = parseInt(r.c.code, 10); return isNaN(n) ? 9999 : n; };
   if ((S.pnSort || 'most') === 'most') rows.sort((x, y) => (y.pack > 0) - (x.pack > 0) || y.pack - x.pack || y.need - x.need);
@@ -4542,6 +4546,10 @@ function qbApply() {
   const pk = {}; Object.values(QB.stock || {}).forEach(v => { if (!v || !v.f) return; const src = [v.x, v.u, v.pd, v.sd].filter(Boolean).join(' ; ');
     const m = src.match(/(\d+\s*(?:x|\/|×)\s*\d+(?:\.\d+)?\s*(?:oz|lb|lbs|g|ct|pk|pcs?)?)/i) || src.match(/(?:case|pack|cs|size|units?)[^=;]*=\s*([^;]+)/i) || (v.u ? [0, v.u] : null); if (m) pk[v.f] = m[1].trim(); });
   S.catalog.forEach(p => { if (p.full && pk[p.full] && !/\d+\s*\/\s*\d+/.test(p.full)) p.pack = pk[p.full]; });
+  // inactive items in QuickBooks are hidden from product lists
+  const offF = new Set(Object.values(QB.stock || {}).filter(v => v && v.f && v.on === false).map(v => v.f));
+  REAL.catalog.forEach(c => { c.off = offF.has(c.full); }); S.catalog.forEach(p => { p.off = !!p.full && offF.has(p.full); });
+  OFF_NAMES = new Set(REAL.catalog.filter(c => c.off).map(c => c.name));
   REAL.belowZero.forEach((x, i) => { x.stock = B.bz[i]; }); REAL.low.forEach((x, i) => { x.stock = B.low[i]; });
   if (!qbLive()) return;
 
