@@ -732,6 +732,21 @@ body:has(#ai-fab:not([hidden])) #view { padding-bottom: 72px; }
 .sm-table td.sm-t { font-weight: 800; text-align: right; padding-left: 8px; }
 .sm-table small { display: block; font-size: 10px; font-weight: 700; }
 .up { color: var(--good-text); } .down { color: var(--bad-text); }
+.o3-row { display: flex; align-items: stretch; gap: 10px; width: 100%; text-align: left; background: none; border: none; border-top: 1px solid var(--line); padding: 8px 12px 8px 0; font: inherit; color: var(--fg); cursor: pointer; }
+.o2-day + .o3-row { border-top: none; }
+.o3-row:hover, .o3-row.on { background: var(--surface-2); }
+.o3-bar { width: 4px; flex: none; border-radius: 0 3px 3px 0; background: var(--gt); }
+.o3-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.o3-l1, .o3-l2 { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.o3-store { flex: 1; min-width: 0; font-weight: 800; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.o3-amt { flex: none; font-weight: 800; font-size: 15px; font-variant-numeric: tabular-nums; }
+.o3-row.cm .o3-amt { color: var(--bad-text); }
+.o3-meta { flex: 1; min-width: 0; font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
+.o3-meta b { color: var(--fg); }
+.o3-mix { flex: none; display: flex; width: 64px; height: 6px; border-radius: 3px; overflow: hidden; background: var(--surface-2); }
+.o3-mix i { display: block; height: 100%; background: var(--gt); }
+.o3-heb { font-weight: 600; opacity: .75; margin-left: 4px; }
+.o2-day b { color: var(--fg); }
 /* ===== compact everywhere ===== */
 main { padding-block: 14px 32px; }
 .view { gap: 10px; }
@@ -2698,6 +2713,19 @@ function invView(o) {
     <div class="iv-foot"><div><span>Total boxes</span><b>${fn(boxes)}</b></div><div class="iv-total"><span>Total</span><b${cm ? ' style="color:var(--bad-text)"' : ''}>${cm ? '−' : ''}${money(Math.abs(o.a))}</b></div></div>
   </div>`;
 }
+// what's on an order: packed cases, wholesale (loose) cases, pounds, and the brand mix
+function ordMix(o) {
+  const m = { packs: 0, loose: 0, lb: 0, g: {} };
+  rowsOf(o.l).forEach(([ref, q, a]) => { const p = typeof ref === 'number' ? S.catalog[ref] : null; const full = p ? (p.full || '') : String(ref);
+    if (/total/i.test(full) && !/^(Packs|Chuster Loose|Landaus Loose)/.test(full)) return;
+    const g = p ? (p.brand || p.cat || 'Other') : 'Other'; m.g[g] = (m.g[g] || 0) + Math.abs(a || 0);
+    if (full.startsWith('Packs')) m.packs += Math.abs(q || 0); else if (/Loose/.test(g) || /Loose/.test(full)) { if (bulkOf(full)) m.lb += Math.abs(q || 0); else m.loose += Math.abs(q || 0); } });
+  return m;
+}
+function ordMixBar(m) {
+  const tot = Object.values(m.g).reduce((a, b) => a + b, 0); if (!tot) return '';
+  return `<span class="o3-mix" aria-hidden="true">${Object.entries(m.g).sort((x, y) => grank(x[0]) - grank(y[0])).map(([g, v]) => `<i class="${gcls(g)}" style="width:${(v / tot * 100).toFixed(1)}%"></i>`).join('')}</span>`;
+}
 function ordList() {
   const list = ordFiltered();
   if (!list.length) return '<p class="sub" style="padding:16px;margin:0">No orders match.</p>';
@@ -2705,12 +2733,15 @@ function ordList() {
   const show = S.ordQ.trim() ? days : days.slice(0, S.ordDays);
   const html = show.map(d => {
     const os = list.filter(o => o.d === d); const tot = os.reduce((s, o) => s + o.a, 0); const r = isoRd(d);
-    const head = `<div class="o2-day"><span>${r === TODAY ? 'Today' : r === TODAY - 1 ? 'Yesterday' : WDS[dow(r)] + ', ' + fmtShort(r).replace(/^\w+, /, '')}</span><span>${os.length} · ${fm(tot)}</span></div>`;
-    return head + os.map(o => {
-      const open = S.ordOpen === o.n; const bx = ordBoxes(o); const cm = o.t === 'cm';
-      return `<button class="o2-row${open ? ' on' : ''}" data-act="ord-open" data-n="${esc(o.n)}" aria-expanded="${open}">
-        <span class="o2-store">${esc(o.c)}</span><span class="o2-sub">${cm ? 'Credit ' : '#'}${esc(o.n)}${bx ? ` · ${fn(bx)} cs` : ''}</span>
-        <span class="o2-amt${cm ? ' cm' : ''}">${cm ? '−' : ''}${money(Math.abs(o.a))}</span>
+    const mixes = os.map(ordMix); const cs = mixes.reduce((t, m) => t + m.packs + m.loose, 0);
+    const head = `<div class="o2-day"><span>${r === TODAY ? 'Today' : r === TODAY - 1 ? 'Yesterday' : WDS[dow(r)] + ', ' + fmtShort(r).replace(/^\w+, /, '')} <span class="o3-heb">${hebStr(r, false)}</span></span><span>${os.length} orders${cs ? ' · ' + fn(cs) + ' cs' : ''} · <b>${fm(tot)}</b></span></div>`;
+    return head + os.map((o, k) => {
+      const open = S.ordOpen === o.n; const cm = o.t === 'cm'; const m = mixes[k]; const area = areaOf(o.c);
+      const qty = [m.packs ? `<b>${fn(m.packs)}</b> cs` : '', m.loose ? `<b>${fn(m.loose)}</b> wholesale` : '', m.lb ? `<b>${fn(m.lb)}</b> lb` : ''].filter(Boolean).join(' + ');
+      return `<button class="o3-row${open ? ' on' : ''}${cm ? ' cm' : ''}" data-act="ord-open" data-n="${esc(o.n)}" aria-expanded="${open}">
+        <span class="o3-bar ${areaCls(area)}"></span>
+        <span class="o3-main"><span class="o3-l1"><span class="o3-store">${esc(o.c)}</span><span class="o3-amt">${cm ? '−' : ''}${money(Math.abs(o.a))}</span></span>
+          <span class="o3-l2"><span class="o3-meta">${esc(area)} · ${cm ? 'Credit ' : '#'}${esc(o.n)}${qty ? ' · ' + qty : ''}</span>${ordMixBar(m)}</span></span>
       </button>`;
     }).join('');
   }).join('');
