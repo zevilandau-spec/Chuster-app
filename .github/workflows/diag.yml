@@ -1,0 +1,18 @@
+name: Diagnose history numbers
+on: workflow_dispatch
+jobs:
+  diag:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check invoice lines vs totals
+        env:
+          CHUSTER_SECRETS: ${{ secrets.CHUSTER_SECRETS }}
+          CHUSTER_DB_URL: ${{ secrets.CHUSTER_DB_URL }}
+        run: |
+          pip install cryptography >/dev/null 2>&1 || true
+          cd build-src
+          python3 -c "import json,os;s=json.loads(os.environ['CHUSTER_SECRETS']);s['sync']['url']=os.environ['CHUSTER_DB_URL'].strip().rstrip('/');json.dump(s['sync'],open('sync.json','w'))"
+          python3 tools/fetch_history.py "$CHUSTER_DB_URL" sync.json raw || true
+          python3 ci/diag.py raw
+          rm -rf raw sync.json
