@@ -408,6 +408,8 @@ body:has(#ai-fab:not([hidden])) #view { padding-bottom: 72px; }
 .oh-tag { font-size: 12px; padding: 2px 8px; border-radius: 999px; background: var(--surface); color: var(--fg); border: 1px solid var(--gt); white-space: nowrap; }
 .oh-tag b { color: var(--gt); }
 .oh-tag.ly { border-style: dashed; color: var(--muted); }
+.iv-pend { margin: 0 12px 12px; padding: 8px 12px; border-radius: 10px; font-size: 13px; font-weight: 600; background: var(--brand-soft); color: var(--brand-text); }
+.iv-pend.done { background: var(--good-soft); color: var(--good-text); } .iv-pend.error { background: var(--bad-soft); color: var(--bad-text); }
 .iv-foot { padding: 10px 14px 14px; margin-top: 12px; border-top: 1px solid var(--line); }
 .iv-foot > div { display: flex; justify-content: space-between; padding: 4px 0; color: var(--muted); }
 .iv-foot b { color: var(--fg); font-variant-numeric: tabular-nums; }
@@ -2586,9 +2588,44 @@ function ivInfo(c) {
     <div class="iv-info-acts">${c.phone ? `<a class="btn primary sm" href="${telHref(c.phone)}">${ic('phone')} Call</a><a class="btn good sm" href="${esc(waHref(waNum(c.phone), ''))}" target="_blank" rel="noopener">WhatsApp</a>` : ''}<button class="btn ghost sm" data-act="cust-sel-go" data-n="${esc(c.name)}">Full store page</button></div>
   </div>`;
 }
+const SVG_EDIT = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4zM14 6l4 4" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>';
+const ivCanEdit = () => S.role === 'Owner' || S.role === 'Office' || isSales();
+const ivKey = r => r.p ? keyOf(r.p) : String(r.ref);
+function ivPending(o) {
+  const recs = Object.values(S.qw || {}).filter(r => r.kind === 'invmod' && r.n === o.n).sort((a, b) => (b.upd || 0) - (a.upd || 0));
+  if (!recs.length) return '';
+  const r = recs[0]; const st = qwState(r); const res = S.qr[r.id] || {};
+  const txt = st === 'done' ? `✓ Change saved in QuickBooks${res.amt != null ? ' · new total ' + money(res.amt) : ''}. The lines below update with the next QuickBooks read.` : st === 'error' ? `The change didn't go in: ${esc(res.err || 'problem')}. Open To QuickBooks to try again.` : 'Change sent… QuickBooks updates the invoice in a few seconds.';
+  return `<div class="iv-pend ${st}">${txt}</div>`;
+}
+function ivEditView(o, rows, ed) {
+  const priceOf = k => { const r = rows.find(x => ivKey(x) === k); if (r && r.q) return Math.abs(r.a / r.q); const p = S.catalog.find(x => keyOf(x) === k); return p ? parseFloat(p.price) || 0 : 0; };
+  const nameOf = k => { const p = S.catalog.find(x => keyOf(x) === k); return p ? p.name + (p.pack ? ' ' + p.pack : '') : String(k).split(':').pop(); };
+  const grpOf = k => { const p = S.catalog.find(x => keyOf(x) === k); return p ? (p.brand || p.cat || '') : ''; };
+  const keys = Object.keys(ed.q).sort((a, b) => grank(grpOf(a)) - grank(grpOf(b)));
+  const total = keys.reduce((t, k) => t + (ed.q[k] || 0) * priceOf(k), 0);
+  const orig = new Set(rows.map(ivKey));
+  const line = k => `<div class="irow iv-item or-row ${gcls(grpOf(k))}" style="${ed.q[k] ? '' : 'opacity:.5'}"><div class="main"><div class="name">${esc(nameOf(k))}${orig.has(k) ? '' : ' <span class="tag green">new</span>'}</div><div class="meta">${money(priceOf(k))} each${!ed.q[k] ? ' · taken off' : ''}</div></div>
+    <div class="step"><button data-act="ive-q" data-k="${esc(k)}" data-d="-1" aria-label="One less">−</button><input class="num oq-inp ive-inp" data-k="${esc(k)}" type="text" inputmode="numeric" value="${ed.q[k] || ''}" placeholder="0" aria-label="How many"><button data-act="ive-q" data-k="${esc(k)}" data-d="1" aria-label="One more">+</button></div></div>`;
+  return `<div class="iv">
+    <div class="iv-bar"><button class="iv-ico" data-act="ive-cancel" aria-label="Cancel">${ic('back')}</button><span class="iv-num">Change ${esc(o.n)}</span></div>
+    <div class="iv-head"><div><div class="iv-store" style="cursor:default">${esc(o.c)}</div><div class="iv-meta">Change the amounts, take items off (0), or add items. QuickBooks updates this same invoice.</div></div></div>
+    <div class="iv-sec">${keys.map(line).join('')}</div>
+    <div class="iv-sec" style="margin-top:12px"><div class="field">${ic('search')}<label class="sr" for="ive-find">Add an item</label><input id="ive-find" value="${esc(ed.find || '')}" placeholder="Add an item: name or number" autocomplete="off"></div><div id="ive-res">${ivFind(ed)}</div></div>
+    <div class="iv-foot"><div class="iv-total"><span>New total</span><b>${money(total)}</b></div>
+      <div class="o2-acts" style="justify-content:flex-end"><button class="btn ghost" data-act="ive-cancel">Cancel</button><button class="btn primary" data-act="ive-save" data-n="${esc(o.n)}">Save change to QuickBooks</button></div></div>
+  </div>`;
+}
+function ivFind(ed) {
+  const q = (ed.find || '').trim().toLowerCase(); if (!q) return '';
+  const hits = S.catalog.filter(p => p.full && !(keyOf(p) in ed.q) && ((p.name + ' ' + (p.code || '')).toLowerCase().includes(q))).slice(0, 8);
+  return hits.length ? hits.map(p => `<button class="cust-row" data-act="ive-add" data-k="${esc(keyOf(p))}"><span class="main"><b>${esc(p.name)}</b> <span class="sub" style="display:inline">${p.code ? '#' + esc(p.code) : ''}${p.pack ? ' · ' + esc(p.pack) : ''}</span></span><span class="tag blue">+ Add</span></button>`).join('') : '<p class="sub" style="margin:6px 0 0">No item matches.</p>';
+}
 function invView(o) {
   const cm = o.t === 'cm';
-  const rows = o.l.map(([ref, q, a]) => { const p = typeof ref === 'number' ? S.catalog[ref] : null; const g = p ? (p.brand || p.cat || 'Other') : 'Other'; return { p, ref, q, a, g }; });
+  const rows = rowsOf(o.l).map(([ref, q, a]) => { const p = typeof ref === 'number' ? S.catalog[ref] : null; const g = p ? (p.brand || p.cat || 'Other') : 'Other'; return { p, ref, q, a, g }; }).filter(r => r.p || !/total/i.test(String(r.ref)));
+  const ed = S.ivEdit && S.ivEdit.n === o.n ? S.ivEdit : null;
+  if (ed) return ivEditView(o, rows, ed);
   const groups = [...new Set(rows.map(r => r.g))].sort((x, y) => grank(x) - grank(y));
   const boxes = ordBoxes(o); const c = custByName(o.c);
   const body = groups.map((g, gi) => { const gr = rows.filter(r => r.g === g); const gt = gr.reduce((t, r) => t + Math.abs(r.a), 0);
@@ -2599,11 +2636,13 @@ function invView(o) {
   }).join('') + '</div>'; }).join('');
   return `<div class="iv">
     <div class="iv-bar"><button class="iv-ico" data-act="ord-open" data-n="${esc(o.n)}" aria-label="Back to orders">${ic('back')}</button><span class="iv-num">${cm ? 'Credit ' : ''}${esc(o.n)}</span>
+      ${!cm && ivCanEdit() ? `<button class="iv-ico" data-act="ive-start" data-n="${esc(o.n)}" aria-label="Change this order" title="Change this order">${SVG_EDIT}</button>` : ''}
       <button class="iv-ico" data-act="ord-copy" data-n="${esc(o.n)}" aria-label="Copy into a new order" title="Copy into a new order">${SVG_COPY}</button>
       <button class="iv-ico" data-act="cust-sel-go" data-n="${esc(o.c)}" aria-label="Open the store" title="Open the store">${ic('people')}</button>
       <button class="iv-ico" data-act="ord-stmt" data-n="${esc(o.c)}" aria-label="Send statement" title="Send statement">${ic('mail')}</button>
       <button class="iv-ico" data-act="inv-print" data-n="${esc(o.n)}" aria-label="Print" title="Print">${SVG_PRINT}</button></div>
     <div class="iv-head"><div><button class="iv-store" data-act="iv-info" aria-expanded="${!!S.ivInfo}">${esc(o.c)}&nbsp;<span class="iv-caret">${S.ivInfo ? '▲' : '▼'}</span></button><div class="iv-meta">${fmtShort(isoRd(o.d))}${c && c.area ? ' · ' + esc(c.area) : ''}${o.due ? ' · due ' + esc(fmtShort(isoRd(o.due))) : ''}</div></div>${c && pastDue(c) > 1 ? `<span class="iv-owe">owes ${fm(pastDue(c))} past due</span>` : ''}</div>
+    ${ivPending(o)}
     ${S.ivInfo && c ? ivInfo(c) : ''}
     ${body || '<p class="sub" style="padding:16px;margin:0">No items on this invoice.</p>'}
     <div class="iv-foot"><div><span>Total boxes</span><b>${fn(boxes)}</b></div><div class="iv-total"><span>Total</span><b${cm ? ' style="color:var(--bad-text)"' : ''}>${cm ? '−' : ''}${money(Math.abs(o.a))}</b></div></div>
@@ -4817,7 +4856,7 @@ Object.assign(S, { qw: loadLS('chuster-qw-v1', {}), qr: loadLS('chuster-qr-v1', 
 SYNC.on('qw', (k, v) => { if (v == null) delete S.qw[k]; else S.qw[k] = v; saveLS('chuster-qw-v1', S.qw); });
 SYNC.on('qr', (k, v) => { const was = S.qr[k]; if (v == null) delete S.qr[k]; else S.qr[k] = v; saveLS('chuster-qr-v1', S.qr);
   if (v && v.st === 'done' && (!was || was.st !== 'done') && S.qw[k]) toast(`In QuickBooks: ${QB_KIND[S.qw[k].kind]} #${v.num || ''} for ${S.qw[k].c}`); });
-const QB_KIND = { inv: 'Invoice', pay: 'Payment', cm: 'Credit memo' };
+const QB_KIND = { inv: 'Invoice', invmod: 'Invoice change', pay: 'Payment', cm: 'Credit memo' };
 const qwId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 const nowIso = () => { const n = new Date(); return isoOf(TODAY) + 'T' + String(n.getHours()).padStart(2, '0') + ':' + String(n.getMinutes()).padStart(2, '0'); };
 function qwSave(rec) { rec.upd = Date.now(); S.qw[rec.id] = rec; saveLS('chuster-qw-v1', S.qw); SYNC.put('qw', rec.id, rec); }
@@ -4829,7 +4868,7 @@ function qwState(rec) {
   if (r && r.st === 'error' && (r.try || 0) === (rec.try || 0)) return 'error';
   return 'sending';
 }
-const canSend = kind => kind === 'cm' ? S.role === 'Owner' : (S.role === 'Owner' || S.role === 'Office');
+const canSend = kind => kind === 'cm' ? S.role === 'Owner' : kind === 'invmod' ? ivCanEdit() : (S.role === 'Owner' || S.role === 'Office');
 const qwList = () => Object.values(S.qw).filter(Boolean).sort((a, b) => (b.upd || 0) - (a.upd || 0));
 const qwCount = () => qwList().filter(r => { const s = qwState(r); return (s === 'wait' || s === 'error') && (r.kind !== 'cm' || S.role === 'Owner'); }).length;
 const fullOf = (ref, full) => typeof ref === 'number' && REAL.catalog[ref] ? REAL.catalog[ref].full : (full || String(ref));
@@ -5189,8 +5228,20 @@ document.addEventListener('click', e => {
     case 'inv-filter': S.invFilter = d.f; S.invEdit = null; keep(); break;
     case 'inv-brand': S.invBrand = d.b; S.invEdit = null; keep(); break;
     case 'pk-period': S.pkPeriod = d.p; keep(); break;
+    case 'ive-start': { const o = REAL.orders.list.find(x => x.n === d.n); if (!o) break; const q = {}; rowsOf(o.l).forEach(([ref, qq]) => { const p = typeof ref === 'number' ? S.catalog[ref] : null; if (!p && /total/i.test(String(ref))) return; const k = p ? keyOf(p) : String(ref); q[k] = (q[k] || 0) + Math.abs(qq); }); S.ivEdit = { n: o.n, q, find: '' }; render(); window.scrollTo(0, 0); break; }
+    case 'ive-cancel': S.ivEdit = null; render(); break;
+    case 'ive-q': { const k = d.k; S.ivEdit.q[k] = Math.max(0, (S.ivEdit.q[k] || 0) + (+d.d)); render(); break; }
+    case 'ive-add': S.ivEdit.q[d.k] = 1; S.ivEdit.find = ''; render(); break;
+    case 'ive-save': {
+      const o = REAL.orders.list.find(x => x.n === d.n); const ed = S.ivEdit; if (!o || !ed) break;
+      const rows = rowsOf(o.l); const rateOf = k => { const r = rows.find(([ref]) => (typeof ref === 'number' && S.catalog[ref] ? keyOf(S.catalog[ref]) : String(ref)) === k); if (r && r[1]) return Math.round(Math.abs(r[2] / r[1]) * 100000) / 100000; const p = S.catalog.find(x => keyOf(x) === k); return p ? parseFloat(p.price) || 0 : 0; };
+      const fullOf = k => { const p = S.catalog.find(x => keyOf(x) === k); return p && p.full ? p.full : k; };
+      const lines = Object.keys(ed.q).map(k => [fullOf(k), ed.q[k] || 0, rateOf(k), (S.catalog.find(x => keyOf(x) === k) || {}).name]);
+      const total = lines.reduce((t, l) => t + l[1] * l[2], 0);
+      qwSave({ id: qwId(), kind: 'invmod', n: o.n, st: 'ok', try: 0, c: o.c, d: o.d, lines, total: Math.round(total * 100) / 100, memo: 'Change to invoice #' + o.n, by: byName(), at: nowIso(), okBy: byName(), okAt: nowIso() });
+      S.ivEdit = null; toast('Change sent. QuickBooks updates the invoice in a few seconds.'); render(); break; }
     case 'iv-info': S.ivInfo = !S.ivInfo; render(); break;
-    case 'ord-open': S.ivInfo = false; if (!S.ordOpen) S.ordScroll = window.scrollY; S.ordOpen = S.ordOpen === d.n ? null : d.n; render(); window.scrollTo(0, S.ordOpen ? 0 : (S.ordScroll || 0)); break;
+    case 'ord-open': S.ivInfo = false; S.ivEdit = null; if (!S.ordOpen) S.ordScroll = window.scrollY; S.ordOpen = S.ordOpen === d.n ? null : d.n; render(); window.scrollTo(0, S.ordOpen ? 0 : (S.ordScroll || 0)); break;
     case 'ord-more': S.ordDays += 10; keep(); break;
     case 'dash-all': if (d.w === 'stores') S.dashAllStores = !S.dashAllStores; else S.dashAllItems = !S.dashAllItems; keep(); break;
     case 'ord-sort': S.ordSort = d.s; keep(); break;
@@ -5452,6 +5503,8 @@ document.addEventListener('input', e => {
     if (e.target.id === 'pr-for') S.prFor = e.target.value; else { S.prContact = e.target.value; try { localStorage.setItem('chuster-pl-contact', S.prContact); } catch (x) { /* storage blocked */ } }
     const pv = document.getElementById('ps-preview'); if (pv) pv.innerHTML = prSheet(S.prKind); return;
   }
+  if (e.target.classList && e.target.classList.contains('ive-inp') && S.ivEdit) { S.ivEdit.q[e.target.dataset.k] = Math.max(0, parseInt(e.target.value, 10) || 0); return; }
+  if (e.target.id === 'ive-find' && S.ivEdit) { S.ivEdit.find = e.target.value; const el = document.getElementById('ive-res'); if (el) el.innerHTML = ivFind(S.ivEdit); return; }
   if (e.target.id === 'ord-q') { S.ordQ = e.target.value; const ol = document.getElementById('ord-list'); if (ol) ol.innerHTML = ordList(); return; }
   if (e.target.id === 'cust-q') { S.custQ = e.target.value; const box = document.getElementById('cust-list'); if (box) box.innerHTML = custRows(); return; }
   if (e.target.id === 'store-q') { S.storeQ = e.target.value; const sl = document.getElementById('store-list'); if (sl) sl.innerHTML = storeRows(); return; }
