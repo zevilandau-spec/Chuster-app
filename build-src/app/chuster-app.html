@@ -3642,17 +3642,18 @@ function nextWorkDay(from) { let r = from + 1; while (isClosed(r) || dow(r) === 
 const PN_AVG = {};
 function pnAvgFor(wd) {
   if (PN_AVG[wd]) return PN_AVG[wd];
-  const OR = REAL.orders; const days = [...new Set(OR.list.filter(o => o.t === 'inv' && dow(isoRd(o.d)) === wd).map(o => o.d))].sort().slice(-8);
-  // per day: count items on the invoices that have their items; when some invoices of that day came without items,
-  // scale up by money (all invoices that day ÷ the ones with items), so the day still counts in full
-  const avg = {}; let scaled = 0;
+  const OR = REAL.orders; const inv = OR.list.filter(o => o.t === 'inv' && dow(isoRd(o.d)) === wd);
+  // only days whose invoices came with their items (the rest are still loading from QuickBooks); last 8 of them
+  const lined = d => { let all = 0, withL = 0; inv.forEach(o => { if (o.d !== d) return; all += Math.abs(o.a || 0); if (rowsOf(o.l).some(([ref]) => typeof ref === 'number')) withL += Math.abs(o.a || 0); }); return all > 0 ? withL / all : 0; };
+  const allDays = [...new Set(inv.map(o => o.d))].sort();
+  let days = allDays.filter(d => lined(d) >= 0.5).slice(-8); const partial = days.length < Math.min(8, allDays.length);
+  if (!days.length) days = allDays.slice(-8);
+  const avg = {};
   days.forEach(d => {
-    const os = OR.list.filter(o => o.t === 'inv' && o.d === d); let all = 0, withL = 0; const q = {};
-    os.forEach(o => { all += Math.abs(o.a || 0); const L = rowsOf(o.l).filter(([ref]) => typeof ref === 'number'); if (!L.length) return; withL += Math.abs(o.a || 0); L.forEach(([ref, qq]) => { q[ref] = (q[ref] || 0) + qq; }); });
-    const f = withL > 0 ? Math.min(25, all / withL) : 0; if (f > 1.2) scaled++;
-    Object.keys(q).forEach(k => { avg[k] = (avg[k] || 0) + q[k] * f / Math.max(1, days.length); });
+    const f = Math.min(3, 1 / Math.max(0.34, lined(d) || 1));   // a day with a few invoices still missing their items counts in full
+    inv.forEach(o => { if (o.d !== d) return; rowsOf(o.l).forEach(([ref, q]) => { if (typeof ref === 'number') avg[ref] = (avg[ref] || 0) + q * f / days.length; }); });
   });
-  return (PN_AVG[wd] = { avg, n: days.length, scaled });
+  return (PN_AVG[wd] = { avg, n: days.length, partial });
 }
 function pnDefault() { const to = isoRd(REAL.orders.to); return nextWorkDay(TODAY - 1 < to ? to : TODAY - 1); }
 function pnRange() { const f = S.pnFrom || pnDefault(); const t = Math.max(f, S.pnTo || f); return [f, t]; }
@@ -3688,7 +3689,7 @@ function renderPackNext() {
     <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center"><label class="lbl" for="pn-from" style="margin:0">From</label><input class="inp" type="date" id="pn-from" value="${isoOf(f0)}" style="width:auto;flex:0 1 170px"><label class="lbl" for="pn-to" style="margin:0">to</label><input class="inp" type="date" id="pn-to" value="${isoOf(t0)}" style="width:auto;flex:0 1 170px"></div>
   </section>
   <div class="tiles"><div class="tile"><div class="k">Products to pack</div><div class="v">${toPack.length}</div><div class="s">${fn(toPack.reduce((s, r) => s + r.pack, 0))} cases</div></div><div class="tile"><div class="k">${P.from === P.until ? `Usual ${WD[dow(P.target)]} orders` : 'Usual orders in these days'}</div><div class="v">${fn(P.rows.reduce((s, r) => s + r.need, 0))}</div><div class="s">cases, with 10% extra</div></div><div class="tile warn"><div class="k">Below zero now</div><div class="v">${P.rows.filter(r => (r.stock || 0) < 0).length}</div><div class="s">fix the count in QuickBooks</div></div></div>
-  ${P.deliv.some(r => pnAvgFor(dow(r)).scaled > 2) ? `<div class="note"><strong>Estimate for now:</strong> most past invoices are still loading their items from QuickBooks, so these amounts are scaled up from the invoices that have them. Exact after tonight's QuickBooks read.</div>` : ''}
+  ${P.deliv.some(r => pnAvgFor(dow(r)).partial) ? `<div class="note"><strong>For now:</strong> most past invoices are still loading their items from QuickBooks, so this uses only the recent days that have them (${[...new Set(P.deliv.map(r => pnAvgFor(dow(r)).n))].join('/')} of each weekday instead of 8). Full numbers after tonight's QuickBooks read.</div>` : ''}
   <p class="sub" style="margin:0">Need = what stores usually take on ${P.from === P.until ? `a ${WD[dow(P.target)]}` : 'each of these days'} (average of the last 8 of that weekday) + 10%. Pack = need − what's in stock (QuickBooks, ${fmtShort(isoRd(REAL.asOf))}). Stock below zero counts as 0.</p>
   <div class="chips"><button class="chip" data-act="pn-sort" data-s="most" aria-pressed="${(S.pnSort || 'most') === 'most'}">Most to pack first</button><button class="chip" data-act="pn-sort" data-s="code" aria-pressed="${S.pnSort === 'code'}">By item number</button></div>
   <section class="card stack" style="gap:0">${P.rows.map(r => { let hdr = '';
