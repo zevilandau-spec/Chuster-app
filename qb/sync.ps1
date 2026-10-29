@@ -223,8 +223,20 @@ function Add-ToQB($o) {
       # the number the app picked: make sure QuickBooks doesn't have it already
       $chk = QB-Do 'InvoiceQueryRq' ('<InvoiceQueryRq requestID="1"><RefNumber>' + (X ([string]$o.ref)) + '</RefNumber><IncludeRetElement>TxnID</IncludeRetElement></InvoiceQueryRq>')
       $crs = Rs $chk 'InvoiceQueryRs'
-      if ($crs -and $crs.GetAttribute('statusCode') -eq '0' -and $crs.SelectNodes('InvoiceRet').Count) { throw "Invoice number $($o.ref) is already used in QuickBooks. Change the number and try again." }
-      $refn = '<RefNumber>' + (X ([string]$o.ref)) + '</RefNumber>'
+      $useRef = [string]$o.ref
+      if ($crs -and $crs.GetAttribute('statusCode') -eq '0' -and $crs.SelectNodes('InvoiceRet').Count) {
+        if (-not $o.refAuto -or -not ($useRef -match '^\d+$')) { throw "Invoice number $($o.ref) is already used in QuickBooks. Change the number and try again." }
+        # the app filled in the number and someone used it meanwhile (the old app, QuickBooks): take the next free one
+        $nx = [long]$useRef; $free = $false
+        for ($k = 0; $k -lt 50 -and -not $free; $k++) {
+          $nx++
+          $c2 = Rs (QB-Do 'InvoiceQueryRq' ('<InvoiceQueryRq requestID="1"><RefNumber>' + $nx + '</RefNumber><IncludeRetElement>TxnID</IncludeRetElement></InvoiceQueryRq>')) 'InvoiceQueryRs'
+          if (-not ($c2 -and $c2.GetAttribute('statusCode') -eq '0' -and $c2.SelectNodes('InvoiceRet').Count)) { $free = $true }
+        }
+        if (-not $free) { throw "Invoice number $($o.ref) is already used in QuickBooks. Change the number and try again." }
+        Log "Invoice number $useRef was taken meanwhile, used $nx instead."; $useRef = [string]$nx
+      }
+      $refn = '<RefNumber>' + (X $useRef) + '</RefNumber>'
     }
     $x = QB-Do "${tag}AddRq" "<${tag}AddRq requestID=`"1`"><${tag}Add>$cust$date$refn$po<Memo>$memo</Memo>$lines</${tag}Add></${tag}AddRq>"
     $rs = Rs $x "${tag}AddRs"; Check $rs ''

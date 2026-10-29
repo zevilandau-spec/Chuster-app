@@ -1596,7 +1596,7 @@ function renderOrder() {
       <h2>Summary</h2>
       <div id="order-sum" class="stack" style="gap:6px">${orderSumHtml()}</div>
       <label class="lbl" for="inv-num">Invoice #</label>
-      <input class="inp" id="inv-num" inputmode="numeric" autocomplete="off" value="${esc(S.orderRef || nextInvNum())}" placeholder="next number">
+      <input class="inp" id="inv-num" inputmode="numeric" autocomplete="off" value="${esc((S.orderRef && !invUsed(S.orderRef) ? S.orderRef : '') || nextInvNum())}" placeholder="next number">
       <p class="sub" style="margin:-4px 0 0;font-size:12px">The next free number is filled in. You can change it.</p>
       <label class="lbl" for="when">Deliver</label>
       <select class="sel" id="when">${S.trucks.map((t, i) => `<option${i === 1 ? ' selected' : ''}>${fmtShort(next)} · ${esc(t.name)}</option>`).join('')}<option>Pick another day</option></select>
@@ -5071,6 +5071,7 @@ const nameOfFull = f => { const c = REAL && REAL.catalog.find(x => x.full === f)
 
 // New order -> waits in To QuickBooks
 // the next invoice number: one more than the highest number the app knows (QuickBooks invoices + ones on the way)
+function invUsed(ref) { return !!ref && ((((REAL && REAL.orders && REAL.orders.list) || []).some(o => o.t === 'inv' && o.n === ref)) || (typeof QB !== 'undefined' && Object.values(QB.inv || {}).some(o => o && o.n === ref)) || Object.values(S.qw || {}).some(r => r.kind === 'inv' && r.ref === ref && !(r.st === 'cancel' && !S.qr[r.id]))); }
 function nextInvNum() {
   let mx = 0; const see = n => { const v = parseInt(String(n || '').replace(/\D/g, ''), 10); if (/^\d+$/.test(String(n || '').trim()) && v > mx && v < 1e9) mx = v; };
   ((REAL && REAL.orders && REAL.orders.list) || []).forEach(o => { if (o.t === 'inv') see(o.n); });
@@ -5087,10 +5088,10 @@ function qwFromOrder() {
   const total = lines.reduce((s, l) => s + l[1] * l[2], 0);
   const el = document.getElementById('inv-num'); const ref = String((el ? el.value : S.orderRef) || nextInvNum() || '').trim();
   if (ref && !/^[A-Za-z0-9-]{1,11}$/.test(ref)) { toast('The invoice number can only have letters and numbers (up to 11).'); return false; }
-  const used = ref && (((REAL.orders && REAL.orders.list) || []).some(o => o.t === 'inv' && o.n === ref) || Object.values(QB.inv || {}).some(o => o && o.n === ref) || Object.values(S.qw || {}).some(r => r.kind === 'inv' && r.ref === ref));
+  const used = ref && invUsed(ref); const refAuto = ref === nextInvNum();
   if (used) { toast(`Invoice #${ref} is already used. Pick another number.`); return false; }
   S.orderRef = '';
-  qwSave({ id: qwId(), kind: 'inv', st: 'ok', try: 0, c: S.orderStore, d: isoOf(TODAY), ref, lines, total: Math.round(total * 100) / 100, memo: '', by: byName(), at: nowIso(), okBy: byName(), okAt: nowIso() });
+  qwSave({ id: qwId(), kind: 'inv', st: 'ok', try: 0, c: S.orderStore, d: isoOf(TODAY), ref, refAuto, lines, total: Math.round(total * 100) / 100, memo: '', by: byName(), at: nowIso(), okBy: byName(), okAt: nowIso() });
   return true;
 }
 function qwCard(rec) {
