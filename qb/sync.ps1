@@ -8,7 +8,7 @@
 param([switch]$Install, [switch]$Test, [switch]$Full, [switch]$Other, [switch]$History, [switch]$Watch)
 
 $ErrorActionPreference = 'Stop'
-$Ver = '3.6'
+$Ver = '3.7'
 $AppName = 'Chuster App Sync'
 $TaskName = 'Chuster QB Sync'
 $Here = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -905,14 +905,26 @@ function Queue-HasNew($st) {
 # Is Outlook set up on this PC (for sending statements)? Checked once per start.
 $script:MailInfo = $null
 function Mail-Probe {
+  # only looks in the registry: never opens Outlook (an Outlook window waiting for an answer would stop the sync)
   if ($null -ne $script:MailInfo) { return $script:MailInfo }
   $script:MailInfo = 'none'
   try {
-    $reg = Get-ItemProperty 'Registry::HKEY_CLASSES_ROOT\Outlook.Application\CLSID' -ErrorAction Stop
-    $ol = New-Object -ComObject Outlook.Application
-    $acc = @($ol.Session.Accounts | ForEach-Object { [string]$_.SmtpAddress } | Where-Object { $_ })
-    $script:MailInfo = 'outlook:' + $acc.Count + ':' + ($acc -join ',')
-  } catch { $script:MailInfo = 'none:' + ([string]$_.Exception.Message).Substring(0, [Math]::Min(80, ([string]$_.Exception.Message).Length)) }
+    $found = @()
+    foreach ($v in '16.0', '15.0') {
+      $pk = "HKCU:\Software\Microsoft\Office\$v\Outlook\Profiles"
+      if (-not (Test-Path $pk)) { continue }
+      foreach ($prof in @(Get-ChildItem $pk -ErrorAction SilentlyContinue)) {
+        $ak = Join-Path $prof.PSPath '9375CFF0413111d3B88A00104B2A6676'
+        foreach ($acc in @(Get-ChildItem $ak -ErrorAction SilentlyContinue)) {
+          $p = Get-ItemProperty $acc.PSPath -ErrorAction SilentlyContinue
+          foreach ($n in 'Account Name', 'Email') { if ($p -and $p.$n -is [byte[]]) { $t = ([Text.Encoding]::Unicode.GetString($p.$n)).Trim([char]0); if ($t -match '@') { $found += $t; break } } }
+        }
+      }
+      if ($found.Count) { break }
+    }
+    $found = @($found | Select-Object -Unique)
+    $script:MailInfo = if ($found.Count) { 'outlook:' + $found.Count + ':' + ($found -join ',') } else { 'none:no Outlook account on this PC' }
+  } catch { $script:MailInfo = 'none:check failed' }
   $script:MailInfo
 }
 # ---------------- statements by email (Outlook on this PC) ----------------
@@ -973,8 +985,15 @@ function Stmt-Html($x) {
   '<p>Questions? Just reply to this email.<br><b>Chuster Noodle</b></p></div>'
 }
 function Mail-Send([string]$to, [string]$cc, [string]$subj, [string]$html) {
-  $ol = New-Object -ComObject Outlook.Application
-  $mi = $ol.CreateItem(0); $mi.To = $to; if ($cc) { $mi.CC = $cc }; $mi.Subject = $subj; $mi.HTMLBody = $html; $mi.Send()
+  # in a separate helper with a time limit, so Outlook can never freeze the sync
+  if (-not (Mail-Probe).StartsWith('outlook:')) { throw 'Outlook is not set up on the office PC.' }
+  $j = Start-Job -ScriptBlock { param($to, $cc, $subj, $html)
+    $ol = New-Object -ComObject Outlook.Application
+    $mi = $ol.CreateItem(0); $mi.To = $to; if ($cc) { $mi.CC = $cc }; $mi.Subject = $subj; $mi.HTMLBody = $html; $mi.Send(); 'ok'
+  } -ArgumentList $to, $cc, $subj, $html
+  if (-not (Wait-Job $j -Timeout 90)) { Stop-Job $j -ErrorAction SilentlyContinue; Remove-Job $j -Force -ErrorAction SilentlyContinue; throw 'Outlook did not answer (is a window open in Outlook waiting for an answer?).' }
+  $r = Receive-Job $j -ErrorAction SilentlyContinue -ErrorVariable je; Remove-Job $j -Force -ErrorAction SilentlyContinue
+  if ($r -notcontains 'ok') { throw ('Outlook: ' + $(if ($je) { [string]$je[0] } else { 'could not send' })) }
 }
 function Stmt-Send($x, [string]$why, [string]$testTo) {
   $to = if ($testTo) { Mail-List $testTo } else { Mail-List $x.em }
@@ -1031,7 +1050,6 @@ function Stmt-Tick {
     Sl-Put '_auto' ([ordered]@{ day = $now.ToString('yyyy-MM-dd'); n = $n; at = (NowS) })
     if ($n) { Log "Statements: sent $n." }
   }
-  try { (New-Object -ComObject Outlook.Application).Session.SendAndReceive($false) } catch { }
 }
 # Self-update: picks up new versions of this program from the app's site, only when signed with this office's key.
 $CodeKey = $hm.ComputeHash([Text.Encoding]::UTF8.GetBytes('chuster-qb-code'))
