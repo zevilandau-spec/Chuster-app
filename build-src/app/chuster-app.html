@@ -402,6 +402,7 @@ select.sel, input.inp { min-height: 46px; border-radius: 10px; border: 1px solid
 @media (max-width: 520px) { .or-row .step button { width: 38px; } .or-row .step input { width: 40px; } .or-row .oh-last { white-space: normal; } }
 #ai-fab { position: fixed; right: 18px; bottom: 24px; z-index: 40; display: flex; align-items: center; gap: 6px; padding: 12px 18px; border-radius: 999px; background: var(--brand, #2340A0); color: #fff; font-weight: 800; font-size: 15px; text-decoration: none; box-shadow: 0 6px 18px rgba(20, 30, 70, .28); }
 #ai-fab[hidden] { display: none; }
+body:has(#ai-fab:not([hidden])) #view { padding-bottom: 72px; }
 @media (max-width: 959px) { #ai-fab { bottom: calc(86px + env(safe-area-inset-bottom)); padding: 11px 15px; } }
 .oh { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
 .oh-tag { font-size: 12px; padding: 2px 8px; border-radius: 999px; background: var(--surface); color: var(--fg); border: 1px solid var(--gt); white-space: nowrap; }
@@ -3459,30 +3460,53 @@ function renderPriceCheck() {
 
 /* ---------- What to pack: usual orders for the next working day, minus stock ---------- */
 function nextWorkDay(from) { let r = from + 1; while (isClosed(r) || dow(r) === 6) r++; return r; }
+// usual cases per product on one weekday (average of the last 8 of that weekday)
+const PN_AVG = {};
+function pnAvgFor(wd) {
+  if (PN_AVG[wd]) return PN_AVG[wd];
+  const OR = REAL.orders; const days = [...new Set(OR.list.filter(o => o.t === 'inv' && dow(isoRd(o.d)) === wd).map(o => o.d))].sort().slice(-8);
+  const sum = {}; OR.list.forEach(o => { if (o.t !== 'inv' || !days.includes(o.d)) return; rowsOf(o.l).forEach(([ref, q]) => { if (typeof ref === 'number') sum[ref] = (sum[ref] || 0) + q; }); });
+  const avg = {}; Object.keys(sum).forEach(k => { avg[k] = sum[k] / Math.max(1, days.length); });
+  return (PN_AVG[wd] = { avg, n: days.length });
+}
+function pnDefault() { const to = isoRd(REAL.orders.to); return nextWorkDay(TODAY - 1 < to ? to : TODAY - 1); }
+function pnRange() { const f = S.pnFrom || pnDefault(); const t = Math.max(f, S.pnTo || f); return [f, t]; }
 function packNext() {
   const OR = REAL.orders; const to = isoRd(OR.to);
-  const target = nextWorkDay(TODAY - 1 < to ? to : TODAY - 1); const wd = dow(target);
-  const days = [...new Set(OR.list.filter(o => o.t === 'inv' && dow(isoRd(o.d)) === wd).map(o => o.d))].sort().slice(-8);
-  const sum = {}, week = {};
-  OR.list.forEach(o => { if (o.t !== 'inv') return; const r = isoRd(o.d);
-    o.l.forEach(([ref, q]) => { if (typeof ref !== 'number') return; if (days.includes(o.d)) sum[ref] = (sum[ref] || 0) + q; if (r > to - 56) week[ref] = (week[ref] || 0) + q / 8; }); });
-  const rows = REAL.catalog.map((c, i) => ({ c, i, day: (sum[i] || 0) / Math.max(1, days.length), wk: week[i] || 0, stock: c.stock })).filter(r => r.day >= 0.5 && !/Loose/.test(r.c.group));
+  const [from, until] = pnRange();
+  const deliv = []; for (let r = from; r <= until; r++) if (!isClosed(r) && dow(r) !== 6) deliv.push(r);
+  const tot = {}; deliv.forEach(r => { const A = pnAvgFor(dow(r)).avg; Object.keys(A).forEach(k => { tot[k] = (tot[k] || 0) + A[k]; }); });
+  const week = {};
+  OR.list.forEach(o => { if (o.t !== 'inv') return; const r = isoRd(o.d); if (r > to - 56) rowsOf(o.l).forEach(([ref, q]) => { if (typeof ref === 'number') week[ref] = (week[ref] || 0) + q / 8; }); });
+  const rows = REAL.catalog.map((c, i) => ({ c, i, day: tot[i] || 0, wk: week[i] || 0, stock: c.stock })).filter(r => r.day >= 0.5 && !/Loose/.test(r.c.group));
   rows.forEach(r => { r.need = Math.ceil(r.day * 1.1); r.pack = Math.max(0, r.need - Math.max(0, r.stock || 0)); r.wks = r.wk > 0 ? (r.stock || 0) / r.wk : null; });
   rows.sort((x, y) => grank(x.c.group) - grank(y.c.group) || y.pack - x.pack);
-  return { target, days, rows };
+  return { target: from, from, until, deliv, days: deliv.length ? Array(pnAvgFor(dow(deliv[0])).n) : [], rows };
+}
+function pnLabel(P) {
+  const short = r => `${WDS[dow(r)]} ${MONS[dateOf(r).getMonth()]} ${dateOf(r).getDate()}`;
+  if (P.from === P.until) return `For ${fmtLong(P.from)} · ${hebStr(P.from, false)}`;
+  return `For ${short(P.from)} to ${short(P.until)} · ${P.deliv.length} delivery day${P.deliv.length === 1 ? '' : 's'} (Shabbos and Yom Tov skipped)`;
 }
 function renderPackNext() {
   if (!REAL) return needData('What to pack');
   const P = packNext(); const toPack = P.rows.filter(r => r.pack > 0);
   let last = null;
-  return `${head('What to pack', `For ${fmtLong(P.target)} · ${hebStr(P.target, false)} · from the last ${P.days.length} ${WD[dow(P.target)]}s`, `<button class="btn gold" data-act="pn-print">Print list</button>`)}
-  <div class="tiles"><div class="tile"><div class="k">Products to pack</div><div class="v">${toPack.length}</div><div class="s">${fn(toPack.reduce((s, r) => s + r.pack, 0))} cases</div></div><div class="tile"><div class="k">Usual ${WD[dow(P.target)]} orders</div><div class="v">${fn(P.rows.reduce((s, r) => s + r.need, 0))}</div><div class="s">cases, with 10% extra</div></div><div class="tile warn"><div class="k">Below zero now</div><div class="v">${P.rows.filter(r => (r.stock || 0) < 0).length}</div><div class="s">fix the count in QuickBooks</div></div></div>
-  <p class="sub" style="margin:0">Need = what stores usually take on a ${WD[dow(P.target)]} (average of the last ${P.days.length}) + 10%. Pack = need − what's in stock (QuickBooks, ${fmtShort(isoRd(REAL.asOf))}). Stock below zero counts as 0.</p>
+  const [f0, t0] = pnRange(); const d0 = pnDefault();
+  const nextMon = (() => { let r = d0; while (dow(r) !== 1) r++; return r; })(); const fri = (() => { let r = d0; while (dow(r) !== 5) r++; return r; })();
+  const chip = (k, a, b) => `<button class="chip" data-act="pn-range" data-f="${a}" data-t="${b}" aria-pressed="${f0 === a && t0 === b}">${k}</button>`;
+  return `${head('What to pack', pnLabel(P), `<button class="btn gold" data-act="pn-print">Print list</button>`)}
+  <section class="card stack" style="gap:10px">
+    <div class="chips">${chip('Next delivery day', d0, d0)}${chip('Till Monday', d0, nextMon)}${chip('Till Friday', d0, fri)}${chip('Next 7 days', d0, d0 + 6)}</div>
+    <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center"><label class="lbl" for="pn-from" style="margin:0">From</label><input class="inp" type="date" id="pn-from" value="${isoOf(f0)}" style="width:auto;flex:0 1 170px"><label class="lbl" for="pn-to" style="margin:0">to</label><input class="inp" type="date" id="pn-to" value="${isoOf(t0)}" style="width:auto;flex:0 1 170px"></div>
+  </section>
+  <div class="tiles"><div class="tile"><div class="k">Products to pack</div><div class="v">${toPack.length}</div><div class="s">${fn(toPack.reduce((s, r) => s + r.pack, 0))} cases</div></div><div class="tile"><div class="k">${P.from === P.until ? `Usual ${WD[dow(P.target)]} orders` : 'Usual orders in these days'}</div><div class="v">${fn(P.rows.reduce((s, r) => s + r.need, 0))}</div><div class="s">cases, with 10% extra</div></div><div class="tile warn"><div class="k">Below zero now</div><div class="v">${P.rows.filter(r => (r.stock || 0) < 0).length}</div><div class="s">fix the count in QuickBooks</div></div></div>
+  <p class="sub" style="margin:0">Need = what stores usually take on ${P.from === P.until ? `a ${WD[dow(P.target)]}` : 'each of these days'} (average of the last 8 of that weekday) + 10%. Pack = need − what's in stock (QuickBooks, ${fmtShort(isoRd(REAL.asOf))}). Stock below zero counts as 0.</p>
   <section class="card stack" style="gap:0">${P.rows.map(r => { const hdr = r.c.group !== last ? `<div class="ghead ${gcls(r.c.group)}" style="margin-top:${last === null ? 0 : 12}px"><span>${esc(r.c.group.toUpperCase())}</span><span>need · in stock · pack</span></div>` : ''; last = r.c.group;
     return hdr + `<div class="irow ${gcls(r.c.group)}${r.pack ? ' on' : ''}"><span class="icode">${esc(r.c.code || '·')}</span><div class="main"><div class="name" style="font-size:14px">${itName(r.c)}</div><div class="meta">need ${r.need} · in stock ${fn(r.stock || 0)}${r.wks != null ? ` · ${r.wks < 0 ? 'below zero' : r.wks < 1 ? 'under a week of stock' : Math.round(r.wks * 10) / 10 + ' weeks of stock'}` : ''}</div></div><strong class="num" style="font-size:20px;${r.pack ? '' : 'color:var(--muted)'}">${r.pack ? 'Pack ' + r.pack : 'OK'}</strong></div>`; }).join('')}</section>`;
 }
 function packNextDoc() {
-  const P = packNext(); return docSheet({ title: 'Packing list', meta: [['For', fmtLong(P.target)], ['', hebStr(P.target, false)]], parties: [], cols: ['Code', 'Product', 'Need', 'In stock', 'Pack'], right: 3, code: true,
+  const P = packNext(); return docSheet({ title: 'Packing list', meta: [['For', P.from === P.until ? fmtLong(P.target) : fmtShort(P.from) + ' – ' + fmtShort(P.until)], ['', P.from === P.until ? hebStr(P.target, false) : P.deliv.length + ' delivery days']], parties: [], cols: ['Code', 'Product', 'Need', 'In stock', 'Pack'], right: 3, code: true,
     rows: P.rows.filter(r => r.pack > 0).map(r => ({ cells: [esc(r.c.code || ''), itName(r.c), String(r.need), fn(r.stock || 0), '<b>' + r.pack + '</b>'] })), totals: [['Cases to pack', fn(P.rows.reduce((s, r) => s + r.pack, 0)), true]], note: 'From usual orders on this weekday, minus stock in QuickBooks.' });
 }
 
@@ -5231,6 +5255,7 @@ document.addEventListener('click', e => {
     case 'rep-base': S.repCfg.base = d.b; saveReps(); keep(); break;
     case 'rep-print': { const [a2, b2, lbl] = repRange(); const r = repRows().find(x => x.code === d.r); if (r) printDoc(commissionDoc(repStats(r, a2, b2), a2, b2, lbl), `Chuster commission - ${repName(r.code)} - ${lbl}`); break; }
     case 'ask-idea': doAsk(d.q); break;
+    case 'pn-range': S.pnFrom = +d.f; S.pnTo = +d.t; render(); break;
     case 'ai-toggle': S.aiOff = !S.aiOff; try { localStorage.setItem('chuster-ai-off', S.aiOff ? '1' : '0'); } catch (e) { /* ignore */ } render(); break;
     case 'ai-new': if (!S.aiBusy) { S.aiMsgs = []; S.askLog = []; render(); } break;
     case 'ask-mic': { const SR = window.SpeechRecognition || window.webkitSpeechRecognition; if (!SR) break; const rec = new SR(); rec.lang = 'en-US'; rec.onresult = ev => { const q = ev.results[0][0].transcript; doAsk(q); }; rec.onerror = () => toast('Couldn\'t hear that. Try typing.'); rec.start(); toast('Listening…'); break; }
@@ -5310,6 +5335,8 @@ document.addEventListener('change', e => {
   if (cl.contains('pay-pick')) { S.payments[+t.dataset.i].pick = t.value || null; }
   if (t.id === 'cust-sort') { S.custSort = t.value; render(); }
   if (t.id === 'ord-date' && t.value) { S.ordFrom = t.value; S.ordDays = 10; render(); }
+  if (t.id === 'pn-from' && t.value) { S.pnFrom = isoRd(t.value); if (S.pnTo && S.pnTo < S.pnFrom) S.pnTo = S.pnFrom; render(); }
+  if (t.id === 'pn-to' && t.value) { S.pnTo = isoRd(t.value); if (!S.pnFrom) S.pnFrom = pnDefault(); if (S.pnTo < S.pnFrom) S.pnFrom = S.pnTo; render(); }
   if (t.id === 'ord-area-sel') { S.ordArea = t.value; S.ordOpen = null; render(); }
   if (t.id === 'ord-type-sel') { S.ordType = t.value; S.ordOpen = null; render(); }
   if (t.id === 'pk-day' && t.value) { S.pkPeriod = 'day'; S.pkDay = t.value; render(); }
