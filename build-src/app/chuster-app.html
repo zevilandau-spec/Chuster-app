@@ -708,6 +708,52 @@ body:has(#ai-fab:not([hidden])) #view { padding-bottom: 72px; }
 .ai-table th{text-align:left;font-size:12px;color:var(--muted);font-weight:700}.ai-table td,.ai-table th{padding:5px 8px 5px 0;white-space:nowrap}
 .ai-wait{display:flex;align-items:center;gap:8px}.ai-dot{width:10px;height:10px;border-radius:50%;background:var(--gold,#e8b931);animation:aipulse 1s ease-in-out infinite}
 @keyframes aipulse{0%,100%{opacity:.3;transform:scale(.8)}50%{opacity:1;transform:scale(1.1)}}
+
+.cust-row { flex-wrap: nowrap; }
+.cust-row .main { flex: 1 1 0; }
+.cust-row .nums strong { font-size: 14px; }
+@media (max-width: 520px) { .cust-row .nums[style*="min-width:84px"] { min-width: 64px !important; } .cust-row .main > span:last-child { font-size: 12px !important; } }
+/* ===== compact everywhere ===== */
+main { padding-block: 14px 32px; }
+.view { gap: 10px; }
+.page-head { gap: 8px; }
+.page-head h1 { font-size: 24px; }
+.card { padding: 12px 14px; }
+.card h2 { font-size: 15px; }
+.card-head { margin-bottom: 8px; }
+.split { gap: 10px; }
+.stack { gap: 8px; }
+.tiles { gap: 8px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 140px), 1fr)); }
+.tile { padding: 9px 12px; }
+.tile .k, .tile .s { font-size: 12px; }
+.tile .v { font-size: 22px; }
+.btn { min-height: 38px; padding: 0 13px; font-size: 13px; }
+.btn.sm { min-height: 32px; padding: 0 10px; font-size: 12px; }
+.btn.big { min-height: 46px; font-size: 15px; }
+.chips { gap: 6px; }
+.chip { min-height: 32px; padding: 0 11px; font-size: 12px; }
+.field { min-height: 40px; }
+.field input, .field select { min-height: 38px; font-size: 14px; }
+.inp, .sel { min-height: 40px; }
+.attn { min-height: 0; padding: 8px 10px; gap: 10px; }
+.attn small { font-size: 12px; }
+.brief { padding: 10px 14px; font-size: 14px; line-height: 1.55; }
+.ghead { padding: 7px 12px; font-size: 11px; border-radius: 8px; }
+.irow { padding: 7px 10px; margin-top: 4px; border-radius: 10px; gap: 6px 10px; }
+.irow .name { font-size: 14px; }
+.irow .meta { font-size: 12px; }
+.cust-row { padding: 8px 8px; gap: 4px 10px; }
+.mini-table { font-size: 13px; }
+.mini-table td { padding-top: 4px; padding-bottom: 4px; }
+.step button { width: 36px; height: 36px; font-size: 17px; }
+.step input.oq-inp { width: 44px; height: 36px; font-size: 15px; }
+.iv-qty { font-size: 17px; min-width: 28px; }
+@media (max-width: 959px) {
+  main { padding-block: 10px 28px; }
+  .page-head h1 { display: none; }
+  .page-head .sub { margin: 0; font-size: 13px; }
+  .page-head:not(:has(.sub)):not(:has(.actions)) { display: none; }
+}
 </style>
 
 <div class="app" id="app">
@@ -2004,7 +2050,7 @@ function renderHomeReal() {
         <circle cx="42" cy="42" r="36" fill="none" stroke="#E8B33A" stroke-width="8" stroke-linecap="round" stroke-dasharray="${ring} 226" transform="rotate(-90 42 42)"/>
         <text x="42" y="47" text-anchor="middle" fill="#FFFFFF" font-family="Manrope, sans-serif" font-weight="800" font-size="16">${octPct}%</text>
       </svg>
-      <div><div class="lbl2">${MON[+D.asOf.slice(5, 7) - 1].toUpperCase()}, 1ST TO ${+D.asOf.slice(8)}${["TH", "ST", "ND", "RD"][(+D.asOf.slice(8) % 10 < 4 && Math.floor(+D.asOf.slice(8) / 10) !== 1) ? +D.asOf.slice(8) % 10 : 0]}</div><div class="amt">${fm(D.oct.now)} <span class="soft" style="font-size:14px;font-weight:600">vs ${fm(D.oct.prevSame)} last year</span></div><div class="soft" style="font-size:13px">${octPct >= 100 ? 'Already more than all of ${MN} ${PY} (' + fm(D.oct.prevFull) + ')' : octPct + '% of all of ${MN} ${PY} (' + fm(D.oct.prevFull) + ')'}</div></div>
+      <div><div class="lbl2">${MON[+D.asOf.slice(5, 7) - 1].toUpperCase()}, 1ST TO ${+D.asOf.slice(8)}${["TH", "ST", "ND", "RD"][(+D.asOf.slice(8) % 10 < 4 && Math.floor(+D.asOf.slice(8) / 10) !== 1) ? +D.asOf.slice(8) % 10 : 0]}</div><div class="amt">${fm(D.oct.now)} <span class="soft" style="font-size:14px;font-weight:600">vs ${fm(D.oct.prevSame)} last year</span></div><div class="soft" style="font-size:13px">${octPct >= 100 ? 'Already more than all of ' + MN + ' ' + PY + ' (' + fm(D.oct.prevFull) + ')' : octPct + '% of all of ' + MN + ' ' + PY + ' (' + fm(D.oct.prevFull) + ')'}</div></div>
     </div>
     <div class="quick">
       <a class="btn gold" href="#order" data-go="order">+ Order</a>
@@ -2166,9 +2212,9 @@ function renderCustomers() {
   <div class="split">
     <section class="card" style="padding:12px">
       <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px">
-        <div class="field" style="flex:1 1 220px">${ic('search')}<label class="sr" for="cust-q">Search customers</label><input id="cust-q" value="${esc(S.custQ)}" placeholder="Search name, phone or address" autocomplete="off"></div>
-        <div style="flex:0 1 160px"><label class="sr" for="cust-area">Area</label><select class="sel" id="cust-area">${areas.map(a => `<option${a === S.custArea ? ' selected' : ''}>${esc(a)}</option>`).join('')}</select></div>
-        <div style="flex:0 1 200px"><label class="sr" for="cust-sort">Sort</label><select class="sel" id="cust-sort">${[['ytd', 'Most sales this year'], ['owe', 'Most past due'], ['last', 'Longest since last order'], ['name', 'Name A–Z']].map(([v, l]) => `<option value="${v}"${S.custSort === v ? ' selected' : ''}>${l}</option>`).join('')}</select></div>
+        <div class="field" style="flex:1 1 100%">${ic('search')}<label class="sr" for="cust-q">Search customers</label><input id="cust-q" value="${esc(S.custQ)}" placeholder="Search name, phone or address" autocomplete="off"></div>
+        <div style="flex:1 1 120px"><label class="sr" for="cust-area">Area</label><select class="sel" id="cust-area">${areas.map(a => `<option${a === S.custArea ? ' selected' : ''}>${esc(a)}</option>`).join('')}</select></div>
+        <div style="flex:1 1 140px"><label class="sr" for="cust-sort">Sort</label><select class="sel" id="cust-sort">${[['ytd', 'Most sales this year'], ['owe', 'Most past due'], ['last', 'Longest since last order'], ['name', 'Name A–Z']].map(([v, l]) => `<option value="${v}"${S.custSort === v ? ' selected' : ''}>${l}</option>`).join('')}</select></div>
       </div>
       <div id="cust-list">${custRows()}</div>
     </section>
