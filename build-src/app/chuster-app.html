@@ -3480,7 +3480,9 @@ function packNext() {
   OR.list.forEach(o => { if (o.t !== 'inv') return; const r = isoRd(o.d); if (r > to - 56) rowsOf(o.l).forEach(([ref, q]) => { if (typeof ref === 'number') week[ref] = (week[ref] || 0) + q / 8; }); });
   const rows = REAL.catalog.map((c, i) => ({ c, i, day: tot[i] || 0, wk: week[i] || 0, stock: c.stock })).filter(r => r.day >= 0.5 && !/Loose/.test(r.c.group));
   rows.forEach(r => { r.need = Math.ceil(r.day * 1.1); r.pack = Math.max(0, r.need - Math.max(0, r.stock || 0)); r.wks = r.wk > 0 ? (r.stock || 0) / r.wk : null; });
-  rows.sort((x, y) => grank(x.c.group) - grank(y.c.group) || y.pack - x.pack);
+  const codeN = r => { const n = parseInt(r.c.code, 10); return isNaN(n) ? 9999 : n; };
+  if ((S.pnSort || 'most') === 'most') rows.sort((x, y) => (y.pack > 0) - (x.pack > 0) || y.pack - x.pack || y.need - x.need);
+  else rows.sort((x, y) => grank(x.c.group) - grank(y.c.group) || codeN(x) - codeN(y));
   return { target: from, from, until, deliv, days: deliv.length ? Array(pnAvgFor(dow(deliv[0])).n) : [], rows };
 }
 function pnLabel(P) {
@@ -3502,8 +3504,11 @@ function renderPackNext() {
   </section>
   <div class="tiles"><div class="tile"><div class="k">Products to pack</div><div class="v">${toPack.length}</div><div class="s">${fn(toPack.reduce((s, r) => s + r.pack, 0))} cases</div></div><div class="tile"><div class="k">${P.from === P.until ? `Usual ${WD[dow(P.target)]} orders` : 'Usual orders in these days'}</div><div class="v">${fn(P.rows.reduce((s, r) => s + r.need, 0))}</div><div class="s">cases, with 10% extra</div></div><div class="tile warn"><div class="k">Below zero now</div><div class="v">${P.rows.filter(r => (r.stock || 0) < 0).length}</div><div class="s">fix the count in QuickBooks</div></div></div>
   <p class="sub" style="margin:0">Need = what stores usually take on ${P.from === P.until ? `a ${WD[dow(P.target)]}` : 'each of these days'} (average of the last 8 of that weekday) + 10%. Pack = need − what's in stock (QuickBooks, ${fmtShort(isoRd(REAL.asOf))}). Stock below zero counts as 0.</p>
-  <section class="card stack" style="gap:0">${P.rows.map(r => { const hdr = r.c.group !== last ? `<div class="ghead ${gcls(r.c.group)}" style="margin-top:${last === null ? 0 : 12}px"><span>${esc(r.c.group.toUpperCase())}</span><span>need · in stock · pack</span></div>` : ''; last = r.c.group;
-    return hdr + `<div class="irow ${gcls(r.c.group)}${r.pack ? ' on' : ''}"><span class="icode">${esc(r.c.code || '·')}</span><div class="main"><div class="name" style="font-size:14px">${itName(r.c)}</div><div class="meta">need ${r.need} · in stock ${fn(r.stock || 0)}${r.wks != null ? ` · ${r.wks < 0 ? 'below zero' : r.wks < 1 ? 'under a week of stock' : Math.round(r.wks * 10) / 10 + ' weeks of stock'}` : ''}</div></div><strong class="num" style="font-size:20px;${r.pack ? '' : 'color:var(--muted)'}">${r.pack ? 'Pack ' + r.pack : 'OK'}</strong></div>`; }).join('')}</section>`;
+  <div class="chips"><button class="chip" data-act="pn-sort" data-s="most" aria-pressed="${(S.pnSort || 'most') === 'most'}">Most to pack first</button><button class="chip" data-act="pn-sort" data-s="code" aria-pressed="${S.pnSort === 'code'}">By item number</button></div>
+  <section class="card stack" style="gap:0">${P.rows.map(r => { let hdr = '';
+    if (S.pnSort === 'code') { if (r.c.group !== last) hdr = `<div class="ghead ${gcls(r.c.group)}" style="margin-top:${last === null ? 0 : 12}px"><span style="flex:1;text-align:center">${esc((GROUP_TITLE[r.c.group] || r.c.group).toUpperCase())}</span></div>`; last = r.c.group; }
+    else { const k = r.pack > 0 ? 'pack' : 'ok'; if (k !== last) hdr = `<div class="ghead gc gc-${k === 'pack' ? 1 : 6}" style="margin-top:${last === null ? 0 : 12}px"><span style="flex:1;text-align:center">${k === 'pack' ? 'TO PACK · MOST FIRST' : 'ENOUGH IN STOCK'}</span></div>`; last = k; }
+    return hdr + `<div class="irow ${gcls(r.c.group)}" style="flex-wrap:nowrap"><div class="main" style="flex:1 1 0"><div class="name" style="font-size:14px">${itName(r.c)}</div><div class="meta">${r.c.code ? '#' + esc(r.c.code) + ' · ' : ''}need ${r.need} · in stock ${fn(r.stock || 0)}${r.wks != null ? ` · ${r.wks < 0 ? 'below zero' : r.wks < 1 ? 'under a week of stock' : Math.round(r.wks * 10) / 10 + ' weeks of stock'}` : ''}</div></div><strong class="num" style="font-size:20px;${r.pack ? '' : 'color:var(--muted)'}">${r.pack ? 'Pack ' + r.pack : 'OK'}</strong></div>`; }).join('')}</section>`;
 }
 function packNextDoc() {
   const P = packNext(); return docSheet({ title: 'Packing list', meta: [['For', P.from === P.until ? fmtLong(P.target) : fmtShort(P.from) + ' – ' + fmtShort(P.until)], ['', P.from === P.until ? hebStr(P.target, false) : P.deliv.length + ' delivery days']], parties: [], cols: ['Code', 'Product', 'Need', 'In stock', 'Pack'], right: 3, code: true,
@@ -5255,6 +5260,7 @@ document.addEventListener('click', e => {
     case 'rep-base': S.repCfg.base = d.b; saveReps(); keep(); break;
     case 'rep-print': { const [a2, b2, lbl] = repRange(); const r = repRows().find(x => x.code === d.r); if (r) printDoc(commissionDoc(repStats(r, a2, b2), a2, b2, lbl), `Chuster commission - ${repName(r.code)} - ${lbl}`); break; }
     case 'ask-idea': doAsk(d.q); break;
+    case 'pn-sort': S.pnSort = d.s; render(); break;
     case 'pn-range': S.pnFrom = +d.f; S.pnTo = +d.t; render(); break;
     case 'ai-toggle': S.aiOff = !S.aiOff; try { localStorage.setItem('chuster-ai-off', S.aiOff ? '1' : '0'); } catch (e) { /* ignore */ } render(); break;
     case 'ai-new': if (!S.aiBusy) { S.aiMsgs = []; S.askLog = []; render(); } break;
