@@ -3086,7 +3086,7 @@ function qtyFor(ci, ii, per) {
 }
 const tbl = rows => `<table class="mini-table">${rows.map(([a, b]) => `<tr><td>${a}</td><td>${b}</td></tr>`).join('')}</table>`;
 const custLink = c => `<a href="#customers" data-act="cust-sel-go" data-n="${esc(c.name)}">${esc(c.name)}</a>`;
-const itName = c => `${esc(c.name)}${c.pack ? ' <span style="color:var(--muted)">' + esc(c.pack) + '</span>' : ''}`;
+const itName = c => `${esc(c.name)}${c.pack && !String(c.name).trim().endsWith(String(c.pack).trim()) ? ' <span style="color:var(--muted)">' + esc(c.pack) + '</span>' : ''}`;
 const casesTxt = (c, q) => bulkTxt(c.full, q) || `${fnu(q)} case${Math.abs(q) === 1 ? '' : 's'}`;
 function answer(q) {
   if (!REAL) return { a: 'Ask the portal needs your QuickBooks numbers, so it only works in your private link.' };
@@ -3572,7 +3572,7 @@ function packNext() {
   const tot = {}; deliv.forEach(r => { const A = pnAvgFor(dow(r)).avg; Object.keys(A).forEach(k => { tot[k] = (tot[k] || 0) + A[k]; }); });
   const week = {};
   OR.list.forEach(o => { if (o.t !== 'inv') return; const r = isoRd(o.d); if (r > to - 56) rowsOf(o.l).forEach(([ref, q]) => { if (typeof ref === 'number') week[ref] = (week[ref] || 0) + q / 8; }); });
-  const rows = REAL.catalog.map((c, i) => ({ c, i, day: tot[i] || 0, wk: week[i] || 0, stock: c.stock })).filter(r => r.day >= 0.5 && !/Loose/.test(r.c.group));
+  const rows = REAL.catalog.map((c, i) => ({ c, i, day: tot[i] || 0, wk: week[i] || 0, stock: c.stock })).filter(r => r.day >= 0.5 && (!/Loose/.test(r.c.group) || /\s(60|120)\s*$/.test(r.c.full)));
   rows.forEach(r => { r.need = Math.ceil(r.day * 1.1); r.pack = Math.max(0, r.need - Math.max(0, r.stock || 0)); r.wks = r.wk > 0 ? (r.stock || 0) / r.wk : null; });
   const codeN = r => { const n = parseInt(r.c.code, 10); return isNaN(n) ? 9999 : n; };
   if ((S.pnSort || 'most') === 'most') rows.sort((x, y) => (y.pack > 0) - (x.pack > 0) || y.pack - x.pack || y.need - x.need);
