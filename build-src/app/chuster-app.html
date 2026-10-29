@@ -713,6 +713,15 @@ body:has(#ai-fab:not([hidden])) #view { padding-bottom: 72px; }
 .cust-row .main { flex: 1 1 0; }
 .cust-row .nums strong { font-size: 14px; }
 @media (max-width: 520px) { .cust-row .nums[style*="min-width:84px"] { min-width: 64px !important; } .cust-row .main > span:last-child { font-size: 12px !important; } }
+@media (max-width: 959px) {
+  .nav { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+  .nav h3 { margin: 8px 2px 0; font-size: 11px; }
+  .nav a { min-height: 62px; padding: 7px 3px; gap: 4px; border-radius: 11px; font-size: 11px; }
+  .nav a svg { width: 20px; height: 20px; }
+  .nav a .count { top: 3px; right: 3px; font-size: 10px; padding: 0 5px; }
+  .side .brand .brand-logo { width: 96px; }
+  body:has(.app.menu-open) #ai-fab { display: none; }
+}
 /* ===== compact everywhere ===== */
 main { padding-block: 14px 32px; }
 .view { gap: 10px; }
