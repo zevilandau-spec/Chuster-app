@@ -5150,7 +5150,7 @@ function qwCard(rec) {
     ${pay}${lines ? `<div class="qw-lines">${lines}</div>` : ''}
     ${rec.memo ? `<div class="sub" style="margin:0">${esc(rec.memo)}</div>` : ''}
     ${s === 'error' ? `<div class="qw-err">${esc(r.err || 'unknown problem')}</div>` : ''}
-    ${s === 'done' && r.num ? `<div class="sub" style="margin:0">Made in QuickBooks ${esc((r.at || '').slice(11, 16))}${r.unused > 0 ? ` · ${money(r.unused)} not applied to an invoice` : ''}</div>` : ''}
+    ${s === 'done' && r.num ? `<div class="sub" style="margin:0">Made in QuickBooks ${esc((r.at || '').slice(11, 16))}${r.unused > 0 ? ` · ${money(r.unused)} not applied to an invoice` : ''}${r.was ? ` · <b>number changed from #${esc(r.was)}</b> (the office used it at the same time)` : ''}</div>` : ''}
     ${s === 'wait' || s === 'error' ? `<div class="actions">${can ? `<button class="btn good" data-act="qw-send" data-id="${esc(rec.id)}">${s === 'error' ? 'Try again' : 'Send to QuickBooks'}</button>` : `<span class="sub" style="margin:0">${rec.kind === 'cm' ? 'Only Zevi can send credit memos.' : 'The office sends it.'}</span>`}<button class="btn ghost" data-act="qw-del" data-id="${esc(rec.id)}">Delete</button></div>` : ''}
   </article>`;
 }

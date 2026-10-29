@@ -8,7 +8,7 @@
 param([switch]$Install, [switch]$Test, [switch]$Full, [switch]$Other, [switch]$History, [switch]$Watch)
 
 $ErrorActionPreference = 'Stop'
-$Ver = '3.7'
+$Ver = '3.8'
 $AppName = 'Chuster App Sync'
 $TaskName = 'Chuster QB Sync'
 $Here = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -205,6 +205,39 @@ function Find-ByMemo([string]$kind, [string]$id) {
   }
   $null
 }
+# Two invoices with the same number (the app and the office at the same moment): give the app's invoice the next free number.
+$script:DupAt = [datetime]::MinValue
+function Inv-Count([string]$ref) {
+  $r = Rs (QB-Do 'InvoiceQueryRq' ('<InvoiceQueryRq requestID="1"><RefNumber>' + (X $ref) + '</RefNumber><IncludeRetElement>TxnID</IncludeRetElement></InvoiceQueryRq>')) 'InvoiceQueryRs'
+  if ($r -and $r.GetAttribute('statusCode') -eq '0') { $r.SelectNodes('InvoiceRet').Count } else { 0 }
+}
+function Fix-DupNumbers {
+  if (((Get-Date) - $script:DupAt).TotalMinutes -lt 3) { return }
+  $script:DupAt = Get-Date
+  $from = (Get-Date).AddDays(-2).ToString('yyyy-MM-ddTHH:mm:ss')
+  $recent = QB-All 'InvoiceQueryRq' "<ModifiedDateRangeFilter><FromModifiedDate>$from</FromModifiedDate></ModifiedDateRangeFilter><IncludeRetElement>TxnID</IncludeRetElement><IncludeRetElement>EditSequence</IncludeRetElement><IncludeRetElement>RefNumber</IncludeRetElement><IncludeRetElement>Memo</IncludeRetElement><IncludeRetElement>TimeCreated</IncludeRetElement><IncludeRetElement>Subtotal</IncludeRetElement><IncludeRetElement>SalesTaxTotal</IncludeRetElement>" 'InvoiceRet'
+  $max = 0L; foreach ($r in $recent) { $n = T $r 'RefNumber'; if ($n -match '^\d{1,10}$' -and [long]$n -gt $max) { $max = [long]$n } }
+  foreach ($r in $recent) {
+    $memo = T $r 'Memo'; $ref = T $r 'RefNumber'
+    $mm = [regex]::Match($memo, '\[app:([^\]]+)\]')
+    if (-not $mm.Success -or -not ($ref -match '^\d+$')) { continue }
+    $appId = $mm.Groups[1].Value
+    # only invoices the app made (not an office invoice that was changed in the app): made after the app's request
+    try {
+      $b36 = $appId.Substring(0, $appId.Length - 5).ToLower(); $ms = 0L; foreach ($ch in $b36.ToCharArray()) { $ms = $ms * 36 + '0123456789abcdefghijklmnopqrstuvwxyz'.IndexOf($ch) }
+      $asked = [DateTimeOffset]::FromUnixTimeMilliseconds($ms); $made = [DateTimeOffset]::Parse((T $r 'TimeCreated'), $Inv)
+      if ($made -lt $asked.AddMinutes(-10)) { continue }
+    } catch { continue }
+    if ((Inv-Count $ref) -lt 2) { continue }
+    $nx = [Math]::Max($max, [long]$ref)
+    do { $nx++ } while ((Inv-Count ([string]$nx)) -gt 0)
+    $x = QB-Do 'InvoiceModRq' ('<InvoiceModRq requestID="1"><InvoiceMod><TxnID>' + (T $r 'TxnID') + '</TxnID><EditSequence>' + (T $r 'EditSequence') + '</EditSequence><RefNumber>' + $nx + '</RefNumber></InvoiceMod></InvoiceModRq>')
+    $rs = Rs $x 'InvoiceModRs'; Check $rs ''
+    $max = $nx
+    Log "Invoice #$ref was used twice (the app and the office). The app's invoice is now #$nx."
+    try { Put-Result $appId ([ordered]@{ num = [string]$nx; txn = (T $r 'TxnID'); amt = (Money ((N $r 'Subtotal') + (N $r 'SalesTaxTotal'))); was = $ref }) } catch { }
+  }
+}
 function Add-ToQB($o) {
   $memo = X ((([string]$o.memo).Trim() + ' [app:' + $o.id + ']').Trim())
   $cust = '<CustomerRef><FullName>' + (X ([string]$o.c)) + '</FullName></CustomerRef>'
@@ -388,6 +421,7 @@ function Sync-Once([bool]$upload) {
     # first: what the office approved in the app
     $made = 0
     try { $made = Process-Queue $st $upload; if ($upload) { Save-State $st } } catch { Log ('To QuickBooks list: ' + $_.Exception.Message) }
+    if ($upload) { try { Fix-DupNumbers } catch { Log ('Same-number check: ' + $_.Exception.Message) } }
     $count['made'] = $made
     $mins = if ($st.full) { ($started - [datetime]::Parse($st.full, $Inv)).TotalMinutes } else { 999 }
     if (-not $first -and -not $Full -and -not $script:ForceRead -and $made -eq 0 -and $mins -lt 14) {
