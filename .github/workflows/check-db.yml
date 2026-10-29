@@ -4,6 +4,7 @@ jobs:
   check:
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
       - name: Try both routes to the shared database
         run: |
           for u in "https://chuster.netlify.app/db/c9f96489aaf0b6c66d4456571/qh.json?orderBy=%22t%22&startAt=0&limitToFirst=1"; do
@@ -31,6 +32,23 @@ jobs:
           MF=$(curl -s "https://chuster.netlify.app/db/$SP/hx/manifest/t.json")
           NOW=$(date +%s%3N)
           echo "::notice::pc-status-age-min=$(( (NOW - ${ST:-0}) / 60000 )) history-manifest-age-min=$(( (NOW - ${MF:-0}) / 60000 ))"
+      - name: Office PC program version and self-update file
+        env:
+          CHUSTER_SECRETS: ${{ secrets.CHUSTER_SECRETS }}
+        run: |
+          pip install -q cryptography
+          echo "::notice::sig-site=$(curl -s https://chuster.netlify.app/qb/sync.sig | head -c 60) sig-repo=$(cat qb/sync.sig 2>/dev/null)"
+          python3 - <<'PY'
+          import json, os, base64, hmac, hashlib, urllib.request
+          from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+          S = json.loads(os.environ['CHUSTER_SECRETS'])['sync']; k = base64.b64decode(S['key'])
+          ek = hmac.new(k, b'chuster-qb-enc', hashlib.sha256).digest()
+          r = json.load(urllib.request.urlopen('https://chuster.netlify.app/db/%s/qh/status.json' % S['space']))
+          b = base64.b64decode(r['v'][3:]); iv, ct = b[:16], b[16:-32]
+          d = Cipher(algorithms.AES(ek), modes.CBC(iv)).decryptor(); pt = d.update(ct) + d.finalize(); pt = pt[:-pt[-1]]
+          v = json.loads(pt)['val']
+          print('::notice::pc ver=%s ok=%s at=%s err=%s' % (v.get('ver'), v.get('ok'), v.get('at'), (v.get('err') or '')[:120]))
+          PY
       - name: How the other app talks to its server
         if: false
         run: |
