@@ -22,6 +22,15 @@ jobs:
           TOK=$(python3 -c "import json,os,hmac,hashlib,base64;k=base64.b64decode(json.loads(os.environ['CHUSTER_SECRETS'])['sync']['key']);print(base64.b64encode(hmac.new(k,b'chuster-ai',hashlib.sha256).digest()).decode())")
           code=$(curl -s -o ai.txt -w '%{http_code}' -X POST https://chuster.netlify.app/ai/msg -H 'content-type: application/json' -H "x-chuster: $TOK" -d '{"model":"claude-haiku-5-5","max_tokens":20,"messages":[{"role":"user","content":"Say OK"}]}')
           echo "::notice::ai with code -> $code :: $(head -c 300 ai.txt | tr -d '\n\r')"
+      - name: When the office PC last checked in
+        env:
+          CHUSTER_SECRETS: ${{ secrets.CHUSTER_SECRETS }}
+        run: |
+          SP=$(python3 -c "import json,os;print(json.loads(os.environ['CHUSTER_SECRETS'])['sync']['space'])")
+          ST=$(curl -s "https://chuster.netlify.app/db/$SP/qh/status/t.json")
+          MF=$(curl -s "https://chuster.netlify.app/db/$SP/hx/manifest/t.json")
+          NOW=$(date +%s%3N)
+          echo "::notice::pc-status-age-min=$(( (NOW - ${ST:-0}) / 60000 )) history-manifest-age-min=$(( (NOW - ${MF:-0}) / 60000 ))"
       - name: How the other app talks to its server
         if: false
         run: |
