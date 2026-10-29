@@ -1,15 +1,15 @@
 {
- "result": "failed",
+ "result": "ok",
  "history": "2026-10-29T00:30:08",
- "at": "2026-10-29T20:33Z",
+ "at": "2026-10-29T23:36Z",
  "last": [
+  "customers 248 | cells 38454 | bytes 359335",
+  "balance lines 68 | open PO lines 0 open $ 0 | reps {'MH': 'Mordche Hersh', 'PU': 'Pick Up', 'WH': 'Wholsale', 'WHC': 'Wholsale Country'}",
+  "daily 333 days 8201 invoices | cases known to 2026-10-06 | bytes 169560",
   "books 351626 bytes | expenses 10564 deposits 2926 bill payments 2817 open sales orders 0 estimates 0 adjustments 0 builds 0 POs 1237 journal 34 accounts 140",
   "sync added; url = https://chuster-afb77-default-rtdb.firebaseio.com",
-  "locked 455627 bytes for Owner:Zevi, Office:Office, Warehouse:Warehouse, Driver:Driver, Sales:Dudi, SalesDriver:Motty, Owner:Ben, Owner:Moses | round trip ok: true",
-  "Traceback (most recent call last):",
-  "  File \"/home/runner/work/Chuster-app/Chuster-app/build-src/tools/build_locked.py\", line 101, in <module>",
-  "    assert 'window.CHUSTER_DATA=' not in doc and 'ROSENFELD' not in doc and 'Aron' not in doc and 'WINLAND' not in doc",
-  "           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^",
-  "AssertionError"
+  "locked 455615 bytes for Owner:Zevi, Office:Office, Warehouse:Warehouse, Driver:Driver, Sales:Dudi, SalesDriver:Motty, Owner:Ben, Owner:Moses | round trip ok: true",
+  "locked page 1274064 bytes; zip 816091",
+  "built from QuickBooks history 2020-01-01 to 2026-10-28"
  ]
 }
