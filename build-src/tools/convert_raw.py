@@ -3,7 +3,7 @@ so the normal build makes the app from them.
 Usage: python3 -I convert_raw.py <raw_dir> <out_export_dir>
 raw_dir holds one <set>.json per set: meta, customers, items, reps, inv_YYYY, cm_YYYY, sr_YYYY, pay_YYYY, pur_YYYY, po, pl, bs
 """
-import csv, json, os, sys, glob, datetime as dt, collections
+import re, csv, json, os, sys, glob, datetime as dt, collections
 
 RAW, OUT = sys.argv[1], sys.argv[2]
 INTERNAL_CUST = 'Chuster Packaging Wholsale'
@@ -84,7 +84,7 @@ for t in inv + cm + sr:
     sign = -1 if t['kind'] == 'Credit Memo' else 1
     for l in t.get('l', []):
         full, desc, q, amt = l[0], l[1], float(l[2] or 0), float(l[3] or 0)
-        if not full:
+        if not full or (re.search(r'total', full, re.I) and not full.startswith(('Packs', 'Chuster Loose', 'Landaus Loose'))):
             continue
         price = abs(amt / q) if q else 0
         by_year[t['d'][:4]].append([t['c'], t['kind'], mdy(t['d']), t.get('n', ''), desc or desc_of.get(full, ''), item_txt(full, desc_of.get(full) or desc), qty(sign * q), money(price), money(sign * amt), ''])

@@ -247,6 +247,13 @@ for d, c, f, ds, q, am in lines:
     if d >= y_start: ytd_c[c] += am
     if prev_start <= d <= prev_end: ytd_prev_c[c] += am
     if (AS_OF - d).days < 180 and is_case(f): item_by_cust[c][f] += q
+# store sales = invoice totals minus credit memos (item lines can miss subtotal or discount lines)
+sales12 = collections.defaultdict(float); ytd_c = collections.defaultdict(float); ytd_prev_c = collections.defaultdict(float)
+for r in inv_rows + cm_rows:
+    d = day(r['Date']); c = r['Customer']; am = num(r['Debit']) - num(r['Credit'])
+    if (AS_OF - d).days < 365: sales12[c] += am
+    if y_start <= d <= AS_OF: ytd_c[c] += am
+    if prev_start <= d <= prev_end: ytd_prev_c[c] += am
 
 for r in cust_src:
     name = r['Customer'].strip()
