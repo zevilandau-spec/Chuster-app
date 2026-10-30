@@ -11,6 +11,10 @@ jobs:
             code=$(curl -s -o body.txt -w '%{http_code} %{content_type}' "$u")
             echo "::notice::$u -> $code :: $(head -c 120 body.txt | tr -d '\n\r')"
           done
+      - name: Live page has the new features
+        run: |
+          curl -s https://chuster.netlify.app/index.html -o idx.html
+          echo "::notice::feature-check deliverBox=$(grep -c 'Push to next delivery day' idx.html) casesSince=$(grep -c 'all cases since' idx.html) bytes=$(wc -c < idx.html)"
       - name: The AI door
         run: |
           code=$(curl -s -o body.txt -w '%{http_code}' -X POST -H 'content-type: application/json' -d '{}' https://chuster.netlify.app/ai/msg)
