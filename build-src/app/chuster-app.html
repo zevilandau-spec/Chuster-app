@@ -4277,21 +4277,78 @@ function renderMySales() {
 
 /* ================= Deliveries from real invoices: schedule by area + day, driver stops, proof, office status, daily report ================= */
 // Usual pattern from your invoices: Sun Williamsburg · Mon Boro Park + Williamsburg · Tue Boro Park + Country · Wed Lakewood + Boro Park · Thu Monsey + Monroe · Fri Monsey
-const DSCHED_DEFAULT = { 0: { Williamsburg: 0 }, 1: { 'Boro Park': 0, Williamsburg: 1 }, 2: { 'Boro Park': 0, Country: 1 }, 3: { Lakewood: 0, 'Boro Park': 1 }, 4: { Monsey: 0, Monroe: 1 }, 5: { Monsey: 0 } };
-Object.assign(S, { dsched: loadLS('chuster-dsched-v1', JSON.parse(JSON.stringify(DSCHED_DEFAULT))), dstat: loadLS('chuster-dstat-v1', {}), dorder: loadLS('chuster-dorder-v1', {}), dDate: null, dTruck: 0, dStop: null, dShort: {}, dSigOpen: false, dPhotos: [] });
+// The salesman takes orders in an area one day, the truck delivers there the next: Sun orders Williamsburg -> Mon delivery, Mon orders Boro Park -> Tue, ...
+// An invoice goes on the first day ON or AFTER its date when its area has the truck.
+const DSCHED_DEFAULT = { v: 2, n: 1, start: '4706 10th Ave, Brooklyn, NY 11219', 0: {}, 1: { Williamsburg: 0 }, 2: { 'Boro Park': 0 }, 3: { Country: 0, 'Boro Park': 0 }, 4: { Lakewood: 0, 'Boro Park': 0 }, 5: { Monsey: 0, Monroe: 0 } };
+const dsFix = v => (v && v.v === 2) ? v : JSON.parse(JSON.stringify(DSCHED_DEFAULT));
+Object.assign(S, { dsched: dsFix(loadLS('chuster-dsched-v1', null)), gc: loadLS('chuster-gc-v1', {}), routeBusy: '', dstat: loadLS('chuster-dstat-v1', {}), dorder: loadLS('chuster-dorder-v1', {}), dDate: null, dTruck: 0, dStop: null, dShort: {}, dSigOpen: false, dPhotos: [] });
 (function prune() { const cut = isoOf(TODAY - 21); let ch = false; Object.keys(S.dstat).forEach(k => { if (k.slice(0, 10) < cut) { delete S.dstat[k]; ch = true; } }); if (ch) saveLS('chuster-dstat-v1', S.dstat); })();
 const saveDstat = () => { try { localStorage.setItem('chuster-dstat-v1', JSON.stringify(S.dstat)); } catch (e) { toast('This device is full. Old photos were not saved.'); } };
-const DTRUCKS = () => (S.trucks.length ? S.trucks : [{ name: 'Truck 1' }]).slice(0, Math.max(2, S.trucks.length >= 2 ? 2 : S.trucks.length));
-const delivDays = () => [...new Set(REAL.orders.list.filter(o => o.t === 'inv').map(o => (S.lmove && S.lmove[o.n]) || o.d))].sort().reverse();
-function truckFor(date, area) { const m = S.dsched[dow(isoRd(date))] || {}; return m[area] != null ? +m[area] : -1; }
+const DTRUCKS = () => { const n = Math.max(1, Math.min(4, +S.dsched.n || 1)); const T = (S.trucks.length ? S.trucks : []).slice(0, n); while (T.length < n) T.push({ name: 'Truck ' + (T.length + 1) }); return T; };
+let ddCache = null;
+function dDateOf(o) {
+  const mv = S.lmove || {}; if (mv[o.n]) return mv[o.n];
+  if (!ddCache || ddCache.s !== S.dsched || ddCache.L !== REAL.orders.list) ddCache = { s: S.dsched, L: REAL.orders.list, m: new Map() };
+  if (ddCache.m.has(o.n)) return ddCache.m.get(o.n);
+  const c = custByName(o.c) || {}; const area = c.area || 'Other'; let out = o.d;
+  if (c.rep !== 'PU') { const r0 = isoRd(o.d); for (let k = 0; k <= 7; k++) { const w = dow(r0 + k); if (w === 6) continue; if ((S.dsched[w] || {})[area] != null) { out = isoOf(r0 + k); break; } } }
+  ddCache.m.set(o.n, out); return out;
+}
+const delivDays = () => { const s = new Set(REAL.orders.list.filter(o => o.t === 'inv').map(dDateOf)); s.add(isoOf(TODAY)); return [...s].sort().reverse(); };
+function truckFor(date, area) { const m = S.dsched[dow(isoRd(date))] || {}; return m[area] != null ? Math.min(+m[area], DTRUCKS().length - 1) : -1; }
 function dayStops(date) {
-  const mv = S.lmove || {}; const raw = REAL.orders.list.filter(o => o.t === 'inv' && (mv[o.n] || o.d) === date && o.a > 0); const by = {};
+  const mv = S.lmove || {}; const raw = REAL.orders.list.filter(o => o.t === 'inv' && o.a > 0 && dDateOf(o) === date); const by = {};
   raw.forEach(o => { const m = by[o.c]; if (!m) by[o.c] = { d: date, c: o.c, n: o.n, a: o.a, l: o.l.slice(), t: 'inv', nums: [o.n] }; else { m.a += o.a; m.l = m.l.concat(o.l); m.nums.push(o.n); } });
   const inv = Object.values(by).map(m => Object.assign(m, { n: m.nums.sort()[0], label: m.nums.sort().join(' + ') }));
   const byT = {}; inv.forEach(o => { const c = custByName(o.c) || {}; const area = c.area || 'Other'; const k = `${date}|${o.n}`; const ls = S.lship && S.lship[k]; const t = ls && ls !== 'truck' ? -1 : S.dstat[k] && S.dstat[k].truck != null ? S.dstat[k].truck : c.rep === 'PU' ? -1 : truckFor(date, area); (byT[t] || (byT[t] = [])).push({ o, c, area, k, st: S.dstat[k] || {} }); });
   Object.keys(byT).forEach(t => { const ord = S.dorder[`${date}|${t}`] || []; byT[t].sort((x, y) => { const a = ord.indexOf(x.o.n), b = ord.indexOf(y.o.n); if (a >= 0 || b >= 0) return (a < 0 ? 999 : a) - (b < 0 ? 999 : b); return (AREA_ORDER.indexOf(x.area) - AREA_ORDER.indexOf(y.area)) || x.c.address && y.c.address && x.c.address.localeCompare(y.c.address) || x.o.c.localeCompare(y.o.c); }); });
   return byT;
 }
+/* ---- shortest delivery order ---- */
+const gcKey = a => fixAddr(a).trim().toLowerCase().replace(/\s+/g, ' ');
+async function geoPoints(addrs) {
+  const need = [...new Set(addrs.filter(a => a && !S.gc[gcKey(a)]))];
+  for (let i = 0; i < need.length; i += 20) {
+    const part = need.slice(i, i + 20); S.routeBusy = `Finding addresses on the map… ${Math.min(i + 20, need.length)} of ${need.length}`; render();
+    const res = await fetch(location.origin + '/geo', { method: 'POST', headers: { 'content-type': 'application/json', 'x-chuster': await SYNC.aiToken() }, body: JSON.stringify({ addrs: part }) });
+    if (!res.ok) throw new Error(res.status === 401 ? 'Not allowed' : 'The map lookup did not answer (' + res.status + ')');
+    const j = await res.json(); part.forEach((a, k) => { const p = (j.points || [])[k]; const v = p ? { lat: +p.lat, lng: +p.lng } : { none: 1, at: isoOf(TODAY) }; S.gc[gcKey(a)] = v; SYNC.put('gc', gcKey(a), v); });
+    saveLS('chuster-gc-v1', S.gc);
+  }
+}
+function kmBetween(a, b) { const R = 6371, r = Math.PI / 180; const dLa = (b.lat - a.lat) * r, dLo = (b.lng - a.lng) * r; const h = Math.sin(dLa / 2) ** 2 + Math.cos(a.lat * r) * Math.cos(b.lat * r) * Math.sin(dLo / 2) ** 2; return 2 * R * Math.asin(Math.sqrt(h)); }
+function bestOrder(start, pts) { // nearest stop first, then untangle crossings (2-opt); the route ends at the last stop
+  const n = pts.length; if (n < 2) return pts.map((_, i) => i);
+  const d = (i, j) => kmBetween(i < 0 ? start : pts[i], pts[j]);
+  const left = new Set(pts.map((_, i) => i)); const ord = []; let cur = -1;
+  while (left.size) { let bj = -1, bd = 1e9; left.forEach(j => { const x = d(cur, j); if (x < bd) { bd = x; bj = j; } }); ord.push(bj); left.delete(bj); cur = bj; }
+  const len = o => o.reduce((t, j, k) => t + d(k ? o[k - 1] : -1, j), 0);
+  let best = len(ord), better = true, guard = 0;
+  while (better && guard++ < 60) { better = false;
+    for (let i = 0; i < n - 1; i++) for (let k = i + 1; k < n; k++) { const o2 = ord.slice(0, i).concat(ord.slice(i, k + 1).reverse(), ord.slice(k + 1)); const l2 = len(o2); if (l2 < best - 0.01) { ord.splice(0, n, ...o2); best = l2; better = true; } } }
+  return ord;
+}
+async function routeBest(date, t) {
+  const list = (dayStops(date)[t] || []); if (!list.length) return;
+  try {
+    const start = S.dsched.start || DSCHED_DEFAULT.start;
+    await geoPoints([start].concat(list.map(x => x.c.address)));
+    const sp = S.gc[gcKey(start)]; if (!sp || sp.none) throw new Error('The start address was not found on the map. Fix it on Delivery days.');
+    const withP = list.filter(x => { const p = S.gc[gcKey(x.c.address)]; return p && !p.none; }); const noP = list.filter(x => !withP.includes(x));
+    const done = withP.filter(x => x.st.st), todo = withP.filter(x => !x.st.st);
+    const ord = bestOrder(sp, todo.map(x => S.gc[gcKey(x.c.address)]));
+    const L = done.map(x => x.o.n).concat(ord.map(i => todo[i].o.n), noP.map(x => x.o.n));
+    S.dorder[`${date}|${t}`] = L; saveLS('chuster-dorder-v1', S.dorder); SYNC.put('do', `${date}|${t}`, L);
+    const km = ord.reduce((s2, j, k) => s2 + kmBetween(k ? S.gc[gcKey(todo[ord[k - 1]].c.address)] : sp, S.gc[gcKey(todo[j].c.address)]), 0);
+    toast(`Stops put in the shortest order (about ${Math.round(km * 0.621)} miles).${noP.length ? ` ${noP.length} address${noP.length > 1 ? 'es were' : ' was'} not found and went to the end.` : ''}`);
+  } catch (e) { toast('Could not make the route: ' + (e.message || e)); }
+  S.routeBusy = ''; render();
+}
+// Google Maps with up to 9 stops at once (its limit); starts from where the phone is
+function navHref(list) { const A = list.filter(x => !x.st.st && x.c.address).slice(0, 10).map(x => fixAddr(x.c.address)); if (!A.length) return ''; const dest = A[A.length - 1]; const w = A.slice(0, -1);
+  return 'https://www.google.com/maps/dir/?api=1&travelmode=driving&destination=' + encodeURIComponent(dest) + (w.length ? '&waypoints=' + encodeURIComponent(w.join('|')) : ''); }
+const smsHref = (phone, txt) => { const d = String(phone || '').replace(/\D/g, ''); return d.length >= 10 ? `sms:${d.length === 10 ? '+1' + d : '+' + d}?&body=${encodeURIComponent(txt)}` : ''; };
+const onWayTxt = () => 'Hi, this is Chuster Noodle. Our truck is on the way to you now. See you soon!';
 const stopCases = o => o.l.reduce((s, [ref, q]) => s + (typeof ref === 'number' && !bulkOf(REAL.catalog[ref].full) ? q : 0), 0);
 const mapsHref = addr => 'https://www.google.com/maps/dir/?api=1&destination=' + encodeURIComponent(addr || '');
 const wazeHref = addr => 'https://waze.com/ul?navigate=yes&q=' + encodeURIComponent(addr || '');
@@ -4304,7 +4361,7 @@ function renderDeliveries() {
   const all = Object.values(byT).flat(); const onT = all.filter(x => x.st.truck != null ? x.st.truck >= 0 : truckFor(date, x.area) >= 0 || (x.st.truck != null && x.st.truck >= 0));
   const done = all.filter(x => x.st.st === 'done' || x.st.st === 'partial').length;
   const i = days.indexOf(date);
-  const col = (t, label, list) => `<section class="card stack" style="gap:6px"><div class="card-head" style="margin:0"><h2>${esc(label)}</h2><span class="sub" style="margin:0">${list.length} stops · ${fn(list.reduce((s, x) => s + stopCases(x.o), 0))} cases · ${list.filter(x => stopReady(date, x)).length} loaded · ${list.filter(x => x.st.st === 'done' || x.st.st === 'partial').length} delivered</span></div>
+  const col = (t, label, list) => `<section class="card stack" style="gap:6px"><div class="card-head" style="margin:0"><h2>${esc(label)}</h2>${t >= 0 && list.length > 1 ? `<button class="btn ghost sm" data-act="r-best" data-t="${t}"${S.routeBusy ? ' disabled' : ''}>${S.routeBusy ? esc(S.routeBusy) : '🧭 Shortest order'}</button>` : ''}<span class="sub" style="margin:0">${list.length} stops · ${fn(list.reduce((s, x) => s + stopCases(x.o), 0))} cases · ${list.filter(x => stopReady(date, x)).length} loaded · ${list.filter(x => x.st.st === 'done' || x.st.st === 'partial').length} delivered</span></div>
     ${list.map((x, k) => `<div class="irow ${areaCls(x.area)}${x.st.st ? '' : ' on'}" style="margin-top:0">
       <span class="icode stopn">${k + 1}</span>
       <div class="main"><div class="name" style="font-size:14px"><a href="#stop" data-act="d-open" data-k="${esc(x.k)}" style="color:inherit">${esc(x.o.c)}</a></div><div class="meta">${esc(x.area)} · ${esc(fixAddr(x.c.address) || 'no address')} · #${esc(x.o.label || x.o.n)} · ${fn(stopCases(x.o))} cases · ${fm(x.o.a)}</div></div>
@@ -4333,14 +4390,20 @@ function renderDriver() {
   if (S.dStop) { const x = Object.values(byT).flat().find(y => y.k === S.dStop); if (x) return driverStop(x, list); S.dStop = null; }
   const next = list.find(x => !x.st.st);
   const left = list.filter(x => !x.st.st).length;
+  const nav = navHref(list); const nsms = next ? smsHref(next.c.phone, onWayTxt()) : '';
   return `${head('Driver', `${fmtLong(isoRd(date))} · ${esc(T[t].name)}`, `<button class="btn good" data-act="d-send">Send my day to the office</button>`)}
+  <section class="card" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:10px 14px">
+    ${nav ? `<a class="btn primary" href="${esc(nav)}" target="_blank" rel="noopener">▶ Start route in Google Maps${left > 10 ? ' (next 10 stops)' : ''}</a>` : ''}
+    ${nsms ? `<a class="btn gold" href="${esc(nsms)}">💬 Text ${esc(next.o.c)}: on the way</a>` : ''}
+    <button class="btn ghost" data-act="r-best" data-t="${t}"${S.routeBusy ? ' disabled' : ''}>${S.routeBusy ? esc(S.routeBusy) : '🧭 Shortest order'}</button>
+  </section>
   <div class="chips">${T.map((tr, n) => `<button class="chip" data-act="d-truck" data-t="${n}" aria-pressed="${t === n}">${esc(tr.name)} · ${(byT[n] || []).length}</button>`).join('')}</div>
   <div class="tiles"><div class="tile"><div class="k">Stops left</div><div class="v">${left} of ${list.length}</div><div class="s">${fn(list.reduce((s, x) => s + stopCases(x.o), 0))} cases on the truck</div></div>
     ${next ? `<button class="tile good" data-act="d-open" data-k="${esc(next.k)}" style="text-align:left;font:inherit;cursor:pointer"><div class="k">Next stop</div><div class="v" style="font-size:20px">${esc(next.o.c)}</div><div class="s">${esc(fixAddr(next.c.address))} · tap to start</div></button>` : `<div class="tile good"><div class="k">All done</div><div class="v">🎉</div><div class="s">Send your day to the office</div></div>`}</div>
   <section class="card" style="padding:8px 14px">${list.map((x, k) => `<div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px;border-top:${k ? '1px solid var(--line)' : 'none'};padding:10px 0">
     <span class="icode stopn" style="background:${x.st.st ? 'var(--good)' : 'var(--brand)'}">${x.st.st ? '✓' : k + 1}</span>
     <button data-act="d-open" data-k="${esc(x.k)}" style="flex:1 1 220px;min-width:0;text-align:left;background:none;border:none;font:inherit;color:inherit;cursor:pointer;padding:0"><b>${esc(x.o.c)}</b><span style="display:block;font-size:13px;color:var(--muted)">${esc(fixAddr(x.c.address))} · ${fn(stopCases(x.o))} cases</span></button>
-    <span style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-left:auto">${stTag(x.st)}${x.c.address ? `<a class="btn ghost sm" href="${esc(mapsHref(fixAddr(x.c.address)))}" target="_blank" rel="noopener">Maps</a><a class="btn ghost sm" href="${esc(wazeHref(fixAddr(x.c.address)))}" target="_blank" rel="noopener">Waze</a>` : ''}</span></div>`).join('') || '<p class="sub">No stops for this truck today.</p>'}</section>`;
+    <span style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-left:auto">${stTag(x.st)}${!x.st.st && smsHref(x.c.phone, '') ? `<a class="btn ghost sm" href="${esc(smsHref(x.c.phone, onWayTxt()))}" aria-label="Text ${esc(x.o.c)} that the truck is on the way">💬</a>` : ''}${x.c.address ? `<a class="btn ghost sm" href="${esc(mapsHref(fixAddr(x.c.address)))}" target="_blank" rel="noopener">Maps</a><a class="btn ghost sm" href="${esc(wazeHref(fixAddr(x.c.address)))}" target="_blank" rel="noopener">Waze</a>` : ''}</span></div>`).join('') || '<p class="sub">No stops for this truck today.</p>'}</section>`;
 }
 function driverStop(x, list) {
   const st = x.st; const lines = x.o.l.filter(([ref, q]) => q > 0);
@@ -4387,12 +4450,16 @@ function renderDSched() {
   if (!REAL) return needData('Delivery days');
   const T = DTRUCKS(); const areas = AREA_ORDER.concat(['Other', 'Retail']).filter((a, i, A) => A.indexOf(a) === i);
   const SD = storeDays(); const off = SD.filter(x => x.days.length && !x.days.some(w => truckFor(isoOf(TODAY - dow(TODAY) + w), x.c.area) >= 0) && !['Wholesale', 'Other', 'Catering', 'Retail'].includes(x.c.area));
-  return `${head('Delivery days', 'Which area goes on which truck each day · stores’ usual days from the last 4 months of invoices', `<button class="btn ghost" data-act="ds-reset">Back to the usual pattern</button><a class="btn primary" href="#route" data-go="route">Deliveries</a>`)}
+  return `${head('Delivery days', 'Which areas the truck delivers each day',  `<button class="btn ghost" data-act="ds-reset">Back to the usual pattern</button><a class="btn primary" href="#route" data-go="route">Deliveries</a>`)}
+  <section class="card stack" style="gap:10px"><h2>How it works</h2>
+    <p class="sub" style="margin:0">The salesman takes orders in an area, and the truck delivers there on the next day that area has the truck. For example: orders from Williamsburg on Sunday go out Monday, orders from Boro Park on Monday go out Tuesday. An order dated a day its area already has the truck goes out that same day.</p>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center"><span class="lbl" style="margin:0">Trucks</span><div class="chips">${[1, 2, 3].map(n => `<button class="chip" data-act="ds-n" data-n="${n}" aria-pressed="${(+S.dsched.n || 1) === n}">${n}</button>`).join('')}</div></div>
+    <div><label class="lbl" for="ds-start">The truck starts from (for the shortest order)</label><input class="inp" id="ds-start" value="${esc(S.dsched.start || DSCHED_DEFAULT.start)}" autocomplete="off"></div></section>
   <section class="card" style="overflow-x:auto"><table class="mini-table" style="min-width:640px"><tr><td><b>Area</b></td>${[0, 1, 2, 3, 4, 5].map(w => `<td style="text-align:center"><b>${WDS[w]}</b></td>`).join('')}</tr>
     ${areas.map(a => `<tr><td>${esc(a)}</td>${[0, 1, 2, 3, 4, 5].map(w => { const v = (S.dsched[w] || {})[a]; return `<td style="text-align:center"><select class="sel ds-cell" data-w="${w}" data-a="${esc(a)}" style="width:auto;min-height:34px;font-size:13px${v != null ? ';background:var(--brand-soft);font-weight:800' : ''}" aria-label="${esc(a)} on ${WD[w]}"><option value="">—</option>${T.map((tr, n) => `<option value="${n}"${v != null && +v === n ? ' selected' : ''}>${esc(tr.name)}</option>`).join('')}</select></td>`; }).join('')}</tr>`).join('')}</table>
-    <p class="sub" style="margin:8px 0 0">Started from your invoices: Williamsburg Sun + Mon, Boro Park Mon–Wed, Country Tue, Lakewood Wed, Monsey and Monroe Thu. Truck names come from Tools → Trucks &amp; people. Saved on this device.</p></section>
-  ${off.length ? `<section class="card stack"><h2>Stores that usually get a day with no truck for their area · ${off.length}</h2><table class="mini-table">${off.map(x => `<tr><td><a href="#customers" data-act="cust-sel-go" data-n="${esc(x.c.name)}">${esc(x.c.name)}</a><div class="sub" style="margin:0;font-size:12px">${esc(x.c.area)}</div></td><td>${x.days.map(w => WD[w]).join(', ')}</td></tr>`).join('')}</table></section>` : ''}
-  <section class="card stack"><h2>Each store’s usual delivery day</h2>
+    <p class="sub" style="margin:8px 0 0">Started from your invoices, one day after the salesman: Williamsburg Mon, Boro Park Tue–Thu, Country Wed, Lakewood Thu, Monsey and Monroe Fri. Change any box. Saved for everyone.</p></section>
+  ${false && off.length ? `<section class="card stack"><h2>Stores that usually get a day with no truck for their area · ${off.length}</h2><table class="mini-table">${off.map(x => `<tr><td><a href="#customers" data-act="cust-sel-go" data-n="${esc(x.c.name)}">${esc(x.c.name)}</a><div class="sub" style="margin:0;font-size:12px">${esc(x.c.area)}</div></td><td>${x.days.map(w => WD[w]).join(', ')}</td></tr>`).join('')}</table></section>` : ''}
+  <section class="card stack"><h2>Each store’s usual order day</h2>
     ${[0, 1, 2, 3, 4, 5].map(w => { const L = SD.filter(x => x.days.includes(w)).sort((a, b) => (AREA_ORDER.indexOf(a.c.area) - AREA_ORDER.indexOf(b.c.area)) || a.c.name.localeCompare(b.c.name)); return `<details><summary style="cursor:pointer;font-weight:800;padding:6px 0">${WD[w]} · ${L.length} stores</summary><table class="mini-table">${L.map(x => `<tr><td>${esc(x.c.name)}<div class="sub" style="margin:0;font-size:12px">${esc(x.c.area)}</div></td><td>${x.days.map(d => WDS[d]).join(' · ')}</td></tr>`).join('')}</table></details>`; }).join('')}
   </section>`;
 }
@@ -4430,7 +4497,7 @@ const SYNC = (function () {
     if (!viaApp && onNetlify && e && e.name === 'TypeError') { viaApp = true; try { localStorage.setItem('chuster-db-via-app', '1'); } catch (x) { /* ignore */ } setTimeout(() => tick(), 500); }
   }
   const st = { ok: null, err: '', last: 0, since: loadLS('chuster-sync-since', {}), out: loadLS('chuster-sync-out', {}), seen: {}, key: null, flushing: false, pulling: false, started: false };
-  const COLLS = ['ds', 'rd', 'll', 'do', 'sc', 'tr', 'lq', 'ls', 'lm', 'lx', 'lh', 'qi', 'qo', 'qc', 'qs', 'qp', 'qh', 'qw', 'qr', 'ps', 'pp', 'pn', 'pq', 'sx', 'sl'];
+  const COLLS = ['gc', 'ds', 'rd', 'll', 'do', 'sc', 'tr', 'lq', 'ls', 'lm', 'lx', 'lh', 'qi', 'qo', 'qc', 'qs', 'qp', 'qh', 'qw', 'qr', 'ps', 'pp', 'pn', 'pq', 'sx', 'sl'];
   const h = s => { let a = 0x811c9dc5, b = 0x9e3779b9; for (let i = 0; i < s.length; i++) { const c = s.charCodeAt(i); a = Math.imul(a ^ c, 16777619) >>> 0; b = Math.imul(b ^ c, 2246822519) >>> 0; } return a.toString(36) + b.toString(36); };
   const b64 = u8 => { let s = ''; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); return btoa(s); };
   const unb64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -4569,7 +4636,8 @@ SYNC.on('ds', (k, val) => { const loc = S.dstat[k] || {}; if (val == null) delet
 SYNC.on('rd', (k, val) => { if (val == null) delete S.ready[k]; else S.ready[k] = val; saveReady(); });
 SYNC.on('ll', (k, val) => { if (val == null) delete S.llDone[k]; else S.llDone[k] = val; saveLL(); });
 SYNC.on('do', (k, val) => { if (val == null) delete S.dorder[k]; else S.dorder[k] = val; saveLS('chuster-dorder-v1', S.dorder); });
-SYNC.on('sc', (k, val) => { if (val && typeof val === 'object') { S.dsched = val; saveLS('chuster-dsched-v1', S.dsched); } });
+SYNC.on('sc', (k, val) => { if (val && typeof val === 'object' && val.v === 2) { S.dsched = val; saveLS('chuster-dsched-v1', S.dsched); ddCache = null; } });
+SYNC.on('gc', (k, val) => { if (val == null) delete S.gc[k]; else S.gc[k] = val; saveLS('chuster-gc-v1', S.gc); });
 SYNC.on('tr', (k, val) => { if (Array.isArray(val) && val.length) { S.trucks = val; SYNC.lastTr = JSON.stringify(val); save(); } });
 /* ================= QuickBooks live: records sent by "Chuster QB Sync" on the office PC, laid over the export ================= */
 // qi invoices + credits · qo open invoices by store · qc store balances · qs stock · qp payments · qh sync status
@@ -4768,7 +4836,7 @@ function lxIndex() {
   return lxIdxCache.m;
 }
 function lxDays() {
-  const s = new Set(REAL.orders.list.filter(o => o.t === 'inv').map(o => S.lmove[o.n] || o.d));
+  const s = new Set(REAL.orders.list.filter(o => o.t === 'inv').map(dDateOf));
   const t = isoOf(TODAY); s.add(t); s.add(isoOf(TODAY + 1));
   return [...s].sort().reverse();
 }
@@ -5048,7 +5116,7 @@ function lxAction(a, d, el) {
     case 'lx-move': {
       const nd = (document.getElementById('lx-movedate') || {}).value; if (!nd) return toast('Pick a day.');
       const stops = all().filter(s => (S.lxSel || []).includes(s.k)); const idx = lxIndex();
-      stops.forEach(s => s.nums.forEach(n => { const o = idx.get(n); const v = o && o.d === nd ? null : nd; if (v) S.lmove[n] = v; else delete S.lmove[n]; SYNC.put('lm', n, v); }));
+      stops.forEach(s => s.nums.forEach(n => { const o = idx.get(n); delete S.lmove[n]; if (ddCache) ddCache.m.delete(n); const v = o && dDateOf(o) === nd ? null : nd; if (v) S.lmove[n] = v; else delete S.lmove[n]; SYNC.put('lm', n, v); }));
       saveLS('chuster-lmove-v1', S.lmove); lxLog(date, `${stops.length} stop${stops.length === 1 ? '' : 's'} moved to ${fmtShort(isoRd(nd))}`); lxLog(nd, `${stops.length} stop${stops.length === 1 ? '' : 's'} moved here from ${fmtShort(isoRd(date))}`);
       toast(`Moved to ${fmtShort(isoRd(nd))}`); S.lxSheet = null; S.lxSel = []; break;
     }
@@ -5693,9 +5761,11 @@ document.addEventListener('click', e => {
       const list = dayStops(S.dDate)[S.dTruck] || []; const nxt = list.find(y => !y.st.st);
       S.dShort = {}; S.proof = { photos: [], sig: null }; S.dStop = nxt ? nxt.k : null; keep(); window.scrollTo(0, 0); break; }
     case 'd-undo': { const o = S.dstat[d.k] || {}; S.dstat[d.k] = o.truck != null ? { truck: o.truck } : {}; saveDstat(); dsShare(d.k); keep(); break; }
+    case 'r-best': { S.routeBusy = 'Working…'; render(); routeBest(S.dDate, +d.t); break; }
     case 'd-send': { const t = driverDayText(); window.open('https://wa.me/?text=' + encodeURIComponent(t), '_blank'); break; }
     case 'd-report': printDoc(deliveryReportDoc(), `Chuster delivery report ${S.dDate}`); break;
-    case 'ds-reset': S.dsched = JSON.parse(JSON.stringify(DSCHED_DEFAULT)); saveLS('chuster-dsched-v1', S.dsched); SYNC.put('sc', 'all', S.dsched); keep(); toast('Back to the usual pattern.'); break;
+    case 'ds-n': S.dsched.n = +d.n; saveLS('chuster-dsched-v1', S.dsched); SYNC.put('sc', 'all', S.dsched); ddCache = null; keep(); break;
+    case 'ds-reset': S.dsched = JSON.parse(JSON.stringify(DSCHED_DEFAULT)); saveLS('chuster-dsched-v1', S.dsched); SYNC.put('sc', 'all', S.dsched); ddCache = null; keep(); toast('Back to the usual pattern.'); break;
     case 'lock-app': try { localStorage.removeItem('chuster-pass'); } catch (err) { /* ignore */ } location.reload(); break;
     case 'reset-route': S.stops.forEach((s, i) => { s.st = i < 6 ? 'done' : i === 6 ? 'now' : 'next'; }); keep(); break;
   }
@@ -5729,7 +5799,8 @@ document.addEventListener('change', e => {
   if (t.id === 'pa10-on') { const v = parseInt(t.value.replace(/\D/g, ''), 10); if (v >= 0) S.supplies.pa10 = v; else delete S.supplies.pa10; saveLS('chuster-supplies-v1', S.supplies); render(); }
   if (t.id === 'fin-mon') { S.finMon = +t.value; render(); }
   if (cl.contains('d-truck')) { const k = t.dataset.k; S.dstat[k] = Object.assign({}, S.dstat[k] || {}, { truck: +t.value }); saveDstat(); dsShare(k); render(); }
-  if (cl.contains('ds-cell')) { const w = t.dataset.w, ar = t.dataset.a; S.dsched[w] = S.dsched[w] || {}; if (t.value === '') delete S.dsched[w][ar]; else S.dsched[w][ar] = +t.value; saveLS('chuster-dsched-v1', S.dsched); SYNC.put('sc', 'all', S.dsched); render(); }
+  if (t.id === 'ds-start') { S.dsched.start = t.value.trim(); saveLS('chuster-dsched-v1', S.dsched); SYNC.put('sc', 'all', S.dsched); toast('Start address saved.'); return; }
+  if (cl.contains('ds-cell')) { const w = t.dataset.w, ar = t.dataset.a; S.dsched[w] = S.dsched[w] || {}; if (t.value === '') delete S.dsched[w][ar]; else S.dsched[w][ar] = +t.value; ddCache = null; saveLS('chuster-dsched-v1', S.dsched); SYNC.put('sc', 'all', S.dsched); render(); }
   if (t.id === 'll-date') { S.llDate = t.value; render(); }
   if (cl.contains('ll-area')) { S.areaTruck[t.dataset.a] = +t.value; saveLS('chuster-areatruck-v1', S.areaTruck); render(); }
   if ((t.id === 'stop-photo' || t.id === 'stop-photo2') && t.files && t.files[0]) { shrinkImage(t.files[0], url => { S.proof.photos.push(url); render(); toast('Photo added to this stop.'); }); }
