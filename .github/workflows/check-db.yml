@@ -23,6 +23,13 @@ jobs:
           TOK=$(python3 -c "import json,os,hmac,hashlib,base64;k=base64.b64decode(json.loads(os.environ['CHUSTER_SECRETS'])['sync']['key']);print(base64.b64encode(hmac.new(k,b'chuster-ai',hashlib.sha256).digest()).decode())")
           code=$(curl -s -o ai.txt -w '%{http_code}' -X POST https://chuster.netlify.app/ai/msg -H 'content-type: application/json' -H "x-chuster: $TOK" -d '{"model":"claude-haiku-5-5","max_tokens":20,"messages":[{"role":"user","content":"Say OK"}]}')
           echo "::notice::ai with code -> $code :: $(head -c 300 ai.txt | tr -d '\n\r')"
+      - name: Map lookup for routes
+        env:
+          CHUSTER_SECRETS: ${{ secrets.CHUSTER_SECRETS }}
+        run: |
+          TOK=$(python3 -c "import json,os,hmac,hashlib,base64;k=base64.b64decode(json.loads(os.environ['CHUSTER_SECRETS'])['sync']['key']);print(base64.b64encode(hmac.new(k,b'chuster-ai',hashlib.sha256).digest()).decode())")
+          code=$(curl -s -o geo.txt -w '%{http_code}' -X POST https://chuster.netlify.app/geo -H 'content-type: application/json' -H "x-chuster: $TOK" -d '{"addrs":["4706 10th Ave, Brooklyn, NY 11219","232 Terhune Ave, Passaic, NJ 07055"]}')
+          echo "::notice::geo -> $code :: $(head -c 300 geo.txt)"
       - name: When the office PC last checked in
         env:
           CHUSTER_SECRETS: ${{ secrets.CHUSTER_SECRETS }}
