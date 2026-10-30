@@ -758,6 +758,8 @@ body:has(#ai-fab:not([hidden])) #view { padding-bottom: 72px; }
 .pk-step { padding: 7px 12px; border-radius: 10px; font-size: 13px; font-weight: 800; }
 .pk-step.clean { background: var(--gold-soft); color: var(--gold-text); } .pk-step.tube { background: var(--brand-soft); color: var(--brand-text); }
 .pk-tubes { display: flex; gap: 4px; flex: none; } .pk-tubes .chip { min-width: 34px; padding: 0 8px; }
+.iv-ordloc { padding: 6px 14px; } .iv-ordloc a { color: var(--brand-text); font-weight: 700; }
+.credit-warn { border-radius: 10px; padding: 10px 12px; font-size: 14px; line-height: 1.4; } .credit-warn.bad { background: #FBE3DF; color: #7A160C; border: 2px solid #C7402F; } .credit-warn.warn { background: #FFF3D6; color: #6B4A00; border: 1px solid #E8B730; } .credit-warn a { color: inherit; font-weight: 800; }
 .sx-row { display: flex; gap: 10px; align-items: center; padding: 8px 4px; border-top: 1px solid var(--line); cursor: pointer; } .sx-row .main { flex: 1; min-width: 0; } .sx-row .main b { display: block; } .sx-row .meta { font-size: 12px; color: var(--muted); overflow-wrap: anywhere; } .sx-row.off { opacity: .5; } .sx-row input { width: 20px; height: 20px; flex: none; }
 .pk-sum { display: flex; gap: 8px; font-size: 14px; padding: 4px 0; border-bottom: 1px solid var(--line); } .pk-sum b { flex: none; width: 104px; } .pk-sum .pk-eggc { color: var(--gold-text, #8a5a00); }
 #pk-ai-t { font: inherit; font-size: 16px; width: 100%; padding: 8px 10px; resize: vertical; }
@@ -1431,6 +1433,19 @@ function renderHomeRaw() {
   <!--@end--><p class="sample">Sample numbers taken from your current portal. They'll be live once the app is connected to QuickBooks.</p>`;
 }
 
+// red warning when a store isn't paying: money over 90 days, or over its credit limit
+function creditRisk(c) {
+  if (!c) return null; const o90 = Math.max(0, c.aging[4] || 0), o60 = Math.max(0, c.aging[3] || 0); const lim = +c.limit || 0;
+  const overLim = lim > 0 && c.balance > lim;
+  if (o90 > 1 || overLim) return { o90, o60, lim, overLim, bad: true };
+  if (o60 > 1) return { o90, o60, lim, overLim, bad: false };
+  return null;
+}
+function creditWarn(c) {
+  const r = creditRisk(c); if (!r) return '';
+  const parts = [r.o90 > 1 ? `<b>${fm(r.o90)} is over 90 days late</b>` : '', r.o60 > 1 ? `${fm(r.o60)} is 61–90 days late` : '', r.overLim ? `<b>over the credit limit</b> (owes ${fm(c.balance)}, limit ${fm(r.lim)})` : ''].filter(Boolean);
+  return `<div class="credit-warn ${r.bad ? 'bad' : 'warn'}">⚠️ ${esc(c.name)}: ${parts.join(' · ')}.${r.bad ? ' Collect before sending more?' : ''}${c.phone ? ` <a href="${telHref(c.phone)}">Call ${esc(c.phone)}</a>` : ''}</div>`;
+}
 function orderItems() {
   const q = S.orderQ.trim().toLowerCase();
   const qn = q.replace(/^0+/, '');
@@ -1583,7 +1598,7 @@ function renderOrder() {
       <section class="card stack">
         <div class="card-head" style="margin:0"><h2>Store</h2>${storeName ? `<button class="btn ghost sm" data-act="store-open">${S.storeOpen ? 'Close list' : 'Change store'}</button>` : `<span class="sub" style="margin:0">Pick a store</span>`}</div>
         ${storeName ? `<div class="irow ${areaCls(areaOf(storeName))} on" style="margin-top:0"><div class="main"><div class="name" style="font-size:17px">${esc(storeName)}</div><div class="meta">${esc(areaOf(storeName))}${cust && cust.address ? ' · ' + esc(cust.address) : ''}</div></div></div>
-        <div style="display:flex;flex-wrap:wrap;gap:8px">${info}</div>` : ''}
+        <div style="display:flex;flex-wrap:wrap;gap:8px">${info}</div>${creditWarn(cust)}` : ''}
         ${!storeName || S.storeOpen ? `<div class="field">${ic('search')}<label class="sr" for="store-q">Find a store</label><input id="store-q" value="${esc(S.storeQ)}" placeholder="Find a store by name, area or phone" autocomplete="off"></div>
         <div id="store-list" style="max-height:440px;overflow-y:auto;padding-right:2px">${storeRows()}</div>` : ''}
         ${storeName && !S.storeOpen ? `<div class="actions"><button class="btn gold" data-act="repeat">Repeat last order</button><button class="btn ghost" data-act="soon" data-name="Say an order">Say an order</button><button class="btn ghost" data-act="soon" data-name="Upload PDF or photo">Upload PDF / photo</button><button class="btn ghost" data-act="clear-order" style="color:var(--bad-text)">✕ Cancel order</button></div>` : ''}
@@ -2802,6 +2817,7 @@ function invView(o) {
     <div class="iv-head"><div><button class="iv-store" data-act="iv-info" aria-expanded="${!!S.ivInfo}">${esc(o.c)}&nbsp;<span class="iv-caret">${S.ivInfo ? '▲' : '▼'}</span></button><div class="iv-meta">${fmtShort(isoRd(o.d))}${c && c.area ? ' · ' + esc(c.area) : ''}${o.due ? ' · due ' + esc(fmtShort(isoRd(o.due))) : ''}</div></div>${c && pastDue(c) > 1 ? `<span class="iv-owe">owes ${fm(pastDue(c))} past due</span>` : ''}</div>
     ${S.ivVoid === o.n ? `<div class="iv-void card stack" style="gap:8px;margin:8px;border:2px solid var(--bad-text)"><b>Cancel invoice #${esc(o.n)} for ${esc(o.c)} (${money(Math.abs(o.a))})?</b><span class="sub" style="margin:0">QuickBooks will void it: the invoice stays with its number, but it becomes $0 and the store won't owe it. The items go back in stock.</span><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn primary" data-act="iv-void-yes" data-n="${esc(o.n)}" style="background:var(--bad-text);border-color:var(--bad-text)">Yes, cancel it</button><button class="btn ghost" data-act="iv-void-no">No, keep it</button></div></div>` : ''}
     ${ivPending(o)}
+    ${(() => { const lr = !cm && S.role === 'Owner' ? ordLocFor(o.n) : null; return lr ? `<div class="iv-ordloc">${ordLocLine(lr)}</div>` : ''; })()}
     ${S.ivInfo && c ? ivInfo(c) : ''}
     ${body || '<p class="sub" style="padding:16px;margin:0">No items on this invoice.</p>'}
     <div class="iv-foot"><div><span>Total boxes</span><b>${fn(boxes)}</b></div><div class="iv-total"><span>Total</span><b${cm ? ' style="color:var(--bad-text)"' : ''}>${cm ? '−' : ''}${money(Math.abs(o.a))}</b></div></div>
@@ -5193,7 +5209,17 @@ function nextInvNum() {
   Object.values(S.qw || {}).forEach(r => { if (r.kind === 'inv' && !(r.st === 'cancel' && !S.qr[r.id])) { see(r.ref); const q = S.qr[r.id]; if (q) see(q.num); } });
   return mx ? String(mx + 1) : '';
 }
-function qwFromOrder() {
+function sendOrder() {
+  const done = loc => { if (qwFromOrder(loc)) { S.catalog.forEach(p => { delete S.oq[keyOf(p)]; }); toast(SYNC.ready() ? 'Sent to QuickBooks. The invoice number shows in To QuickBooks in a minute or two.' : 'Saved. It goes to QuickBooks once the shared database is set up.'); render(); } };
+  if (navigator.geolocation) {
+    let fired = false; const once = loc => { if (!fired) { fired = true; done(loc); } };
+    navigator.geolocation.getCurrentPosition(
+      p => once({ lat: +p.coords.latitude.toFixed(5), lng: +p.coords.longitude.toFixed(5), at: nowIso() }),
+      () => once(null), { enableHighAccuracy: true, timeout: 8000, maximumAge: 120000 });
+    setTimeout(() => once(null), 9000);
+  } else done(null);
+}
+function qwFromOrder(loc) {
   if (!REAL) { toast('This works with your real numbers only.'); return false; }
   if (!S.orderStore) { toast('Pick a store first.'); return false; }
   const lines = S.catalog.filter(p => (S.oq[keyOf(p)] || 0) > 0).map(p => [p.full || p.name, S.oq[keyOf(p)], +p.price || 0]);
@@ -5205,9 +5231,17 @@ function qwFromOrder() {
   const used = ref && invUsed(ref); const refAuto = ref === nextInvNum();
   if (used) { toast(`Invoice #${ref} is already used. Pick another number.`); return false; }
   S.orderRef = '';
-  qwSave({ id: qwId(), kind: 'inv', st: 'ok', try: 0, c: S.orderStore, d: isoOf(TODAY), ref, refAuto, lines, total: Math.round(total * 100) / 100, memo: '', by: byName(), at: nowIso(), okBy: byName(), okAt: nowIso() });
+  qwSave({ id: qwId(), kind: 'inv', st: 'ok', try: 0, c: S.orderStore, d: isoOf(TODAY), ref, refAuto, lines, total: Math.round(total * 100) / 100, memo: '', by: byName(), at: nowIso(), okBy: byName(), okAt: nowIso(), loc: loc || null });
   return true;
 }
+// where the salesman was when the order was sent (owner & office only)
+function ordLocLine(rec) {
+  if (!rec || rec.kind !== 'inv' || !rec.loc || S.role !== 'Owner') return '';
+  const L = rec.loc; const c = custByName(rec.c) || {}; let dist = '';
+  const cl = c.address && S.gc && S.gc[gcKey(c.address)]; if (cl && !cl.none) { const mi = kmBetween(L, cl) * 0.621; dist = mi < 0.15 ? ' · at the store' : ` · about ${mi < 10 ? mi.toFixed(1) : Math.round(mi)} mi from the store`; }
+  return `<div class="sub" style="margin:0">📍 <a href="https://www.google.com/maps/search/?api=1&query=${L.lat},${L.lng}" target="_blank" rel="noopener">Where ${esc(rec.by || 'it')} was when ordering</a>${dist}</div>`;
+}
+function ordLocFor(n) { const recs = Object.values(S.qw || {}).filter(r => r.kind === 'inv' && r.loc && ((S.qr[r.id] || {}).num === n || r.ref === n)); return recs.sort((a, b) => (b.upd || 0) - (a.upd || 0))[0] || null; }
 function qwCard(rec) {
   const s = qwState(rec); const r = S.qr[rec.id] || {};
   const tag = { wait: '<span class="tag gold">Waiting for OK</span>', sending: '<span class="tag blue">Sending… in QuickBooks in a few seconds</span>', done: `<span class="tag green">✓ In QuickBooks${r.num ? ' #' + esc(r.num) : ''}</span>`, error: '<span class="tag red">Problem</span>', cancel: '<span class="tag grey">Deleted</span>' }[s];
@@ -5220,6 +5254,7 @@ function qwCard(rec) {
     <div class="qw-head"><b>${esc(rec.c)}</b><b class="num">${rec.kind === 'cm' ? '−' : ''}${money(amt || 0)}</b></div>
     ${pay}${lines ? `<div class="qw-lines">${lines}</div>` : ''}
     ${rec.memo ? `<div class="sub" style="margin:0">${esc(rec.memo)}</div>` : ''}
+    ${ordLocLine(rec)}
     ${s === 'error' ? `<div class="qw-err">${esc(r.err || 'unknown problem')}</div>` : ''}
     ${s === 'done' && r.num ? `<div class="sub" style="margin:0">Made in QuickBooks ${esc((r.at || '').slice(11, 16))}${r.unused > 0 ? ` · ${money(r.unused)} not applied to an invoice` : ''}${r.was ? ` · <b>number changed from #${esc(r.was)}</b> (the office used it at the same time)` : ''}</div>` : ''}
     ${s === 'wait' || s === 'error' ? `<div class="actions">${can ? `<button class="btn good" data-act="qw-send" data-id="${esc(rec.id)}">${s === 'error' ? 'Try again' : 'Send to QuickBooks'}</button>` : `<span class="sub" style="margin:0">${rec.kind === 'cm' ? 'Only Zevi can send credit memos.' : 'The office sends it.'}</span>`}<button class="btn ghost" data-act="qw-del" data-id="${esc(rec.id)}">Delete</button></div>` : ''}
@@ -5547,7 +5582,8 @@ document.addEventListener('click', e => {
       break;
     }
     case 'clear-order': { const had = Object.values(S.oq).some(q => q > 0); S.oq = {}; S.orderGroup = 'All'; S.orderStore = ''; S.orderRef = ''; keep(); toast(had ? 'Order canceled. Nothing was sent to QuickBooks.' : 'Cleared.'); render(); break; }
-    case 'save-order': if (qwFromOrder()) { S.catalog.forEach(p => { delete S.oq[keyOf(p)]; }); toast(SYNC.ready() ? 'Sent to QuickBooks. The invoice number shows in To QuickBooks in a minute or two.' : 'Saved. It goes to QuickBooks once the shared database is set up.'); render(); } break;
+    case 'save-order': { const cr = creditRisk(REAL && REAL.customers.find(c => c.name === S.orderStore)); if (cr && cr.bad && S.creditOk !== S.orderStore) { S.creditOk = S.orderStore; toast(`${S.orderStore} owes money over 90 days or is over the limit. Tap Send again to send anyway.`); break; } }
+      S.creditOk = null; sendOrder(); break;
     case 'inv-filter': S.invFilter = d.f; S.invEdit = null; keep(); break;
     case 'inv-brand': S.invBrand = d.b; S.invEdit = null; keep(); break;
     case 'pk-period': S.pkPeriod = d.p; keep(); break;
