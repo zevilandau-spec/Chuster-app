@@ -4279,8 +4279,8 @@ function renderMySales() {
 // Usual pattern from your invoices: Sun Williamsburg · Mon Boro Park + Williamsburg · Tue Boro Park + Country · Wed Lakewood + Boro Park · Thu Monsey + Monroe · Fri Monsey
 // The salesman takes orders in an area one day, the truck delivers there the next: Sun orders Williamsburg -> Mon delivery, Mon orders Boro Park -> Tue, ...
 // An invoice goes on the first day ON or AFTER its date when its area has the truck.
-const DSCHED_DEFAULT = { v: 2, n: 1, start: '4706 10th Ave, Brooklyn, NY 11219', 0: {}, 1: { Williamsburg: 0 }, 2: { 'Boro Park': 0 }, 3: { Country: 0, 'Boro Park': 0 }, 4: { Lakewood: 0, 'Boro Park': 0 }, 5: { Monsey: 0, Monroe: 0 } };
-const dsFix = v => (v && v.v === 2) ? v : JSON.parse(JSON.stringify(DSCHED_DEFAULT));
+const DSCHED_DEFAULT = { v: 3, n: 1, start: '4706 10th Ave, Brooklyn, NY 11219', 0: { Monsey: 0, Monroe: 0 }, 1: { Williamsburg: 0 }, 2: { 'Boro Park': 0 }, 3: { Country: 0, 'Boro Park': 0 }, 4: { Lakewood: 0, 'Boro Park': 0 }, 5: {} };
+const dsFix = v => (v && v.v === 3) ? v : JSON.parse(JSON.stringify(DSCHED_DEFAULT));
 Object.assign(S, { dsched: dsFix(loadLS('chuster-dsched-v1', null)), gc: loadLS('chuster-gc-v1', {}), routeBusy: '', dstat: loadLS('chuster-dstat-v1', {}), dorder: loadLS('chuster-dorder-v1', {}), dDate: null, dTruck: 0, dStop: null, dShort: {}, dSigOpen: false, dPhotos: [] });
 (function prune() { const cut = isoOf(TODAY - 21); let ch = false; Object.keys(S.dstat).forEach(k => { if (k.slice(0, 10) < cut) { delete S.dstat[k]; ch = true; } }); if (ch) saveLS('chuster-dstat-v1', S.dstat); })();
 const saveDstat = () => { try { localStorage.setItem('chuster-dstat-v1', JSON.stringify(S.dstat)); } catch (e) { toast('This device is full. Old photos were not saved.'); } };
@@ -4457,7 +4457,7 @@ function renderDSched() {
     <div><label class="lbl" for="ds-start">The truck starts from (for the shortest order)</label><input class="inp" id="ds-start" value="${esc(S.dsched.start || DSCHED_DEFAULT.start)}" autocomplete="off"></div></section>
   <section class="card" style="overflow-x:auto"><table class="mini-table" style="min-width:640px"><tr><td><b>Area</b></td>${[0, 1, 2, 3, 4, 5].map(w => `<td style="text-align:center"><b>${WDS[w]}</b></td>`).join('')}</tr>
     ${areas.map(a => `<tr><td>${esc(a)}</td>${[0, 1, 2, 3, 4, 5].map(w => { const v = (S.dsched[w] || {})[a]; return `<td style="text-align:center"><select class="sel ds-cell" data-w="${w}" data-a="${esc(a)}" style="width:auto;min-height:34px;font-size:13px${v != null ? ';background:var(--brand-soft);font-weight:800' : ''}" aria-label="${esc(a)} on ${WD[w]}"><option value="">—</option>${T.map((tr, n) => `<option value="${n}"${v != null && +v === n ? ' selected' : ''}>${esc(tr.name)}</option>`).join('')}</select></td>`; }).join('')}</tr>`).join('')}</table>
-    <p class="sub" style="margin:8px 0 0">Started from your invoices, one day after the salesman: Williamsburg Mon, Boro Park Tue–Thu, Country Wed, Lakewood Thu, Monsey and Monroe Fri. Change any box. Saved for everyone.</p></section>
+    <p class="sub" style="margin:8px 0 0">Started from your invoices, one day after the salesman: Monsey and Monroe Sun, Williamsburg Mon, Boro Park Tue–Thu, Country Wed, Lakewood Thu, no deliveries Friday. Change any box. Saved for everyone.</p></section>
   ${false && off.length ? `<section class="card stack"><h2>Stores that usually get a day with no truck for their area · ${off.length}</h2><table class="mini-table">${off.map(x => `<tr><td><a href="#customers" data-act="cust-sel-go" data-n="${esc(x.c.name)}">${esc(x.c.name)}</a><div class="sub" style="margin:0;font-size:12px">${esc(x.c.area)}</div></td><td>${x.days.map(w => WD[w]).join(', ')}</td></tr>`).join('')}</table></section>` : ''}
   <section class="card stack"><h2>Each store’s usual order day</h2>
     ${[0, 1, 2, 3, 4, 5].map(w => { const L = SD.filter(x => x.days.includes(w)).sort((a, b) => (AREA_ORDER.indexOf(a.c.area) - AREA_ORDER.indexOf(b.c.area)) || a.c.name.localeCompare(b.c.name)); return `<details><summary style="cursor:pointer;font-weight:800;padding:6px 0">${WD[w]} · ${L.length} stores</summary><table class="mini-table">${L.map(x => `<tr><td>${esc(x.c.name)}<div class="sub" style="margin:0;font-size:12px">${esc(x.c.area)}</div></td><td>${x.days.map(d => WDS[d]).join(' · ')}</td></tr>`).join('')}</table></details>`; }).join('')}
@@ -4636,7 +4636,7 @@ SYNC.on('ds', (k, val) => { const loc = S.dstat[k] || {}; if (val == null) delet
 SYNC.on('rd', (k, val) => { if (val == null) delete S.ready[k]; else S.ready[k] = val; saveReady(); });
 SYNC.on('ll', (k, val) => { if (val == null) delete S.llDone[k]; else S.llDone[k] = val; saveLL(); });
 SYNC.on('do', (k, val) => { if (val == null) delete S.dorder[k]; else S.dorder[k] = val; saveLS('chuster-dorder-v1', S.dorder); });
-SYNC.on('sc', (k, val) => { if (val && typeof val === 'object' && val.v === 2) { S.dsched = val; saveLS('chuster-dsched-v1', S.dsched); ddCache = null; } });
+SYNC.on('sc', (k, val) => { if (val && typeof val === 'object' && val.v === 3) { S.dsched = val; saveLS('chuster-dsched-v1', S.dsched); ddCache = null; } });
 SYNC.on('gc', (k, val) => { if (val == null) delete S.gc[k]; else S.gc[k] = val; saveLS('chuster-gc-v1', S.gc); });
 SYNC.on('tr', (k, val) => { if (Array.isArray(val) && val.length) { S.trucks = val; SYNC.lastTr = JSON.stringify(val); save(); } });
 /* ================= QuickBooks live: records sent by "Chuster QB Sync" on the office PC, laid over the export ================= */
