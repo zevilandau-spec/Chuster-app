@@ -758,6 +758,9 @@ body:has(#ai-fab:not([hidden])) #view { padding-bottom: 72px; }
 .pk-step { padding: 7px 12px; border-radius: 10px; font-size: 13px; font-weight: 800; }
 .pk-step.clean { background: var(--gold-soft); color: var(--gold-text); } .pk-step.tube { background: var(--brand-soft); color: var(--brand-text); }
 .pk-tubes { display: flex; gap: 4px; flex: none; } .pk-tubes .chip { min-width: 34px; padding: 0 8px; }
+.tile.tap { cursor: pointer; position: relative; } .tile.tap::after { content: '\203A'; position: absolute; top: 8px; right: 12px; color: var(--muted); font-size: 18px; line-height: 1; } .tile.tap:active { transform: scale(.985); }
+.sheet-wrap { position: fixed; inset: 0; z-index: 70; background: rgba(10,14,25,.55); display: flex; align-items: flex-end; justify-content: center; } @media (min-width: 560px) { .sheet-wrap { align-items: center; padding: 16px; } }
+.sheet { background: var(--surface); width: 100%; max-width: 520px; border-radius: 18px 18px 0 0; padding: 16px; display: flex; flex-direction: column; gap: 12px; max-height: 85vh; overflow-y: auto; } @media (min-width: 560px) { .sheet { border-radius: 18px; } }
 .iv-ordloc { padding: 6px 14px; } .iv-ordloc a { color: var(--brand-text); font-weight: 700; }
 .credit-warn { border-radius: 10px; padding: 10px 12px; font-size: 14px; line-height: 1.4; } .credit-warn.bad { background: #FBE3DF; color: #7A160C; border: 2px solid #C7402F; } .credit-warn.warn { background: #FFF3D6; color: #6B4A00; border: 1px solid #E8B730; } .credit-warn a { color: inherit; font-weight: 800; }
 .sx-row { display: flex; gap: 10px; align-items: center; padding: 8px 4px; border-top: 1px solid var(--line); cursor: pointer; } .sx-row .main { flex: 1; min-width: 0; } .sx-row .main b { display: block; } .sx-row .meta { font-size: 12px; color: var(--muted); overflow-wrap: anywhere; } .sx-row.off { opacity: .5; } .sx-row input { width: 20px; height: 20px; flex: none; }
@@ -1263,7 +1266,7 @@ function drawChrome() {
   document.getElementById('top-title').textContent = trTxt(VIEWS[S.view].title);
   document.getElementById('top-date').textContent = `${fmtShort(TODAY)} · ${hebStr(TODAY, false)}`;
 }
-function go(v, keepScroll) { S.lxSheet = null;
+function go(v, keepScroll) { S.lxSheet = null; S.tileView = null;
   if (!VIEWS[v]) v = 'home';
   if (v === 'tools' && S.role !== 'Owner') v = 'home';
   if (!allowed(v)) v = roleHome();
@@ -1335,6 +1338,31 @@ function salesMore(D) {
     <section class="card stack"><div class="card-head" style="margin:0"><h2>Dropping the most</h2><span class="sub" style="margin:0;font-size:12px">call them</span></div>${list(down, 'down')}</section>
   </div>`;
 }
+function tileSheet() {
+  const v = S.tileView; if (!v || !REAL) return '';
+  const D = REAL; let title = '', body = '';
+  if (v === 'sales' || v === 'cases') {
+    const isC = v === 'cases'; const src = isC ? (D.cases || {}) : (D.years || {}); const fmt = isC ? fn : fm;
+    title = isC ? 'Cases sold per year' : 'Sales per year';
+    const yrs = Object.keys(src).filter(k => /^\d{4}$/.test(k)).map(Number).sort();
+    const val = y => src[String(y)] || 0; const tot = yrs.reduce((t, y) => t + val(y), 0); const cur = yrs[yrs.length - 1];
+    body = `<table class="mini-table">
+      ${yrs.map((y, i) => { const prev = i ? val(yrs[i - 1]) : 0; const pc = prev ? Math.round((val(y) - prev) / prev * 100) : null;
+        return `<tr><td>${y}${y === cur ? ' <span class="sub" style="margin:0">so far</span>' : ''}</td><td class="num">${fmt(val(y))}</td><td class="num" style="color:${pc == null ? 'var(--muted)' : pc >= 0 ? 'var(--good-text)' : 'var(--bad-text)'}">${pc == null ? '' : (pc >= 0 ? '+' : '') + pc + '%'}</td></tr>`; }).join('')}
+      <tr style="border-top:2px solid var(--line-strong);font-weight:800"><td>All since ${yrs[0] || ''}</td><td class="num">${fmt(tot)}</td><td></td></tr></table>
+      <p class="sub" style="margin:0">Each year next to the change from the year before.${isC && D.itemsPartial ? ' Some older item counts are still loading from QuickBooks.' : ''}</p>`;
+  } else if (v === 'owe') {
+    const b = D.ar.buckets, t = D.ar.totals; title = 'Who owes us';
+    body = `<table class="mini-table">${b.map((lbl, i) => `<tr><td>${esc(lbl)}${/^\d/.test(lbl) ? ' days' : ''}</td><td class="num" style="${i >= 3 ? 'color:var(--bad-text);font-weight:700' : ''}">${fm(t[i])}</td></tr>`).join('')}
+      <tr style="border-top:2px solid var(--line-strong);font-weight:800"><td>Total owed</td><td class="num">${fm(D.ar.total)}</td></tr></table>
+      <a class="btn primary full" href="#collect" data-go="collect">Open Collections</a>`;
+  } else if (v === 'day') {
+    title = fmtLong(isoRd(D.prevDay.date));
+    body = `<div class="tiles" style="margin:0"><div class="tile"><div class="k">Invoices</div><div class="v">${fn(D.prevDay.count)}</div></div><div class="tile"><div class="k">Total</div><div class="v">${fm(D.prevDay.amount)}</div></div></div>
+      <a class="btn primary full" href="#orders" data-go="orders">See all orders</a>`;
+  }
+  return `<div class="sheet-wrap" data-act="tile-close"><div class="sheet" data-act="tile-noop" role="dialog" aria-modal="true"><div class="card-head" style="margin:0"><h2>${esc(title)}</h2><button class="btn ghost sm" data-act="tile-close" aria-label="Close">✕</button></div>${body}</div></div>`;
+}
 function renderHome() {
   const html = renderHomeRaw();
   const first = html.indexOf('<!--@');
@@ -1344,7 +1372,7 @@ function renderHome() {
   let m;
   while ((m = re.exec(html))) blocks[m[1]] = m[2];
   const body = S.dash.filter(d => d.on).map(d => blocks[d.id] || '').join('');
-  return html.slice(0, first) + (body || `<section class="card"><h2>Your dashboard is empty</h2><p class="sub">Turn boxes back on in Tools → Dashboard.</p></section>`) + html.slice(endIdx);
+  return html.slice(0, first) + (body || `<section class="card"><h2>Your dashboard is empty</h2><p class="sub">Turn boxes back on in Tools → Dashboard.</p></section>`) + html.slice(endIdx) + tileSheet();
 }
 function renderHomeRaw() {
   if (REAL) return renderHomeReal();
@@ -1690,7 +1718,7 @@ function packDays() {
   return out;
 }
 /* ---------- Packing plan: real amounts, 4 tubes, egg block with cleaning, live progress for everyone ---------- */
-Object.assign(S, { pkSet: loadLS('chuster-pkset-v1', {}), pkProg: loadLS('chuster-pkprog-v1', {}), pkNote: loadLS('chuster-pknote-v1', {}), pkOrder: loadLS('chuster-pkorder-v1', {}), pkSetOpen: false, pkSetQ: '', pkAiT: '', pkAi: null, pkAll: false });
+Object.assign(S, { tileView: null, pkSet: loadLS('chuster-pkset-v1', {}), pkProg: loadLS('chuster-pkprog-v1', {}), pkNote: loadLS('chuster-pknote-v1', {}), pkOrder: loadLS('chuster-pkorder-v1', {}), pkSetOpen: false, pkSetQ: '', pkAiT: '', pkAi: null, pkAll: false });
 const TUBE = ['', 'Large', 'Medium', 'Small', 'Potato Flips'];
 const tubeName = t => TUBE[+t] ? TUBE[+t] + ' tube' : 'no tube set';
 const pkDay = () => isoOf(TODAY);
@@ -2242,10 +2270,10 @@ function renderHomeReal() {
   </div>
 
   <!--@tiles--><div class="tiles">
-    <div class="tile ct ct-blue"><div class="k">Sales</div><div class="row2"><span>${PY}</span><strong>${fm(D.years[PY] || 0)}</strong></div><div class="row2"><span>${CY} so far</span><strong>${fm(D.ytd)}</strong></div><div class="s" style="color:${g >= 0 ? 'var(--good-text)' : 'var(--bad-text)'};font-weight:700">${sgn(g)} vs same days in 2025</div>${(() => { const ys = Object.keys(D.years || {}).map(Number).sort(); const tot = ys.reduce((t, y) => t + (D.years[y] || 0), 0); return ys.length ? `<div class="s" style="border-top:1px solid var(--line);margin-top:6px;padding-top:6px"><b>${fm(tot)}</b> all sales since ${ys[0]}</div>` : ''; })()}</div>
-    <div class="tile ct ct-green"><div class="k">Cases sold</div><div class="row2"><span>${PY}</span><strong>${fn(D.cases[PY] || 0)}</strong></div><div class="row2"><span>${CY} so far</span><strong>${fn(D.cases[CY] || 0)}</strong></div><div class="s">${D.itemsPartial ? '<span style="color:var(--gold-text)">Still loading item details from QuickBooks · full counts after the next night read</span>' : `${sgn(pct(D.cases[CY], D.cases[PY + 'same']))} vs same days in ${PY}`}</div>${(() => { if (D.itemsPartial) return ''; const yrs = Object.keys(D.cases || {}).filter(k => /^\d{4}$/.test(k)).map(Number).sort(); const tot = yrs.reduce((t, y) => t + (D.cases[y] || 0), 0); return yrs.length > 2 ? `<div class="s" style="border-top:1px solid var(--line);margin-top:6px;padding-top:6px"><b>${fn(tot)}</b> all cases since ${yrs[0]}</div>` : ''; })()}</div>
-    <div class="tile ct ct-red"><div class="k">Stores owe us</div><div class="v">${fm(D.ar.total)}</div><div class="s" style="color:var(--bad-text);font-weight:700">${fm(past)} past due · ${fm(over60)} over 60 days</div></div>
-    <div class="tile ct ct-gold"><div class="k">${fmtShort(prevRd)}</div><div class="v">${D.prevDay.count} invoices</div><div class="s">${fm(D.prevDay.amount)} · ${prevRd === TODAY - 1 ? 'yesterday' : 'last full day'}</div></div>
+    <div class="tile ct ct-blue tap" data-act="tile" data-t="sales" role="button" tabindex="0"><div class="k">Sales</div><div class="row2"><span>${PY}</span><strong>${fm(D.years[PY] || 0)}</strong></div><div class="row2"><span>${CY} so far</span><strong>${fm(D.ytd)}</strong></div><div class="s" style="color:${g >= 0 ? 'var(--good-text)' : 'var(--bad-text)'};font-weight:700">${sgn(g)} vs same days in 2025</div>${(() => { const ys = Object.keys(D.years || {}).map(Number).sort(); const tot = ys.reduce((t, y) => t + (D.years[y] || 0), 0); return ys.length ? `<div class="s" style="border-top:1px solid var(--line);margin-top:6px;padding-top:6px"><b>${fm(tot)}</b> all sales since ${ys[0]}</div>` : ''; })()}</div>
+    <div class="tile ct ct-green tap" data-act="tile" data-t="cases" role="button" tabindex="0"><div class="k">Cases sold</div><div class="row2"><span>${PY}</span><strong>${fn(D.cases[PY] || 0)}</strong></div><div class="row2"><span>${CY} so far</span><strong>${fn(D.cases[CY] || 0)}</strong></div><div class="s">${D.itemsPartial ? '<span style="color:var(--gold-text)">Still loading item details from QuickBooks · full counts after the next night read</span>' : `${sgn(pct(D.cases[CY], D.cases[PY + 'same']))} vs same days in ${PY}`}</div>${(() => { if (D.itemsPartial) return ''; const yrs = Object.keys(D.cases || {}).filter(k => /^\d{4}$/.test(k)).map(Number).sort(); const tot = yrs.reduce((t, y) => t + (D.cases[y] || 0), 0); return yrs.length > 2 ? `<div class="s" style="border-top:1px solid var(--line);margin-top:6px;padding-top:6px"><b>${fn(tot)}</b> all cases since ${yrs[0]}</div>` : ''; })()}</div>
+    <div class="tile ct ct-red tap" data-act="tile" data-t="owe" role="button" tabindex="0"><div class="k">Stores owe us</div><div class="v">${fm(D.ar.total)}</div><div class="s" style="color:var(--bad-text);font-weight:700">${fm(past)} past due · ${fm(over60)} over 60 days</div></div>
+    <div class="tile ct ct-gold tap" data-act="tile" data-t="day" role="button" tabindex="0"><div class="k">${fmtShort(prevRd)}</div><div class="v">${D.prevDay.count} invoices</div><div class="s">${fm(D.prevDay.amount)} · ${prevRd === TODAY - 1 ? 'yesterday' : 'last full day'}</div></div>
   </div>
 
   <!--@charts--><div class="split">
@@ -5600,6 +5628,9 @@ document.addEventListener('click', e => {
       qwSave({ id: qwId(), kind: 'invmod', n: o.n, st: 'ok', try: 0, c: o.c, d: o.d, lines, total: Math.round(total * 100) / 100, memo: 'Change to invoice #' + o.n, by: byName(), at: nowIso(), okBy: byName(), okAt: nowIso() });
       S.ivEdit = null; toast('Change sent. QuickBooks updates the invoice in a few seconds.'); render(); break; }
     case 'iv-info': S.ivInfo = !S.ivInfo; render(); break;
+    case 'tile': S.tileView = d.t; render(); break;
+    case 'tile-close': S.tileView = null; render(); break;
+    case 'tile-noop': break;
     case 'sx-on': { const c = Object.assign({ day: 1, hour: 10 }, S.sx.cfg || {}); c.on = !c.on; c.by = byName(); sxPut('cfg', c); toast(c.on ? `Statements turned on. They go out every ${DAYS[c.day]}.` : 'Automatic statements turned off.'); render(); break; }
     case 'sx-test': { const to = (document.getElementById('sx-test') || {}).value || ''; if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(to.trim())) { toast('Type your email first.'); break; } S.sxTest = to.trim(); delete S.sl._test; sxPut('test', { id: qwId(), to: to.trim(), at: nowIso() }); toast('Test sent to the office PC. It arrives in about a minute.'); render(); break; }
     case 'sx-now': { const { g90, g60 } = sxLists(); const arr = (d.g === '90' ? g90 : g60).filter(c => !sxOff(c.name) && c.email); if (!arr.length) break;
