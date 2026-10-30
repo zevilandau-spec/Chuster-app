@@ -4279,8 +4279,8 @@ function renderMySales() {
 // Usual pattern from your invoices: Sun Williamsburg · Mon Boro Park + Williamsburg · Tue Boro Park + Country · Wed Lakewood + Boro Park · Thu Monsey + Monroe · Fri Monsey
 // The salesman takes orders in an area one day, the truck delivers there the next: Sun orders Williamsburg -> Mon delivery, Mon orders Boro Park -> Tue, ...
 // An invoice goes on the first day ON or AFTER its date when its area has the truck.
-const DSCHED_DEFAULT = { v: 3, n: 1, start: '4706 10th Ave, Brooklyn, NY 11219', 0: { Monsey: 0, Monroe: 0 }, 1: { Williamsburg: 0 }, 2: { 'Boro Park': 0 }, 3: { Country: 0, 'Boro Park': 0 }, 4: { Lakewood: 0, 'Boro Park': 0 }, 5: {}, season: { Country: [7, 8] } };
-const dsFix = v => (v && v.v === 3) ? (v.season ? v : Object.assign(v, { season: { Country: [7, 8] } })) : JSON.parse(JSON.stringify(DSCHED_DEFAULT));
+const DSCHED_DEFAULT = { v: 3, n: 1, start: '65 Steuben St, Brooklyn, NY 11205', 0: { Monsey: 0, Monroe: 0 }, 1: { Williamsburg: 0 }, 2: { 'Boro Park': 0 }, 3: { Country: 0, 'Boro Park': 0 }, 4: { Lakewood: 0, 'Boro Park': 0 }, 5: {}, season: { Country: [7, 8] } };
+const dsFix = v => (v && v.v === 3) ? Object.assign(v, v.season ? {} : { season: { Country: [7, 8] } }, /4706 10th/.test(v.start || '') ? { start: '65 Steuben St, Brooklyn, NY 11205' } : {}) : JSON.parse(JSON.stringify(DSCHED_DEFAULT));
 Object.assign(S, { dsched: dsFix(loadLS('chuster-dsched-v1', null)), gc: loadLS('chuster-gc-v1', {}), routeBusy: '', dstat: loadLS('chuster-dstat-v1', {}), dorder: loadLS('chuster-dorder-v1', {}), dDate: null, dTruck: 0, dStop: null, dShort: {}, dSigOpen: false, dPhotos: [] });
 (function prune() { const cut = isoOf(TODAY - 21); let ch = false; Object.keys(S.dstat).forEach(k => { if (k.slice(0, 10) < cut) { delete S.dstat[k]; ch = true; } }); if (ch) saveLS('chuster-dstat-v1', S.dstat); })();
 const saveDstat = () => { try { localStorage.setItem('chuster-dstat-v1', JSON.stringify(S.dstat)); } catch (e) { toast('This device is full. Old photos were not saved.'); } };
@@ -4639,7 +4639,7 @@ SYNC.on('ds', (k, val) => { const loc = S.dstat[k] || {}; if (val == null) delet
 SYNC.on('rd', (k, val) => { if (val == null) delete S.ready[k]; else S.ready[k] = val; saveReady(); });
 SYNC.on('ll', (k, val) => { if (val == null) delete S.llDone[k]; else S.llDone[k] = val; saveLL(); });
 SYNC.on('do', (k, val) => { if (val == null) delete S.dorder[k]; else S.dorder[k] = val; saveLS('chuster-dorder-v1', S.dorder); });
-SYNC.on('sc', (k, val) => { if (val && typeof val === 'object' && val.v === 3) { S.dsched = val; saveLS('chuster-dsched-v1', S.dsched); ddCache = null; } });
+SYNC.on('sc', (k, val) => { if (val && typeof val === 'object' && val.v === 3) { S.dsched = dsFix(val); saveLS('chuster-dsched-v1', S.dsched); ddCache = null; } });
 SYNC.on('gc', (k, val) => { if (val == null) delete S.gc[k]; else S.gc[k] = val; saveLS('chuster-gc-v1', S.gc); });
 SYNC.on('tr', (k, val) => { if (Array.isArray(val) && val.length) { S.trucks = val; SYNC.lastTr = JSON.stringify(val); save(); } });
 /* ================= QuickBooks live: records sent by "Chuster QB Sync" on the office PC, laid over the export ================= */
