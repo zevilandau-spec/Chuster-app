@@ -332,7 +332,9 @@ years = {str(y): r2(net_sales(max(FROM, dt.date(y, 1, 1)), dt.date(y, 12, 31))) 
 years[str(AS_OF.year)] = r2(ytd)
 _yr = [r for r in inv_rows if day(r['Date']) >= dt.date(AS_OF.year - 1, 1, 1) and num(r['Debit']) > 0]
 items_partial = bool(_yr) and sum(1 for r in _yr if (r['Customer'], r['Num']) in line_invs) / len(_yr) < 0.85
-cases_y = {str(AS_OF.year - 1): int(cases(prev_start, dt.date(AS_OF.year - 1, 12, 31))), str(AS_OF.year): int(cases(y_start, AS_OF)), str(AS_OF.year - 1) + 'same': int(cases(prev_start, prev_end))}
+cases_y = {str(y): int(cases(max(FROM, dt.date(y, 1, 1)), dt.date(y, 12, 31))) for y in range(FROM.year, AS_OF.year)}
+cases_y[str(AS_OF.year)] = int(cases(y_start, AS_OF))
+cases_y[str(AS_OF.year - 1) + 'same'] = int(cases(prev_start, prev_end))
 
 data = {
     'asOf': iso(AS_OF),
