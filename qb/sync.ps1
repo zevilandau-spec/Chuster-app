@@ -8,7 +8,7 @@
 param([switch]$Install, [switch]$Test, [switch]$Full, [switch]$Other, [switch]$History, [switch]$Watch)
 
 $ErrorActionPreference = 'Stop'
-$Ver = '3.8'
+$Ver = '3.9'
 $AppName = 'Chuster App Sync'
 $TaskName = 'Chuster QB Sync'
 $Here = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -436,7 +436,8 @@ function Sync-Once([bool]$upload) {
     foreach ($r in (QB-All 'InvoiceQueryRq' ($txnFilter + '<IncludeLineItems>true</IncludeLineItems>') 'InvoiceRet')) {
       $d = T $r 'TxnDate'; if ($d -lt $from) { continue }
       $id = 'i' + (SafeId (T $r 'TxnID'))
-      $val = [ordered]@{ d = $d; n = (T $r 'RefNumber'); c = (T $r 'CustomerRef/FullName'); t = 'inv'; a = (Money ((N $r 'Subtotal') + (N $r 'SalesTaxTotal'))); due = (T $r 'DueDate'); l = (Lines $r 'InvoiceLineRet' 'InvoiceLineGroupRet' 1) }
+      $tc = ''; try { $tcv = T $r 'TimeCreated'; if ($tcv) { $tc = ([datetimeoffset]::Parse($tcv, $Inv)).ToString('HH:mm') } } catch { }
+      $val = [ordered]@{ d = $d; n = (T $r 'RefNumber'); c = (T $r 'CustomerRef/FullName'); t = 'inv'; a = (Money ((N $r 'Subtotal') + (N $r 'SalesTaxTotal'))); due = (T $r 'DueDate'); tc = $tc; l = (Lines $r 'InvoiceLineRet' 'InvoiceLineGroupRet' 1) }
       $recs[$id] = @('qi', $id, $val); $st.dates[$id] = $d; $count.invoices++
     }
     # credit memos

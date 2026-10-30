@@ -758,6 +758,7 @@ body:has(#ai-fab:not([hidden])) #view { padding-bottom: 72px; }
 .pk-step { padding: 7px 12px; border-radius: 10px; font-size: 13px; font-weight: 800; }
 .pk-step.clean { background: var(--gold-soft); color: var(--gold-text); } .pk-step.tube { background: var(--brand-soft); color: var(--brand-text); }
 .pk-tubes { display: flex; gap: 4px; flex: none; } .pk-tubes .chip { min-width: 34px; padding: 0 8px; }
+.o3-dlv { color: var(--good-text); font-weight: 800; } .o3-dlv.gold { color: var(--gold-text, #8a5a00); } .iv-deliv { padding: 0 8px; }
 .tile.tap { cursor: pointer; position: relative; } .tile.tap::after { content: '\203A'; position: absolute; top: 8px; right: 12px; color: var(--muted); font-size: 18px; line-height: 1; } .tile.tap:active { transform: scale(.985); }
 .sheet-wrap { position: fixed; inset: 0; z-index: 70; background: rgba(10,14,25,.55); display: flex; align-items: flex-end; justify-content: center; } @media (min-width: 560px) { .sheet-wrap { align-items: center; padding: 16px; } }
 .sheet { background: var(--surface); width: 100%; max-width: 520px; border-radius: 18px 18px 0 0; padding: 16px; display: flex; flex-direction: column; gap: 12px; max-height: 85vh; overflow-y: auto; } @media (min-width: 560px) { .sheet { border-radius: 18px; } }
@@ -2842,8 +2843,9 @@ function invView(o) {
       <button class="iv-ico" data-act="cust-sel-go" data-n="${esc(o.c)}" aria-label="Open the store" title="Open the store">${ic('people')}</button>
       <button class="iv-ico" data-act="ord-stmt" data-n="${esc(o.c)}" aria-label="Send statement" title="Send statement">${ic('mail')}</button>
       <button class="iv-ico" data-act="inv-print" data-n="${esc(o.n)}" aria-label="Print" title="Print">${SVG_PRINT}</button></div>
-    <div class="iv-head"><div><button class="iv-store" data-act="iv-info" aria-expanded="${!!S.ivInfo}">${esc(o.c)}&nbsp;<span class="iv-caret">${S.ivInfo ? '▲' : '▼'}</span></button><div class="iv-meta">${fmtShort(isoRd(o.d))}${c && c.area ? ' · ' + esc(c.area) : ''}${o.due ? ' · due ' + esc(fmtShort(isoRd(o.due))) : ''}</div></div>${c && pastDue(c) > 1 ? `<span class="iv-owe">owes ${fm(pastDue(c))} past due</span>` : ''}</div>
+    <div class="iv-head"><div><button class="iv-store" data-act="iv-info" aria-expanded="${!!S.ivInfo}">${esc(o.c)}&nbsp;<span class="iv-caret">${S.ivInfo ? '▲' : '▼'}</span></button><div class="iv-meta">${fmtShort(isoRd(o.d))}${orderTimeTxt(o) ? ' · came in ' + orderTimeTxt(o) : ''}${c && c.area ? ' · ' + esc(c.area) : ''}${o.due ? ' · due ' + esc(fmtShort(isoRd(o.due))) : ''}</div></div>${c && pastDue(c) > 1 ? `<span class="iv-owe">owes ${fm(pastDue(c))} past due</span>` : ''}</div>
     ${S.ivVoid === o.n ? `<div class="iv-void card stack" style="gap:8px;margin:8px;border:2px solid var(--bad-text)"><b>Cancel invoice #${esc(o.n)} for ${esc(o.c)} (${money(Math.abs(o.a))})?</b><span class="sub" style="margin:0">QuickBooks will void it: the invoice stays with its number, but it becomes $0 and the store won't owe it. The items go back in stock.</span><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn primary" data-act="iv-void-yes" data-n="${esc(o.n)}" style="background:var(--bad-text);border-color:var(--bad-text)">Yes, cancel it</button><button class="btn ghost" data-act="iv-void-no">No, keep it</button></div></div>` : ''}
+    ${cm ? '' : deliverBox(o)}
     ${ivPending(o)}
     ${(() => { const lr = !cm && S.role === 'Owner' ? ordLocFor(o.n) : null; return lr ? `<div class="iv-ordloc">${ordLocLine(lr)}</div>` : ''; })()}
     ${S.ivInfo && c ? ivInfo(c) : ''}
@@ -2878,8 +2880,8 @@ function ordList() {
       const qty = [m.packs ? `<b>${fn(m.packs)}</b> cs` : '', m.loose ? `<b>${fn(m.loose)}</b> wholesale` : '', m.lb ? `<b>${fn(m.lb)}</b> lb` : ''].filter(Boolean).join(' + ');
       return `<button class="o3-row${open ? ' on' : ''}${cm ? ' cm' : ''}" data-act="ord-open" data-n="${esc(o.n)}" aria-expanded="${open}">
         <span class="o3-bar ${areaCls(area)}"></span>
-        <span class="o3-main"><span class="o3-l1"><span class="o3-store">${esc(o.c)}</span><span class="o3-amt">${cm ? '−' : ''}${money(Math.abs(o.a))}</span></span>
-          <span class="o3-l2"><span class="o3-meta">${esc(area)} · ${cm ? 'Credit ' : '#'}${esc(o.n)}${qty ? ' · ' + qty : ''}</span>${ordMixBar(m)}</span></span>
+        <span class="o3-main"><span class="o3-l1"><span class="o3-store">${esc(o.c)}${(() => { const st = delivStatusOf(o); return st && st.st === 'done' ? ' <span class="o3-dlv">✓</span>' : st && st.st === 'partial' ? ' <span class="o3-dlv gold">✓</span>' : ''; })()}</span><span class="o3-amt">${cm ? '−' : ''}${money(Math.abs(o.a))}</span></span>
+          <span class="o3-l2"><span class="o3-meta">${esc(area)} · ${cm ? 'Credit ' : '#'}${esc(o.n)}${orderTimeTxt(o) ? ' · ' + orderTimeTxt(o) : ''}${qty ? ' · ' + qty : ''}</span>${ordMixBar(m)}</span></span>
       </button>`;
     }).join('');
   }).join('');
@@ -4332,13 +4334,36 @@ const DTRUCKS = () => { const n = Math.max(1, Math.min(4, +S.dsched.n || 1)); co
 let ddCache = null;
 // an area with months set (Country: only in the summer) has the truck only in those months
 const areaOn = (w, area, iso) => { if ((S.dsched[w] || {})[area] == null) return false; const ms = (S.dsched.season || {})[area]; return !ms || !ms.length || ms.includes(+String(iso).slice(5, 7)); };
+function dDateAuto(o) {
+  const c = custByName(o.c) || {}; const area = c.area || 'Other';
+  if (c.rep === 'PU') return o.d;
+  const r0 = isoRd(o.d); for (let k = 0; k <= 7; k++) { const w = dow(r0 + k); if (w === 6) continue; if (areaOn(w, area, isoOf(r0 + k))) return isoOf(r0 + k); }
+  return o.d;
+}
 function dDateOf(o) {
   const mv = S.lmove || {}; if (mv[o.n]) return mv[o.n];
   if (!ddCache || ddCache.s !== S.dsched || ddCache.L !== REAL.orders.list) ddCache = { s: S.dsched, L: REAL.orders.list, m: new Map() };
   if (ddCache.m.has(o.n)) return ddCache.m.get(o.n);
-  const c = custByName(o.c) || {}; const area = c.area || 'Other'; let out = o.d;
-  if (c.rep !== 'PU') { const r0 = isoRd(o.d); for (let k = 0; k <= 7; k++) { const w = dow(r0 + k); if (w === 6) continue; if (areaOn(w, area, isoOf(r0 + k))) { out = isoOf(r0 + k); break; } } }
-  ddCache.m.set(o.n, out); return out;
+  const out = dDateAuto(o); ddCache.m.set(o.n, out); return out;
+}
+function setLmove(n, v) { if (ddCache) ddCache.m.delete(n); if (v) S.lmove[n] = v; else delete S.lmove[n]; saveLS('chuster-lmove-v1', S.lmove); SYNC.put('lm', n, v || null); }
+function nextDelivDay(o, after) { const area = (custByName(o.c) || {}).area || 'Other'; let r = isoRd(after) + 1; for (let k = 0; k < 14; k++, r++) { const w = dow(r); if (w === 6) continue; if (areaOn(w, area, isoOf(r))) return isoOf(r); } return isoOf(isoRd(after) + 1); }
+function fmtClock(hhmm) { if (!/^\d{1,2}:\d{2}$/.test(hhmm || '')) return ''; let [h, m] = hhmm.split(':').map(Number); const ap = h < 12 ? 'AM' : 'PM'; h = h % 12 || 12; return `${h}:${String(m).padStart(2, '0')} ${ap}`; }
+function orderTimeTxt(o) {
+  if (!o) return '';
+  const rec = Object.values(S.qw || {}).find(r => r.kind === 'inv' && r.at && ((S.qr[r.id] || {}).num === o.n || r.ref === o.n));
+  if (rec && rec.at) return fmtClock(rec.at.slice(11, 16));
+  if (o.tc) return fmtClock(o.tc);
+  return '';
+}
+function delivStatusOf(o) { if (!o || o.t !== 'inv') return null; const k = Object.keys(S.dstat || {}).find(k => k.slice(11) === o.n && S.dstat[k] && S.dstat[k].st); return k ? S.dstat[k] : null; }
+function deliverBox(o) {
+  if (o.t !== 'inv' || !ivCanEdit()) return '';
+  const st = delivStatusOf(o); if (st && st.st === 'done') return `<div class="iv-deliv"><span class="tag green">✓ Delivered ${st.at ? fmtClock(st.at.slice(11, 16)) : ''}</span></div>`;
+  const auto = dDateAuto(o); const cur = (S.lmove && S.lmove[o.n]) || auto; const pushed = cur !== auto;
+  return `<div class="iv-deliv card stack" style="gap:8px;margin:8px 0"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"><b>Deliver ${fmtShort(isoRd(cur))}</b>${pushed ? '<span class="tag gold">pushed</span>' : '<span class="tag blue">automatic (next day)</span>'}</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><label class="sr" for="dlv-${esc(o.n)}">Delivery date</label><input id="dlv-${esc(o.n)}" class="inp iv-deliv-date" type="date" data-n="${esc(o.n)}" value="${cur}" min="${isoOf(TODAY)}" style="width:auto"><button class="btn ghost sm" data-act="dlv-push" data-n="${esc(o.n)}">Push to next delivery day ›</button>${pushed ? `<button class="btn ghost sm" data-act="dlv-auto" data-n="${esc(o.n)}">Back to automatic</button>` : ''}</div>
+    ${st ? `<span class="sub" style="margin:0">${st.st === 'partial' ? 'Delivered, something short' : st.st === 'skip' ? 'Skipped on the truck' : ''}</span>` : ''}</div>`;
 }
 const delivDays = () => { const s = new Set(REAL.orders.list.filter(o => o.t === 'inv').map(dDateOf)); s.add(isoOf(TODAY)); return [...s].sort().reverse(); };
 function truckFor(date, area) { const m = S.dsched[dow(isoRd(date))] || {}; return areaOn(dow(isoRd(date)), area, date) ? Math.min(+m[area], DTRUCKS().length - 1) : -1; }
@@ -4763,7 +4788,7 @@ function qbApply() {
 
   // invoices and credits from QuickBooks replace the export from the first synced day on
   const inv = Object.values(QB.inv).filter(o => o && o.d >= from && o.c !== 'Chuster Packaging Wholsale');
-  const mine = inv.map(o => ({ d: o.d, n: o.n, c: ci.has(o.c) ? o.c : REAL.customers[custIdx(o.c)].name, t: o.t, a: o.a, due: o.due, qb: 1,
+  const mine = inv.map(o => ({ d: o.d, n: o.n, c: ci.has(o.c) ? o.c : REAL.customers[custIdx(o.c)].name, t: o.t, a: o.a, due: o.due, tc: o.tc, qb: 1,
     l: rowsOf(o.l).map(([f, q, a]) => [catIdx.has(f) ? catIdx.get(f) : String(f).split(':').pop(), q, a, f]),
     cs: o.t === 'inv' ? Math.round(rowsOf(o.l).reduce((s, x) => s + (String(x[0]).startsWith('Packs') ? x[1] : 0), 0)) : 0 }));
   REAL.orders.list = mine.concat(B.orders.filter(o => o.d < from)).sort((a, b) => a.d === b.d ? (a.n < b.n ? 1 : -1) : (a.d < b.d ? 1 : -1));
@@ -5631,6 +5656,8 @@ document.addEventListener('click', e => {
     case 'tile': S.tileView = d.t; render(); break;
     case 'tile-close': S.tileView = null; render(); break;
     case 'tile-noop': break;
+    case 'dlv-push': { const o = REAL.orders.list.find(x => x.n === d.n); if (!o) break; const cur = (S.lmove && S.lmove[o.n]) || dDateAuto(o); const nd = nextDelivDay(o, cur); setLmove(o.n, nd === dDateAuto(o) ? null : nd); toast(`Pushed to ${fmtShort(isoRd(nd))}.`); render(); break; }
+    case 'dlv-auto': { setLmove(d.n, null); toast('Back to the automatic delivery day.'); render(); break; }
     case 'sx-on': { const c = Object.assign({ day: 1, hour: 10 }, S.sx.cfg || {}); c.on = !c.on; c.by = byName(); sxPut('cfg', c); toast(c.on ? `Statements turned on. They go out every ${DAYS[c.day]}.` : 'Automatic statements turned off.'); render(); break; }
     case 'sx-test': { const to = (document.getElementById('sx-test') || {}).value || ''; if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(to.trim())) { toast('Type your email first.'); break; } S.sxTest = to.trim(); delete S.sl._test; sxPut('test', { id: qwId(), to: to.trim(), at: nowIso() }); toast('Test sent to the office PC. It arrives in about a minute.'); render(); break; }
     case 'sx-now': { const { g90, g60 } = sxLists(); const arr = (d.g === '90' ? g90 : g60).filter(c => !sxOff(c.name) && c.email); if (!arr.length) break;
@@ -5917,6 +5944,7 @@ document.addEventListener('input', e => {
   if (e.target.classList && e.target.classList.contains('ive-inp') && S.ivEdit) { S.ivEdit.q[e.target.dataset.k] = Math.max(0, parseInt(e.target.value, 10) || 0); return; }
   if (e.target.id === 'ive-find' && S.ivEdit) { S.ivEdit.find = e.target.value; const el = document.getElementById('ive-res'); if (el) el.innerHTML = ivFind(S.ivEdit); return; }
   if (e.target.id === 'sx-test') { S.sxTest = e.target.value; return; }
+  if (e.target.classList && e.target.classList.contains('iv-deliv-date')) { const o = REAL.orders.list.find(x => x.n === e.target.dataset.n); if (o) { const v = e.target.value; setLmove(o.n, v && v !== dDateAuto(o) ? v : null); render(); } return; }
   if (e.target.id === 'pk-ai-t') { S.pkAiT = e.target.value; return; }
   if (e.target.id === 'pk-set-q') { S.pkSetQ = e.target.value; const el = document.getElementById('pk-set-list'); if (el) { const h = pkSettings(); const m = h.match(/<div id="pk-set-list">([\s\S]*)<\/div>\s*<\/section>/); if (m) el.innerHTML = m[1]; } return; }
   if (e.target.id === 'inv-num') { S.orderRef = e.target.value; return; }
