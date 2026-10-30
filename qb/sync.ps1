@@ -8,7 +8,7 @@
 param([switch]$Install, [switch]$Test, [switch]$Full, [switch]$Other, [switch]$History, [switch]$Watch)
 
 $ErrorActionPreference = 'Stop'
-$Ver = '3.9'
+$Ver = '4.0'
 $AppName = 'Chuster App Sync'
 $TaskName = 'Chuster QB Sync'
 $Here = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -421,13 +421,15 @@ function Sync-Once([bool]$upload) {
     # first: what the office approved in the app
     $made = 0
     try { $made = Process-Queue $st $upload; if ($upload) { Save-State $st } } catch { Log ('To QuickBooks list: ' + $_.Exception.Message) }
-    if ($upload) { try { Fix-DupNumbers } catch { Log ('Same-number check: ' + $_.Exception.Message) } }
+    if ($upload -and $made -gt 0) { try { Fix-DupNumbers } catch { Log ('Same-number check: ' + $_.Exception.Message) } }
     $count['made'] = $made
     $mins = if ($st.full) { ($started - [datetime]::Parse($st.full, $Inv)).TotalMinutes } else { 999 }
-    if (-not $first -and -not $Full -and -not $script:ForceRead -and $made -eq 0 -and $mins -lt 14) {
+    # a full refresh of customers, balances, items and stock holds QuickBooks the longest, so do it only now and then (every 30 min), not on every order
+    $heavy = $first -or $Full -or ($mins -ge 30)
+    if (-not $first -and -not $Full -and -not $script:ForceRead -and $made -eq 0 -and -not $heavy) {
       if ($upload) { $status = [ordered]@{ at = $started.ToString('yyyy-MM-ddTHH:mm:ss'); full = $st.full; ok = $true; ver = $Ver; from = $from; pc = $env:COMPUTERNAME; counts = $count; mail = (Mail-Probe) }
         Db-Patch ([ordered]@{ 'qh/status' = [ordered]@{ v = (Protect (ToJson ([ordered]@{ k = 'status'; val = $status; by = 'QuickBooks' }))); t = @{ '.sv' = 'timestamp' } } }) }
-      Log ('Checked the To QuickBooks list: nothing new. Next full QuickBooks read in ' + [Math]::Ceiling(14 - $mins) + ' min.')
+      Log ('Checked the To QuickBooks list: nothing new. Next full QuickBooks read in ' + [Math]::Ceiling(30 - $mins) + ' min.')
       return
     }
     $txnFilter = if ($first) { "<TxnDateRangeFilter><FromTxnDate>$from</FromTxnDate></TxnDateRangeFilter>" } else { "<ModifiedDateRangeFilter><FromModifiedDate>$since</FromModifiedDate></ModifiedDateRangeFilter>" }
@@ -464,6 +466,7 @@ function Sync-Once([bool]$upload) {
         $recs[$id] = @($coll, $id, $null); $count.deleted++
       }
     }
+    if ($heavy -or $script:ForceRead) {
     # customers: balance, active, phone (every run, only changes are sent)
     foreach ($r in (QB-All 'CustomerQueryRq' '<ActiveStatus>All</ActiveStatus><IncludeRetElement>ListID</IncludeRetElement><IncludeRetElement>FullName</IncludeRetElement><IncludeRetElement>Sublevel</IncludeRetElement><IncludeRetElement>IsActive</IncludeRetElement><IncludeRetElement>TotalBalance</IncludeRetElement><IncludeRetElement>Phone</IncludeRetElement>' 'CustomerRet')) {
       if ((T $r 'Sublevel') -ne '' -and (T $r 'Sublevel') -ne '0') { continue }
@@ -508,6 +511,7 @@ function Sync-Once([bool]$upload) {
         $recs[$id] = @('qs', $name, $val); $count.items++
       }
     }
+    } # end heavy refresh
   } finally { QB-Close }
 
   # drop old invoices and payments from the shared database
