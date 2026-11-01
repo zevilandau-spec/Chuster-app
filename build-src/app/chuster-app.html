@@ -1137,6 +1137,352 @@ S.order.forEach(o => { const p = S.catalog.find(c => c.name === o.name); if (p) 
 const ic =(n, cls = 'icon') => `<svg class="${cls}" viewBox="0 0 24 24" aria-hidden="true">${I[n]}</svg>`;
 
 /* ================= navigation ================= */
+/* ============================================================
+   NEW DASHBOARDS (Product sales + 8 more) — added for Zevi
+   ============================================================ */
+const CAT_COLORS = { 'Egg noodles': '#22409A', 'Pasta': '#C98A1B', 'Snacks': '#2E8B74', 'Other': '#8A6FC0' };
+const CATS = ['Egg noodles', 'Pasta', 'Snacks', 'Other'];
+const BRAND_COLORS = { 'Chuster': '#6B3F2B', 'Landaus': '#A9733F', 'WEGE': '#2E8B74', 'Zerega': '#8A6FC0', 'Other': '#9AA3B2' };
+function catOf(c) {
+  if (!c) return 'Other';
+  const g = c.group || ''; const n = (c.name || c.full || '').toLowerCase();
+  if (/snack/i.test(g) || /pretzel|nugget|crunch|\bchip|flips/.test(n)) return 'Snacks';
+  if (/mayonn|mayo|\boil\b|vinegar|dressing|\bsauce/.test(n)) return 'Other';
+  if (/farfal|tri.?color|spaghetti|angel|fettucc|linguine|lasagn|elbow|spiral|ziti|penn|rigat|shell|cartwheel|orzo|fusill|manicotti|macaron|jumbo|whole ?grain|cavatap|bow ?tie|animal|ditalini|rotini/.test(n)) return 'Pasta';
+  if (/fine|medium|kugel|barley|farfel|\bbow\b|flake|mandlen|wide|broad|dumpling|square|thin|fancy|noodle|vermicelli/.test(n)) return 'Egg noodles';
+  return 'Other';
+}
+function brandOf(c) {
+  if (!c) return 'Other'; const g = c.group || ''; const n = (c.name || c.full || '').toLowerCase();
+  if (/wege/.test(n)) return 'WEGE'; if (/zerega/.test(n)) return 'Zerega';
+  if (/landau/.test(g) || /landau/.test(n)) return 'Landaus';
+  if (/chuster/.test(g) || /chuster/.test(n)) return 'Chuster';
+  return 'Other';
+}
+const packOf = c => c && /loose/i.test(c.group || '') ? 'Loose' : 'Case';
+
+// bar row used by several dashboards
+function barRow(label, val, max, color, right, sub) {
+  const w = max > 0 ? Math.max(1.5, Math.abs(val) / max * 100) : 0;
+  return `<div style="display:flex;align-items:center;gap:10px;margin:7px 0"><span style="width:116px;flex:none;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(label)}${sub ? `<span class="sub" style="display:block;margin:0;font-size:11px">${esc(sub)}</span>` : ''}</span><span style="flex:1;height:14px;background:var(--surface-2);border-radius:7px;overflow:hidden"><span style="display:block;height:100%;width:${w.toFixed(1)}%;background:${color}"></span></span><span class="num" style="width:78px;text-align:right;font-size:13px;font-weight:700">${right}</span></div>`;
+}
+
+// store -> { ref -> {q, amt}, last (rd), total }
+let STORE_REFS = null;
+function storeRefs() {
+  if (STORE_REFS) return STORE_REFS;
+  STORE_REFS = {};
+  REAL.orders.list.forEach(o => {
+    if (o.t !== 'inv' || !o.l) return;
+    const m = STORE_REFS[o.c] || (STORE_REFS[o.c] = { refs: {}, last: 0, total: 0, n: 0 });
+    const r = isoRd(o.d); if (r > m.last) m.last = r; m.n++;
+    rowsOf(o.l).forEach(([ref, q, a]) => { if (typeof ref !== 'number' || !(q > 0)) return; const x = m.refs[ref] || (m.refs[ref] = { q: 0, amt: 0, last: 0 }); x.q += q; x.amt += a; if (r > x.last) x.last = r; m.total += a; });
+  });
+  return STORE_REFS;
+}
+
+/* ---------- 1. Product sales (the screen in the picture) ---------- */
+function prRange() {
+  const to = REAL.orders.to; const e = isoRd(to); const R = (S.pr && S.pr.range) || '30';
+  const span = { '7': 6, '30': 29, '90': 89, 'all': 99999 }[R];
+  let a = e - span; const lo = isoRd(REAL.orders.from); if (a < lo) a = lo;
+  return [isoOf(a), to];
+}
+function renderProductSales() {
+  if (!REAL || !REAL.orders) return needData('Product sales');
+  const [from, to] = prRange();
+  const okRef = ref => { const c = REAL.catalog[ref]; if (!c) return false;
+    if (S.pr.cat !== 'All' && catOf(c) !== S.pr.cat) return false;
+    if (S.pr.pack !== 'All' && packOf(c) !== S.pr.pack) return false;
+    if (S.pr.brand !== 'All' && brandOf(c) !== S.pr.brand) return false;
+    return true; };
+  const f = isoRd(from), t = isoRd(to), span = t - f + 1;
+  const cur = {}, prev = {}, weeks = {};
+  REAL.orders.list.forEach(o => {
+    if (o.t !== 'inv' || !o.l) return; const r = isoRd(o.d);
+    const inCur = r >= f && r <= t, inPrev = r >= f - span && r < f; if (!inCur && !inPrev) return;
+    rowsOf(o.l).forEach(([ref, q, a]) => {
+      if (typeof ref !== 'number' || !(q > 0) || !(a > 0) || !okRef(ref)) return;
+      if (inCur) { const x = cur[ref] || (cur[ref] = { q: 0, amt: 0 }); x.q += q; x.amt += a;
+        const ws = isoOf(r - dow(r)); const cat = catOf(REAL.catalog[ref]); const wk = weeks[ws] || (weeks[ws] = {}); wk[cat] = (wk[cat] || 0) + a; }
+      else { const x = prev[ref] || (prev[ref] = { q: 0, amt: 0 }); x.q += q; x.amt += a; }
+    });
+  });
+  const refs = Object.keys(cur).map(Number);
+  const totSales = refs.reduce((s, r) => s + cur[r].amt, 0);
+  const totCases = refs.reduce((s, r) => s + cur[r].q, 0);
+  const totPrev = Object.keys(prev).reduce((s, r) => s + prev[r].amt, 0);
+  const prevCases = Object.keys(prev).reduce((s, r) => s + prev[r].q, 0);
+  const byCat = {}; CATS.forEach(c => byCat[c] = 0);
+  refs.forEach(r => byCat[catOf(REAL.catalog[r])] += cur[r].amt);
+  const byCatPrev = {}; CATS.forEach(c => byCatPrev[c] = 0);
+  Object.keys(prev).forEach(r => byCatPrev[catOf(REAL.catalog[r])] += prev[r].amt);
+  const topCat = CATS.slice().sort((a, b) => byCat[b] - byCat[a])[0];
+  const brands = {}; refs.forEach(r => { const b = brandOf(REAL.catalog[r]); brands[b] = (brands[b] || 0) + cur[r].amt; });
+  const brandList = Object.entries(brands).sort((a, b) => b[1] - a[1]);
+  let caseAmt = 0, looseAmt = 0; refs.forEach(r => { if (packOf(REAL.catalog[r]) === 'Loose') looseAmt += cur[r].amt; else caseAmt += cur[r].amt; });
+  const caseLoose = caseAmt + looseAmt;
+  // weekly stacked bars
+  const wkeys = Object.keys(weeks).sort();
+  const wtot = wkeys.map(k => CATS.reduce((s, c) => s + (weeks[k][c] || 0), 0));
+  const wmax = Math.max(1, ...wtot); const ww = wkeys.length ? 100 / wkeys.length : 100;
+  const stacks = wkeys.map((k, i) => { let y = 38, seg = ''; CATS.forEach(cat => { const v = weeks[k][cat] || 0; if (v <= 0) return; const h = v / wmax * 36; y -= h; seg += `<rect x="${(i * ww + ww * 0.18).toFixed(2)}" y="${y.toFixed(2)}" width="${(ww * 0.64).toFixed(2)}" height="${h.toFixed(2)}" fill="${CAT_COLORS[cat]}"><title>${esc(MONS[dateOf(isoRd(k)).getMonth()])} ${dateOf(isoRd(k)).getDate()} · ${cat}: ${money(v)}</title></rect>`; }); return seg; }).join('');
+  const wlabels = wkeys.map(k => dateOf(isoRd(k)).getDate());
+  const legend = `<div style="display:flex;gap:12px;flex-wrap:wrap;font-size:12px">${CATS.map(c => `<span style="display:inline-flex;align-items:center;gap:5px"><span style="width:10px;height:10px;border-radius:3px;background:${CAT_COLORS[c]}"></span>${c}</span>`).join('')}</div>`;
+  // product table
+  const metric = S.pr.metric || 'sales';
+  let rows = refs.map(r => ({ r, c: REAL.catalog[r], q: cur[r].q, amt: cur[r].amt, pAmt: prev[r] ? prev[r].amt : 0, pQ: prev[r] ? prev[r].q : 0 }));
+  const q = (S.pr.q || '').trim().toLowerCase();
+  if (q) rows = rows.filter(x => (x.c.name + ' ' + (x.c.code || '')).toLowerCase().includes(q));
+  rows.sort((a, b) => metric === 'cases' ? b.q - a.q : b.amt - a.amt);
+  const share = x => totSales > 0 ? x.amt / totSales * 100 : 0;
+  const prow = (x, i) => `<tr data-act="go-store-prod"><td style="color:var(--muted)">${i + 1}</td><td><b>${esc(x.c.name)}</b><div class="sub" style="margin:0;font-size:12px">${x.c.code ? x.c.code + ' · ' : ''}${esc(x.c.pack || '')}</div></td><td><span style="display:inline-flex;align-items:center;gap:5px;font-size:13px"><span style="width:8px;height:8px;border-radius:2px;background:${CAT_COLORS[catOf(x.c)]}"></span>${catOf(x.c)}</span></td><td class="num" style="text-align:right">${fn(x.q)}</td><td class="num" style="text-align:right"><b>${fm(x.amt)}</b></td><td style="text-align:right">${x.pAmt ? pctTxt(x.amt, x.pAmt) : '<span class="sub">—</span>'}</td><td style="width:70px"><span style="display:block;height:8px;background:var(--surface-2);border-radius:4px;overflow:hidden"><span style="display:block;height:100%;width:${Math.max(2, share(x)).toFixed(0)}%;background:${CAT_COLORS[catOf(x.c)]}"></span></span></td></tr>`;
+  const chipRow = (act, cur, opts) => `<div class="chips">${opts.map(([v, l]) => `<button class="chip" data-act="${act}" data-v="${v}" aria-pressed="${cur === v}">${l}</button>`).join('')}</div>`;
+  return `${head('Product sales', `from your invoices${salesLocked() ? ' · your stores' : ''}`, `<span class="tag blue" style="font-size:13px;padding:8px 12px">📅 ${fmtShort(f)} – ${fmtShort(t)}</span>${dashTools('Product sales')}`)}
+  <section class="card stack" style="gap:10px">
+    <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center">
+      <div style="display:flex;gap:6px;align-items:center"><span class="eyebrow" style="color:var(--muted)">SHOW</span>${chipRow('pr-range', S.pr.range, [['7', '7 days'], ['30', '30 days'], ['90', '90 days'], ['all', 'All']])}</div>
+    </div>
+    <div style="display:flex;gap:16px;flex-wrap:wrap">
+      <div><span class="eyebrow" style="color:var(--muted)">CATEGORY</span>${chipRow('pr-cat', S.pr.cat, [['All', 'All'], ...CATS.map(c => [c, c])])}</div>
+      <div><span class="eyebrow" style="color:var(--muted)">PACK</span>${chipRow('pr-pack', S.pr.pack, [['All', 'All'], ['Case', 'Case'], ['Loose', 'Loose']])}</div>
+      <div><span class="eyebrow" style="color:var(--muted)">BRAND</span>${chipRow('pr-brand', S.pr.brand, [['All', 'All'], ['Chuster', 'Chuster'], ['Landaus', 'Landaus']])}</div>
+    </div>
+  </section>
+  <div class="tiles">
+    <div class="tile ct ct-blue"><div class="k">Sales</div><div class="v">${fm(totSales)}</div><div class="s">${totPrev ? pctTxt(totSales, totPrev) + ' vs period before' : 'in this range'}</div></div>
+    <div class="tile ct ct-gold"><div class="k">Cases &amp; boxes</div><div class="v">${fn(totCases)}</div><div class="s">${prevCases ? pctTxt(totCases, prevCases) + ' vs before' : 'sold'}</div></div>
+    <div class="tile ct ct-green"><div class="k">Products sold</div><div class="v">${refs.length}</div><div class="s">different items</div></div>
+    <div class="tile ct"><div class="k">Top category</div><div class="v" style="font-size:20px">${topCat || '—'}</div><div class="s">${totSales > 0 ? Math.round((byCat[topCat] || 0) / totSales * 100) + '% of sales' : ''}</div></div>
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,340px),1fr));gap:12px">
+    <section class="card stack" style="gap:8px"><div class="card-head" style="margin:0"><h2>By week</h2><span class="sub" style="margin:0">stacked by category</span></div>
+      ${legend}
+      ${wkeys.length ? `<svg viewBox="0 0 100 42" preserveAspectRatio="none" style="width:100%;height:200px;display:block">${stacks}</svg><div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);padding:0 2px">${wlabels.map(l => `<span>${l}</span>`).join('')}</div>` : '<p class="sub">No sales in this range.</p>'}
+    </section>
+    <section class="card stack" style="gap:10px"><h2 style="margin:0">Categories</h2>
+      <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap">
+        ${donutSvg(CATS.map(c => ({ v: byCat[c], color: CAT_COLORS[c] })), totSales, 120)}
+        <div style="flex:1;min-width:150px">${CATS.map(c => `<div style="display:flex;align-items:center;gap:8px;margin:4px 0"><span style="width:10px;height:10px;border-radius:3px;background:${CAT_COLORS[c]};flex:none"></span><span style="flex:1;font-size:13px">${c}</span><b class="num" style="font-size:13px">${fm(byCat[c])}</b> ${byCatPrev[c] ? pctTxt(byCat[c], byCatPrev[c]) : ''}</div>`).join('')}</div>
+      </div>
+      <div><div class="eyebrow" style="color:var(--muted)">BRANDS</div>${brandList.map(([b, v]) => barRow(b, v, brandList[0] ? brandList[0][1] : 1, BRAND_COLORS[b] || '#9AA3B2', fm(v))).join('')}</div>
+      <div><div class="eyebrow" style="color:var(--muted)">CASE OR LOOSE</div>
+        <div style="display:flex;height:26px;border-radius:7px;overflow:hidden;font-size:12px;font-weight:800;color:#fff">${caseLoose > 0 ? `<span style="background:#22409A;width:${(caseAmt / caseLoose * 100).toFixed(1)}%;display:grid;place-items:center">Case ${Math.round(caseAmt / caseLoose * 100)}%</span><span style="background:#C98A1B;flex:1;display:grid;place-items:center">Loose ${Math.round(looseAmt / caseLoose * 100)}%</span>` : '<span class="sub">no data</span>'}</div></div>
+    </section>
+  </div>
+  <section class="card stack" style="gap:6px">
+    <div class="card-head" style="margin:0"><h2>Products <span class="sub" style="margin:0;font-weight:400">${refs.length} sold</span></h2><div class="chips" style="overflow:visible">${[['sales', 'Sales $'], ['cases', 'Cases']].map(([v, l]) => `<button class="chip" data-act="pr-metric" data-v="${v}" aria-pressed="${metric === v}">${l}</button>`).join('')}</div></div>
+    <div class="field">${ic('search')}<label class="sr" for="pr-q">Search</label><input id="pr-q" value="${esc(S.pr.q || '')}" placeholder="Search product" autocomplete="off"></div>
+    <div style="overflow-x:auto"><table class="mini-table" style="min-width:560px"><tr><td></td><td><b>Product</b></td><td><b>Category</b></td><td style="text-align:right"><b>Cases</b></td><td style="text-align:right"><b>Sales</b></td><td style="text-align:right"><b>vs before</b></td><td><b>Share</b></td></tr>
+    ${rows.slice(0, 200).map(prow).join('') || '<tr><td colspan="7" class="sub">No products in this range.</td></tr>'}</table></div>
+  </section>
+  <p class="sub" style="margin:0">Categories are grouped automatically from the product names. If any product is in the wrong group, tell me and I'll fix it. "vs before" compares with the same number of days just before this range.</p>`;
+}
+
+/* ---------- 2. Store scorecard ---------- */
+function renderScorecard() {
+  if (!REAL) return needData('Store scorecard');
+  const mine = REAL.customers.filter(c => !salesLocked() || custMine(c));
+  if (!S.scoSel) {
+    const q = (S.scoQ || '').trim().toLowerCase();
+    let list = mine.filter(c => (c.ytd || 0) > 0 || (c.sales12 || 0) > 0).sort((a, b) => (b.sales12 || 0) - (a.sales12 || 0));
+    if (q) list = list.filter(c => c.name.toLowerCase().includes(q) || (c.area || '').toLowerCase().includes(q));
+    return `${head('Store scorecard', 'pick a store to see everything about them on one page')}
+    <section class="card stack" style="gap:6px"><div class="field">${ic('search')}<label class="sr" for="sco-q">Search</label><input id="sco-q" value="${esc(S.scoQ || '')}" placeholder="Search store" autocomplete="off"></div>
+    ${list.slice(0, 60).map(c => `<button class="cust-row" data-act="sco-pick" data-n="${esc(c.name)}"><span class="main"><span style="display:block;font-weight:800">${esc(c.name)}</span><span style="display:block;font-size:12px;color:var(--muted)">${esc(c.area || '')} · ${fm(c.sales12 || 0)}/yr${c.late ? ' · <span style="color:var(--bad-text)">overdue</span>' : ''}</span></span><b class="num">${fm(c.ytd || 0)}</b></button>`).join('') || '<p class="sub">No stores.</p>'}</section>`;
+  }
+  const c = custByName(S.scoSel);
+  if (!c) { S.scoSel = null; return renderScorecard(); }
+  const SR = storeRefs()[c.name] || { refs: {}, last: 0, total: 0, n: 0 };
+  const prods = Object.keys(SR.refs).map(r => ({ r: +r, c: REAL.catalog[+r], q: SR.refs[r].q, amt: SR.refs[r].amt, last: SR.refs[r].last })).sort((a, b) => b.amt - a.amt);
+  const asOf = isoRd(REAL.asOf);
+  const stopped = prods.filter(p => p.c && asOf - p.last > 70 && p.q > 0).sort((a, b) => b.amt - a.amt).slice(0, 8);
+  const months = c.months || [];
+  const owner = S.role === 'Owner' && IT;
+  let profit = 0, costKnown = true; if (owner) prods.forEach(p => { const it = IT.list[p.r]; if (it && it.cost) profit += p.amt - it.cost * p.q; else costKnown = false; });
+  const ds = c.last ? asOf - isoRd(c.last) : null;
+  return `${head(c.name, `${esc(c.area || '')}${c.rep ? ' · rep ' + esc(c.rep) : ''}`, `<button class="btn ghost" data-act="sco-back">‹ All stores</button>${c.phone ? `<a class="btn ghost" href="${telHref(c.phone)}">${ic('phone')} Call</a>` : ''}${dashTools('Store scorecard - ' + c.name)}`)}
+  <div class="tiles">
+    <div class="tile ct ct-blue"><div class="k">This year</div><div class="v">${fm(c.ytd || 0)}</div><div class="s">${c.ytdPrev ? pctTxt(c.ytd, c.ytdPrev) + ' vs last year' : ''}</div></div>
+    <div class="tile ct ct-gold"><div class="k">Last 12 months</div><div class="v">${fm(c.sales12 || 0)}</div><div class="s">${fn(c.orders12 || 0)} orders</div></div>
+    <div class="tile ct ${c.balance > 0 ? 'ct-red' : ''}"><div class="k">Owes now</div><div class="v">${fm(c.balance || 0)}</div><div class="s">${c.late ? '<span style="color:var(--bad-text)">past due</span>' : 'current'}</div></div>
+    <div class="tile ct"><div class="k">Last order</div><div class="v" style="font-size:20px">${ds != null ? ds + ' days' : '—'}</div><div class="s">${c.gap ? 'usually every ~' + c.gap + ' days' : 'ago'}</div></div>
+    ${owner ? `<div class="tile ct ct-green"><div class="k">Profit to you</div><div class="v">${fm(profit)}</div><div class="s">${costKnown ? 'all data' : 'where cost known'}</div></div>` : ''}
+  </div>
+  ${months.length ? `<section class="card stack" style="gap:6px"><h2 style="margin:0">Sales by month</h2>${(() => { const vals = months.map(m => typeof m === 'number' ? m : (m && m[1]) || 0); const e = dateOf(isoRd(REAL.asOf)); const labels = []; for (let k = vals.length - 1; k >= 0; k--) { const dd = new Date(e.getFullYear(), e.getMonth() - k, 1); labels.push(MONS[dd.getMonth()] + ' ' + String(dd.getFullYear()).slice(2)); } return bkBars(vals, labels); })()}</section>` : ''}
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:12px">
+    <section class="card stack" style="gap:4px"><h2 style="margin:0">Top products</h2><table class="mini-table">${prods.slice(0, 12).map(p => `<tr><td>${itName(p.c || { name: '#' + p.r })}</td><td class="num">${fn(p.q)} cs</td><td class="num">${fm(p.amt)}</td></tr>`).join('') || '<tr><td class="sub">No line detail yet.</td></tr>'}</table></section>
+    <section class="card stack" style="gap:4px"><h2 style="margin:0">Stopped buying</h2><p class="sub" style="margin:0">bought before, nothing in 10+ weeks — worth a call</p><table class="mini-table">${stopped.map(p => `<tr><td>${itName(p.c)}</td><td class="num">${fn(p.q)} cs</td><td class="sub" style="text-align:right">${Math.round((asOf - p.last) / 7)} wks ago</td></tr>`).join('') || '<tr><td class="sub">Nothing stopped — buying steadily.</td></tr>'}</table></section>
+  </div>`;
+}
+
+/* ---------- 3. Cross-sell (bought together) ---------- */
+function renderCrossSell() {
+  if (!REAL) return needData('Cross-sell');
+  const SR = storeRefs();
+  // build ref -> set of stores
+  const refStores = {}; const storeList = Object.keys(SR).filter(n => custMineName(n));
+  storeList.forEach(n => Object.keys(SR[n].refs).forEach(r => { (refStores[r] || (refStores[r] = new Set())).add(n); }));
+  const sellable = REAL.catalog.map((c, i) => i).filter(i => REAL.catalog[i] && !REAL.catalog[i].off && refStores[i] && refStores[i].size >= 3 && !/loose/i.test(REAL.catalog[i].group || ''));
+  if (!S.xsSel || !refStores[S.xsSel]) {
+    const q = (S.xsQ || '').trim().toLowerCase();
+    let list = sellable.map(i => ({ i, c: REAL.catalog[i], n: refStores[i].size })).sort((a, b) => b.n - a.n);
+    if (q) list = list.filter(x => (x.c.name + ' ' + (x.c.code || '')).toLowerCase().includes(q));
+    return `${head('Cross-sell', 'pick a product — see who buys it, and which stores to pitch it to')}
+    <section class="card stack" style="gap:6px"><div class="field">${ic('search')}<label class="sr" for="xs-q">Search</label><input id="xs-q" value="${esc(S.xsQ || '')}" placeholder="Search product" autocomplete="off"></div>
+    ${list.slice(0, 60).map(x => `<button class="cust-row" data-act="xs-pick" data-n="${x.i}"><span class="main"><span style="display:block;font-weight:800">${esc(x.c.name)}</span><span style="display:block;font-size:12px;color:var(--muted)">${x.c.code ? x.c.code + ' · ' : ''}${esc(x.c.pack || '')}</span></span><b class="num">${x.n} stores</b></button>`).join('') || '<p class="sub">No products.</p>'}</section>`;
+  }
+  const anchor = +S.xsSel; const ac = REAL.catalog[anchor]; const buyers = refStores[anchor];
+  // other products: stores that buy anchor but NOT the other -> opportunity
+  const opp = sellable.filter(i => i !== anchor).map(i => {
+    const also = refStores[i]; let both = 0; buyers.forEach(n => { if (also.has(n)) both++; });
+    return { i, c: REAL.catalog[i], miss: buyers.size - both, both };
+  }).filter(x => x.miss > 0).sort((a, b) => b.miss - a.miss);
+  // stores buying anchor, their size
+  const buyerRows = [...buyers].map(n => ({ n, c: custByName(n), amt: SR[n].refs[anchor] ? SR[n].refs[anchor].amt : 0 })).sort((a, b) => b.amt - a.amt);
+  return `${head('Cross-sell: ' + ac.name, `${buyers.size} stores buy this`, `<button class="btn ghost" data-act="xs-back">‹ All products</button>${dashTools('Cross-sell - ' + ac.name)}`)}
+  <section class="card stack" style="gap:4px"><h2 style="margin:0">Best to pitch next</h2><p class="sub" style="margin:0">stores that buy <b>${esc(ac.name)}</b> but not this — your warmest leads</p>
+    <table class="mini-table"><tr><td><b>Product</b></td><td style="text-align:right"><b>Stores to pitch</b></td></tr>
+    ${opp.slice(0, 20).map(x => `<tr data-act="xs-pick" data-n="${x.i}" style="cursor:pointer"><td>${itName(x.c)}</td><td class="num" style="text-align:right;font-weight:800;color:var(--gold-text,inherit)">${x.miss}</td></tr>`).join('') || '<tr><td class="sub">Everyone who buys this buys the rest too.</td></tr>'}</table></section>
+  <section class="card stack" style="gap:4px"><h2 style="margin:0">Who buys ${esc(ac.name)}</h2><table class="mini-table">${buyerRows.slice(0, 30).map(b => `<tr><td><button style="background:none;border:none;font:inherit;color:inherit;cursor:pointer;text-align:left" data-act="cust-sel-go" data-n="${esc(b.n)}">${esc(b.n)}</button></td><td class="num">${fm(b.amt)}</td></tr>`).join('')}</table></section>`;
+}
+
+/* ---------- 4. Salesman scorecard (owner) ---------- */
+function renderRepScore() {
+  if (S.role !== 'Owner') return head('Salesman scorecard', '') + '<section class="card"><p class="sub" style="margin:0">Only the owner sees this.</p></section>';
+  if (!REAL) return needData('Salesman scorecard');
+  const names = (REAL.repNames || {});
+  const by = {};
+  REAL.customers.forEach(c => { const code = c.rep || '—'; const r = by[code] || (by[code] = { code, name: names[code] || code, sales: 0, prev: 0, owed: 0, stores: 0, active: 0, newN: 0, lostN: 0 });
+    r.sales += c.ytd || 0; r.prev += c.ytdPrev || 0; r.owed += Math.max(0, c.balance || 0); r.stores++;
+    if ((c.ytd || 0) > 0) r.active++;
+    if ((c.ytd || 0) > 0 && !(c.ytdPrev > 0)) r.newN++;
+    if (!(c.ytd > 0) && (c.ytdPrev || 0) > 0) r.lostN++;
+  });
+  const reps = Object.values(by).filter(r => r.sales > 0 || r.prev > 0).sort((a, b) => b.sales - a.sales);
+  const max = Math.max(1, ...reps.map(r => r.sales));
+  return `${head('Salesman scorecard', 'each rep: sales, stores won and lost, and what their customers owe', dashTools('Salesman scorecard'))}
+  <section class="card stack" style="gap:4px"><h2 style="margin:0">Sales this year</h2>${reps.map(r => barRow(r.name, r.sales, max, '#22409A', fm(r.sales), r.prev ? (r.sales >= r.prev ? '▲' : '▼') + ' ' + Math.abs(Math.round((r.sales - r.prev) / Math.max(1, r.prev) * 100)) + '% vs last yr' : '')).join('')}</section>
+  <section class="card stack" style="gap:4px"><h2 style="margin:0">Details</h2><div style="overflow-x:auto"><table class="mini-table" style="min-width:520px"><tr><td><b>Rep</b></td><td style="text-align:right"><b>Sales</b></td><td style="text-align:right"><b>Active stores</b></td><td style="text-align:right"><b>Won</b></td><td style="text-align:right"><b>Lost</b></td><td style="text-align:right"><b>Owed</b></td></tr>
+  ${reps.map(r => `<tr><td><b>${esc(r.name)}</b></td><td class="num" style="text-align:right">${fm(r.sales)}</td><td class="num" style="text-align:right">${r.active}</td><td class="num" style="text-align:right;color:var(--good-text)">${r.newN || ''}</td><td class="num" style="text-align:right;color:var(--bad-text)">${r.lostN || ''}</td><td class="num" style="text-align:right;${r.owed > 0 ? 'color:var(--bad-text)' : ''}">${fm(r.owed)}</td></tr>`).join('')}</table></div></section>
+  <p class="sub" style="margin:0">"Won" = buying this year, nothing last year. "Lost" = bought last year, nothing this year.</p>`;
+}
+
+/* ---------- 5. At-risk action board ---------- */
+function renderAtRisk() {
+  if (!REAL) return needData('At-risk board');
+  const asOf = isoRd(REAL.asOf);
+  const mine = REAL.customers.filter(c => !salesLocked() || custMine(c));
+  const items = [];
+  mine.forEach(c => {
+    // slipping: was buying, down a lot
+    if ((c.ytdPrev || 0) > 2000 && (c.ytd || 0) < c.ytdPrev * 0.6) items.push({ kind: 'Slipping', c, risk: c.ytdPrev - (c.ytd || 0), why: `down ${Math.round((1 - (c.ytd || 0) / c.ytdPrev) * 100)}% vs last year` });
+    // overdue payment
+    if (c.late && (c.balance || 0) > 0) items.push({ kind: 'Overdue', c, risk: c.balance, why: `owes ${fm(c.balance)} past due` });
+    // overdue to order
+    const ds = c.last ? asOf - isoRd(c.last) : null;
+    if (c.gap && ds != null && ds > c.gap * 2 && (c.sales12 || 0) > 1000) items.push({ kind: 'No order', c, risk: (c.sales12 || 0) / 4, why: `${ds} days since last order (usually ~${c.gap})` });
+  });
+  items.sort((a, b) => b.risk - a.risk);
+  const tab = S.arTab || 'all';
+  const list = tab === 'all' ? items : items.filter(x => x.kind === tab);
+  const totRisk = items.reduce((s, x) => s + x.risk, 0);
+  const kindColor = { 'Slipping': 'var(--gold-text,#9a6a00)', 'Overdue': 'var(--bad-text)', 'No order': 'var(--muted)' };
+  const chip = (k, l) => `<button class="chip" data-act="ar-tab" data-v="${k}" aria-pressed="${tab === k}">${l}</button>`;
+  return `${head('At-risk action board', 'stores slipping, overdue to pay, or overdue to order — who to call today', dashTools('At-risk'))}
+  <div class="tiles"><div class="tile ct ct-red"><div class="k">Money at risk</div><div class="v">${fm(totRisk)}</div><div class="s">across ${items.length} flags</div></div>
+    <div class="tile ct ct-gold"><div class="k">Slipping</div><div class="v">${items.filter(x => x.kind === 'Slipping').length}</div><div class="s">buying much less</div></div>
+    <div class="tile ct"><div class="k">Overdue to pay</div><div class="v">${items.filter(x => x.kind === 'Overdue').length}</div><div class="s">past due balance</div></div></div>
+  <section class="card stack" style="gap:6px"><div class="chips">${chip('all', 'All')}${chip('Slipping', 'Slipping')}${chip('Overdue', 'Overdue to pay')}${chip('No order', 'No order')}</div>
+  ${list.slice(0, 80).map(x => `<div style="border-top:1px solid var(--line);display:flex;align-items:center;gap:8px;padding:8px 0"><button style="flex:1;min-width:0;background:none;border:none;font:inherit;text-align:left;cursor:pointer;color:inherit" data-act="cust-sel-go" data-n="${esc(x.c.name)}"><b>${esc(x.c.name)}</b> <span style="font-size:11px;font-weight:800;color:${kindColor[x.kind]}">${x.kind.toUpperCase()}</span><div class="sub" style="margin:0;font-size:12px">${esc(x.c.area || '')} · ${x.why}</div></button>${x.c.phone ? `<a class="btn ghost sm" href="${telHref(x.c.phone)}" onclick="event.stopPropagation()">${ic('phone')}</a>` : ''}<b class="num">${fm(x.risk)}</b></div>`).join('') || '<p class="sub">Nothing at risk right now. 👍</p>'}</section>`;
+}
+
+/* ---------- 6. Returns & credits ---------- */
+function renderReturns() {
+  if (!REAL) return needData('Returns & credits');
+  const cms = REAL.orders.list.filter(o => o.t === 'cm' && (!salesLocked() || custMineName(o.c)));
+  const tot = cms.reduce((s, o) => s + Math.abs(o.a || 0), 0);
+  const byStore = {}, byProd = {}, byMonth = {};
+  cms.forEach(o => { byStore[o.c] = (byStore[o.c] || 0) + Math.abs(o.a || 0); const ym = o.d.slice(0, 7); byMonth[ym] = (byMonth[ym] || 0) + Math.abs(o.a || 0);
+    rowsOf(o.l || []).forEach(([ref, q, a]) => { if (typeof ref !== 'number') return; const p = byProd[ref] || (byProd[ref] = { ref, q: 0, amt: 0 }); p.q += Math.abs(q || 0); p.amt += Math.abs(a || 0); }); });
+  const stores = Object.entries(byStore).sort((a, b) => b[1] - a[1]);
+  const prods = Object.values(byProd).sort((a, b) => b.amt - a.amt);
+  const mkeys = Object.keys(byMonth).sort();
+  return `${head('Returns & credits', `credit memos from your invoices · ${fmtShort(isoRd(REAL.orders.from))} – ${fmtShort(isoRd(REAL.orders.to))}`, dashTools('Returns & credits'))}
+  <div class="tiles"><div class="tile ct ct-red"><div class="k">Credits given</div><div class="v">${fm(tot)}</div><div class="s">${cms.length} credit memos</div></div>
+    <div class="tile ct ct-gold"><div class="k">Stores</div><div class="v">${stores.length}</div><div class="s">got a credit</div></div>
+    <div class="tile ct"><div class="k">Avg credit</div><div class="v">${fm(cms.length ? tot / cms.length : 0)}</div><div class="s">per memo</div></div></div>
+  ${mkeys.length ? `<section class="card stack" style="gap:6px"><h2 style="margin:0">By month</h2>${bkBars(mkeys.map(k => byMonth[k]), mkeys.map(MSHORT))}</section>` : ''}
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:12px">
+    <section class="card stack" style="gap:4px"><h2 style="margin:0">Most credited stores</h2><table class="mini-table">${stores.slice(0, 15).map(([n, v]) => `<tr><td><button style="background:none;border:none;font:inherit;color:inherit;cursor:pointer;text-align:left" data-act="cust-sel-go" data-n="${esc(n)}">${esc(n)}</button></td><td class="num">${fm(v)}</td></tr>`).join('') || '<tr><td class="sub">No credits.</td></tr>'}</table></section>
+    <section class="card stack" style="gap:4px"><h2 style="margin:0">Most returned products</h2><table class="mini-table">${prods.slice(0, 15).map(p => `<tr><td>${itName(REAL.catalog[p.ref] || { name: '#' + p.ref })}</td><td class="num">${fnu(p.q)} cs</td><td class="num">${fm(p.amt)}</td></tr>`).join('') || '<tr><td class="sub">No product detail.</td></tr>'}</table></section>
+  </div>`;
+}
+
+/* ---------- 7. Product winners & losers ---------- */
+function renderWinners() {
+  if (!REAL || !REAL.allItems) return needData('Winners & losers');
+  const rows = REAL.allItems.filter(x => (x.amount || 0) + (x.amountPrev || 0) > 0).map(x => ({ x, cur: x.amount || 0, prev: x.amountPrev || 0, d: (x.amount || 0) - (x.amountPrev || 0) }));
+  const up = rows.filter(r => r.prev > 0 && r.cur > r.prev).sort((a, b) => b.d - a.d);
+  const down = rows.filter(r => r.prev > 0 && r.cur < r.prev).sort((a, b) => a.d - b.d);
+  const fresh = rows.filter(r => !(r.prev > 0) && r.cur > 0).sort((a, b) => b.cur - a.cur);
+  const tab = S.winTab || 'up';
+  const list = tab === 'up' ? up : tab === 'down' ? down : fresh;
+  const chip = (k, l, n) => `<button class="chip" data-act="win-tab" data-v="${k}" aria-pressed="${tab === k}">${l} · ${n}</button>`;
+  const row = r => `<tr><td><b>${esc(r.x.name)}</b><div class="sub" style="margin:0;font-size:12px">${esc(r.x.group || '')}</div></td><td class="num" style="text-align:right">${fm(r.cur)}</td><td style="text-align:right">${r.prev ? pctTxt(r.cur, r.prev) : '<span style="color:var(--good-text);font-weight:700">new</span>'}</td><td class="num" style="text-align:right;color:${r.d >= 0 ? 'var(--good-text)' : 'var(--bad-text)'}">${r.d >= 0 ? '+' : '−'}${fm(Math.abs(r.d))}</td></tr>`;
+  return `${head('Winners & losers', 'which products are growing and which are shrinking · this year vs last year', dashTools('Winners and losers'))}
+  <section class="card stack" style="gap:6px"><div class="chips">${chip('up', 'Growing', up.length)}${chip('down', 'Shrinking', down.length)}${chip('new', 'New', fresh.length)}</div>
+  <table class="mini-table"><tr><td><b>Product</b></td><td style="text-align:right"><b>This year</b></td><td style="text-align:right"><b>vs last yr</b></td><td style="text-align:right"><b>Change</b></td></tr>
+  ${list.slice(0, 60).map(row).join('') || '<tr><td colspan="4" class="sub">Nothing here.</td></tr>'}</table></section>`;
+}
+
+/* ---------- 8. Route profit (by area & weekday) ---------- */
+function renderRouteProfit() {
+  if (!REAL) return needData('Route profit');
+  const WD = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Shabbos'];
+  const byArea = {}, byDay = {};
+  REAL.orders.list.forEach(o => { if (o.t !== 'inv') return; const area = areaOf(o.c) || 'Other'; const r = isoRd(o.d); const wd = dow(r);
+    const cases = rowsOf(o.l || []).reduce((s, [ref, q]) => s + (typeof ref === 'number' && q > 0 ? q : 0), 0);
+    const A = byArea[area] || (byArea[area] = { area, sales: 0, cases: 0, stores: new Set() }); A.sales += o.a || 0; A.cases += cases; A.stores.add(o.c);
+    const D = byDay[wd] || (byDay[wd] = { wd, sales: 0, cases: 0 }); D.sales += o.a || 0; D.cases += cases;
+  });
+  const areas = Object.values(byArea).sort((a, b) => b.sales - a.sales);
+  const amax = Math.max(1, ...areas.map(a => a.sales));
+  const days = [0, 1, 2, 3, 4, 5].map(wd => byDay[wd] || { wd, sales: 0, cases: 0 });
+  const dmax = Math.max(1, ...days.map(d => d.sales));
+  const totSales = areas.reduce((s, a) => s + a.sales, 0), totCases = areas.reduce((s, a) => s + a.cases, 0);
+  return `${head('Route profit', `sales and cases by area and by weekday · ${fmtShort(isoRd(REAL.orders.from))} – ${fmtShort(isoRd(REAL.orders.to))}`, dashTools('Route profit'))}
+  <div class="tiles"><div class="tile ct ct-blue"><div class="k">Sales</div><div class="v">${fm(totSales)}</div><div class="s">in this window</div></div>
+    <div class="tile ct ct-gold"><div class="k">Cases out</div><div class="v">${fn(totCases)}</div><div class="s">delivered</div></div>
+    <div class="tile ct"><div class="k">$ per case</div><div class="v">${totCases ? money(totSales / totCases) : '—'}</div><div class="s">average</div></div></div>
+  <section class="card stack" style="gap:4px"><h2 style="margin:0">By area</h2>${areas.map(a => barRow(a.area, a.sales, amax, areaCls2(a.area), fm(a.sales), a.stores.size + ' stores · ' + fn(a.cases) + ' cs')).join('')}</section>
+  <section class="card stack" style="gap:4px"><h2 style="margin:0">By weekday</h2>${days.map(d => barRow(WD[d.wd], d.sales, dmax, '#22409A', fm(d.sales), fn(d.cases) + ' cs')).join('')}</section>
+  <p class="sub" style="margin:0">This is sales per area, a good stand-in for route value. True profit per route would need delivery cost per truck.</p>`;
+}
+function areaCls2(a) { const colors = AREA_COLORS; const list = [...new Set(REAL.customers.map(c => c.area || 'Other'))].sort(); const i = list.indexOf(a); return colors[(i < 0 ? 0 : i) % colors.length]; }
+
+/* ---------- 9. Week-ahead pack forecast ---------- */
+function renderForecast() {
+  if (!REAL || !REAL.orders) return needData('Week-ahead forecast');
+  // next 6 working days
+  const to = isoRd(REAL.orders.to); const start = Math.max(TODAY, to + 1);
+  const deliv = []; let r = start; while (deliv.length < 6 && r < start + 20) { if (!isClosed(r) && dow(r) !== 6) deliv.push(r); r++; }
+  const tot = {}; deliv.forEach(rr => { const A = pnAvgFor(dow(rr)).avg; Object.keys(A).forEach(k => { tot[k] = (tot[k] || 0) + A[k]; }); });
+  let rows = Object.keys(tot).map(k => { const i = +k; const c = REAL.catalog[i]; const need = Math.ceil(tot[i]); const stock = c ? (c.stock || 0) : 0; return { i, c, need, stock, pack: Math.max(0, need - Math.max(0, stock)) }; }).filter(x => x.c && x.need > 0 && !x.c.off);
+  rows.sort((a, b) => b.pack - a.pack);
+  const q = (S.fcQ || '').trim().toLowerCase(); if (q) rows = rows.filter(x => (x.c.name + ' ' + (x.c.code || '')).toLowerCase().includes(q));
+  const totNeed = rows.reduce((s, x) => s + x.need, 0), totPack = rows.reduce((s, x) => s + x.pack, 0);
+  const short = rows.filter(x => x.stock < x.need);
+  return `${head('Week-ahead pack forecast', `expected orders for the next ${deliv.length} delivery days, from how each weekday usually sells`, `<a class="btn gold" href="#packnext" data-go="packnext">What to pack today ›</a>${dashTools('Week-ahead forecast')}`)}
+  <div class="tiles"><div class="tile ct ct-blue"><div class="k">Cases expected</div><div class="v">${fn(totNeed)}</div><div class="s">next ${deliv.length} days</div></div>
+    <div class="tile ct ct-gold"><div class="k">Need to pack</div><div class="v">${fn(totPack)}</div><div class="s">beyond what's in stock</div></div>
+    <div class="tile ct ${short.length ? 'ct-red' : ''}"><div class="k">Short items</div><div class="v">${short.length}</div><div class="s">stock below the week</div></div></div>
+  <section class="card stack" style="gap:6px"><div class="field">${ic('search')}<label class="sr" for="fc-q">Search</label><input id="fc-q" value="${esc(S.fcQ || '')}" placeholder="Search product" autocomplete="off"></div>
+  <div style="overflow-x:auto"><table class="mini-table" style="min-width:460px"><tr><td><b>Product</b></td><td style="text-align:right"><b>Expected</b></td><td style="text-align:right"><b>In stock</b></td><td style="text-align:right"><b>Pack</b></td></tr>
+  ${rows.slice(0, 200).map(x => `<tr><td>${itName(x.c)}</td><td class="num" style="text-align:right">${fn(x.need)}</td><td class="num" style="text-align:right;${x.stock < x.need ? 'color:var(--bad-text)' : ''}">${fn(x.stock)}</td><td class="num" style="text-align:right;font-weight:800">${x.pack || ''}</td></tr>`).join('') || '<tr><td colspan="4" class="sub">No forecast yet.</td></tr>'}</table></div></section>
+  <p class="sub" style="margin:0">Based on the average of recent same-weekday orders. Yom Tov weeks run higher than this — use the Yom Tov planner for those.</p>`;
+}
+
 const VIEWS = {
   home: { title: 'Dashboard', r: renderHome },
   order: { title: 'New order', r: renderOrder },
@@ -1191,16 +1537,25 @@ const VIEWS = {
   seasonality: { title: 'Seasonality', r: renderSeasonality },
   habits: { title: 'Order habits', r: renderHabits },
   orders: { title: 'Orders', r: renderOrders },
-  customers: { title: 'Customers', r: renderCustomers }
+  customers: { title: 'Customers', r: renderCustomers },
+  prodsales: { title: 'Product sales', r: renderProductSales },
+  scorecard: { title: 'Store scorecard', r: renderScorecard },
+  crosssell: { title: 'Cross-sell', r: renderCrossSell },
+  repscore: { title: 'Salesman scorecard', r: renderRepScore },
+  atrisk: { title: 'At-risk board', r: renderAtRisk },
+  returns: { title: 'Returns & credits', r: renderReturns },
+  winners: { title: 'Winners & losers', r: renderWinners },
+  routeprofit: { title: 'Route profit', r: renderRouteProfit },
+  forecast: { title: 'Week-ahead forecast', r: renderForecast }
 };
 const NAV = [
   { items: [['home', 'Dashboard', 'home'], ['ask', 'Ask AI ✨', 'chat'], ['calendar', 'Calendar', 'cal']] },
   { h: 'ORDERS', items: [['order', 'New order', 'order'], ['orders', 'Orders', 'order'], ['inbox', 'Incoming orders', 'chat', 'inbox'], ['toqb', 'To QuickBooks', 'check', 'toqb']] },
   { h: 'CUSTOMERS', items: [['customers', 'Customers', 'people', 'late'], ['payments', 'Payments', 'card', 'pay'], ['collect', 'Collections', 'card'], ['aging', 'Collections dashboard', 'chart'], ['stmts', 'Statements by email', 'mail'], ['custprofit', 'Profit by store', 'chart'], ['lost', 'Lost items', 'alert'], ['yomtov', 'Yom Tov list', 'cal'], ['ytplan', 'Yom Tov planner', 'chart']] },
-  { h: 'SALES & MONEY', items: [['mysales', 'Salesman dashboard', 'chart'], ['storesales', 'Store sales', 'chart'], ['newlost', 'New & lost stores', 'people'], ['habits', 'Order habits', 'clock'], ['seasonality', 'Seasonality', 'chart'], ['reps', 'Sales by rep & commission', 'people'], ['finance', 'Finance', 'chart']] },
-  { h: 'PRODUCTS', items: [['items', 'Products & profit', 'chart'], ['margin', 'Margins', 'chart'], ['pricelist', 'Price list', 'order'], ['pricecheck', 'Price check', 'card'], ['pricespread', 'Price spread', 'chart']] },
-  { h: 'DELIVERIES', items: [['route', 'Deliveries', 'box'], ['stop', 'Driver', 'wheel'], ['live', 'Live trucks', 'pin'], ['loading', 'Loading', 'truck'], ['dsched', 'Delivery days', 'cal'], ['delivstats', 'Delivery stats', 'chart']] },
-  { h: 'WAREHOUSE', items: [['packnext', 'What to pack', 'clip'], ['packing', 'Packing plan', 'clip'], ['stockcover', 'Stock cover', 'box'], ['packlog', 'Pack log', 'clip'], ['packrep', 'Packing report', 'chart'], ['yield', 'Yield', 'chart']] },
+  { h: 'SALES & MONEY', items: [['mysales', 'Salesman dashboard', 'chart'], ['storesales', 'Store sales', 'chart'], ['scorecard', 'Store scorecard', 'people'], ['atrisk', 'At-risk board', 'alert'], ['crosssell', 'Cross-sell', 'chart'], ['newlost', 'New & lost stores', 'people'], ['habits', 'Order habits', 'clock'], ['seasonality', 'Seasonality', 'chart'], ['repscore', 'Salesman scorecard', 'people'], ['reps', 'Sales by rep & commission', 'people'], ['returns', 'Returns & credits', 'card'], ['finance', 'Finance', 'chart']] },
+  { h: 'PRODUCTS', items: [['prodsales', 'Product sales', 'chart'], ['winners', 'Winners & losers', 'chart'], ['items', 'Products & profit', 'chart'], ['margin', 'Margins', 'chart'], ['pricelist', 'Price list', 'order'], ['pricecheck', 'Price check', 'card'], ['pricespread', 'Price spread', 'chart']] },
+  { h: 'DELIVERIES', items: [['route', 'Deliveries', 'box'], ['stop', 'Driver', 'wheel'], ['live', 'Live trucks', 'pin'], ['loading', 'Loading', 'truck'], ['dsched', 'Delivery days', 'cal'], ['delivstats', 'Delivery stats', 'chart'], ['routeprofit', 'Route profit', 'chart']] },
+  { h: 'WAREHOUSE', items: [['packnext', 'What to pack', 'clip'], ['forecast', 'Week-ahead forecast', 'chart'], ['packing', 'Packing plan', 'clip'], ['stockcover', 'Stock cover', 'box'], ['packlog', 'Pack log', 'clip'], ['packrep', 'Packing report', 'chart'], ['yield', 'Yield', 'chart']] },
   { h: 'STOCK & BUYING', items: [['inventory', 'Inventory', 'box', 'inv'], ['reorder', 'Reorder alerts', 'alert'], ['buying', 'Buying & suppliers', 'card'], ['polist', 'All purchase orders', 'clip'], ['stockmoves', 'Stock moves', 'box']] },
   { h: 'BOOKS', items: [['expenses', 'Expenses', 'chart'], ['bank', 'Bank & deposits', 'card'], ['vendors', 'Vendors & bills', 'people'], ['salesorders', 'Sales orders & estimates', 'order'], ['journal', 'Journal entries', 'clip'], ['accounts', 'Chart of accounts', 'chart']] }
 ];
@@ -1215,8 +1570,8 @@ try { S.lang = localStorage.getItem('chuster-lang') || 'en'; } catch (e) { S.lan
 const ROLE_VIEWS = {
   Warehouse: ['ask', 'packnext', 'packing', 'stockcover', 'packlog', 'packrep', 'yield', 'inventory', 'reorder', 'loading', 'loadlist', 'calendar', 'stockmoves', 'polist'],
   Driver: ['route', 'stop', 'loading', 'loadlist', 'calendar'],
-  Sales: ['ask', 'mysales', 'customers', 'collect', 'orders', 'order', 'inbox', 'toqb', 'payments', 'yomtov', 'lost', 'pricelist', 'pricecheck', 'calendar', 'salesorders'],
-  SalesDriver: ['ask', 'mysales', 'customers', 'collect', 'orders', 'order', 'inbox', 'toqb', 'payments', 'yomtov', 'lost', 'pricelist', 'pricecheck', 'calendar', 'route', 'stop', 'loading', 'loadlist', 'salesorders']
+  Sales: ['ask', 'mysales', 'customers', 'collect', 'orders', 'order', 'inbox', 'toqb', 'payments', 'yomtov', 'lost', 'pricelist', 'pricecheck', 'calendar', 'salesorders', 'prodsales', 'scorecard', 'crosssell', 'atrisk', 'returns'],
+  SalesDriver: ['ask', 'mysales', 'customers', 'collect', 'orders', 'order', 'inbox', 'toqb', 'payments', 'yomtov', 'lost', 'pricelist', 'pricecheck', 'calendar', 'route', 'stop', 'loading', 'loadlist', 'salesorders', 'prodsales', 'scorecard', 'crosssell', 'atrisk', 'returns']
 };
 const isSales = () => S.role === 'Sales' || S.role === 'SalesDriver';
 // a salesman is locked to his own customers (the rep codes set for his name); owners/office see everyone
@@ -1224,7 +1579,7 @@ function myRepCodes() { const p = (S.repCfg && S.repCfg.people || {})[S.user]; r
 const salesLocked = () => isSales() && !!myRepCodes();
 const custMine = c => !salesLocked() || (!!c && myRepCodes().includes(c.rep || '—'));
 const custMineName = n => !salesLocked() || custMine(custByName(n));
-const allowed = v => S.role === 'Owner' ? true : S.role === 'Office' ? !['tools', 'custprofit', 'finance', 'expenses', 'bank', 'journal', 'accounts', 'margin'].includes(v) : (ROLE_VIEWS[S.role] || []).includes(v);
+const allowed = v => S.role === 'Owner' ? true : S.role === 'Office' ? !['tools', 'custprofit', 'finance', 'expenses', 'bank', 'journal', 'accounts', 'margin', 'repscore'].includes(v) : (ROLE_VIEWS[S.role] || []).includes(v);
 const roleHome = () => S.role === 'Warehouse' ? 'packnext' : S.role === 'Driver' ? 'route' : isSales() ? 'mysales' : 'home';
 const YI = { 'Dashboard': 'הויפט בלאט', 'Ask the portal': 'פרעג די אפּ', 'Ask AI': 'פרעג AI', 'Ask AI ✨': 'פרעג AI ✨', 'Ask': 'פרעג', 'Orders': 'ארדערס', 'New order': 'נייע ארדער', '+ New order': '+ נייע ארדער', 'Incoming orders': 'אריינקומענדיגע ארדערס', 'Payments': 'באצאלונגען',
   'Customers': 'קאסטומערס', 'Collections': 'איינמאנען געלט', 'Products & profit': 'פראדוקטן און פראפיט', 'Sales by rep & commission': 'סעילס לויט רעפּ', 'Sales by rep': 'סעילס לויט רעפּ', 'Yom Tov list': 'יום טוב ליסטע', 'Chanuka': 'חנוכה', 'Purim': 'פורים', 'Pesach': 'פסח', 'After Pesach': 'נאך פסח', 'Shavuos': 'שבועות', 'Rosh Hashana': 'ראש השנה', 'Yom Tov reorder list': 'יום טוב ליסטע',
@@ -4441,6 +4796,7 @@ function openPOSection() {
 const DLY = REAL && REAL.daily ? REAL.daily : null;
 Object.assign(S, { ms: { rep: S.user === 'Motty' ? 'All' : 'Dudi', range: 'days', area: 'All', end: null } });
 Object.assign(S, { ss: { range: 'month', end: null, sort: 'sales', q: '', area: 'All' }, nlTab: 'new', nlQ: '', hbTab: 'overdue', hbQ: '', mgTab: 'best', mgQ: '', dvWeeks: 8, agTab: 'worst', scTab: 'urgent', scQ: '', psTab: 'left', psQ: '' });
+Object.assign(S, { pr: { range: '30', cat: 'All', pack: 'All', brand: 'All', metric: 'sales', q: '' }, scoSel: null, scoQ: '', xsSel: null, xsQ: '', arTab: 'all', winTab: 'up', fcQ: '' });
 const addDays = (iso, n) => isoOf(isoRd(iso) + n);
 function msRange() {
   const end = S.ms.end || DLY.to; const e = isoRd(end); const R = S.ms.range;
@@ -6256,6 +6612,18 @@ document.addEventListener('click', e => {
     case 'ag-tab': S.agTab = d.v; keep(); break;
     case 'sc-tab': S.scTab = d.v; keep(); break;
     case 'ps-tab': S.psTab = d.v; keep(); break;
+    case 'pr-range': S.pr.range = d.v; keep(); break;
+    case 'pr-cat': S.pr.cat = d.v; keep(); break;
+    case 'pr-pack': S.pr.pack = d.v; keep(); break;
+    case 'pr-brand': S.pr.brand = d.v; keep(); break;
+    case 'pr-metric': S.pr.metric = d.v; keep(); break;
+    case 'sco-pick': S.scoSel = d.n; window.scrollTo(0, 0); keep(); break;
+    case 'sco-back': S.scoSel = null; keep(); break;
+    case 'xs-pick': S.xsSel = +d.n; window.scrollTo(0, 0); keep(); break;
+    case 'xs-back': S.xsSel = null; keep(); break;
+    case 'ar-tab': S.arTab = d.v; keep(); break;
+    case 'win-tab': S.winTab = d.v; keep(); break;
+    case 'go-store-prod': break;
     case 'go-item': go('items'); break;
     case 'ms-range': S.ms.range = d.v; keep(); break;
     case 'ms-area': S.ms.area = d.v; keep(); break;
@@ -6413,6 +6781,8 @@ document.addEventListener('input', e => {
   if (e.target.id === 'sc-q') { S.scQ = e.target.value; const pos = e.target.selectionStart; render(); const q = document.getElementById('sc-q'); if (q) { q.focus(); try { q.setSelectionRange(pos, pos); } catch (x) {} } return; }
   if (e.target.id === 'mg-q') { S.mgQ = e.target.value; const pos = e.target.selectionStart; render(); const q = document.getElementById('mg-q'); if (q) { q.focus(); try { q.setSelectionRange(pos, pos); } catch (x) {} } return; }
   if (e.target.id === 'hb-q') { S.hbQ = e.target.value; const pos = e.target.selectionStart; render(); const q = document.getElementById('hb-q'); if (q) { q.focus(); try { q.setSelectionRange(pos, pos); } catch (x) {} } return; }
+  { const m = { 'pr-q': () => S.pr.q = e.target.value, 'sco-q': () => S.scoQ = e.target.value, 'xs-q': () => S.xsQ = e.target.value, 'fc-q': () => S.fcQ = e.target.value }[e.target.id];
+    if (m) { m(); const id = e.target.id; const pos = e.target.selectionStart; render(); const q = document.getElementById(id); if (q) { q.focus(); try { q.setSelectionRange(pos, pos); } catch (x) {} } return; } }
   if (e.target.id === 'nl-q') { S.nlQ = e.target.value; const pos = e.target.selectionStart; render(); const q = document.getElementById('nl-q'); if (q) { q.focus(); try { q.setSelectionRange(pos, pos); } catch (x) {} } return; }
   if (e.target.id === 'ss-q') { S.ss.q = e.target.value; const pos = e.target.selectionStart; render(); const q = document.getElementById('ss-q'); if (q) { q.focus(); try { q.setSelectionRange(pos, pos); } catch (x) {} } return; }
   if (e.target.id === 'sx-test') { S.sxTest = e.target.value; return; }
