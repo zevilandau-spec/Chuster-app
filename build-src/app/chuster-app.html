@@ -5146,7 +5146,7 @@ function renderMySales() {
 // An invoice goes on the first day ON or AFTER its date when its area has the truck.
 const DSCHED_DEFAULT = { v: 3, n: 1, start: '65 Steuben St, Brooklyn, NY 11205', 0: { Monsey: 0, Monroe: 0 }, 1: { Williamsburg: 0 }, 2: { 'Boro Park': 0 }, 3: { Country: 0, 'Boro Park': 0 }, 4: { Lakewood: 0, 'Boro Park': 0 }, 5: {}, season: { Country: [7, 8] } };
 const dsFix = v => (v && v.v === 3) ? Object.assign(v, v.season ? {} : { season: { Country: [7, 8] } }, /4706 10th/.test(v.start || '') ? { start: '65 Steuben St, Brooklyn, NY 11205' } : {}) : JSON.parse(JSON.stringify(DSCHED_DEFAULT));
-Object.assign(S, { dsched: dsFix(loadLS('chuster-dsched-v1', null)), gc: loadLS('chuster-gc-v1', {}), routeBusy: '', dstat: loadLS('chuster-dstat-v1', {}), dorder: loadLS('chuster-dorder-v1', {}), dDate: null, dTruck: 0, dStop: null, dShort: {}, dDrop: {}, dStopQ: '', dSigOpen: false, dPhotos: [] });
+Object.assign(S, { dsched: dsFix(loadLS('chuster-dsched-v1', null)), gc: loadLS('chuster-gc-v1', {}), routeBusy: '', dstat: loadLS('chuster-dstat-v1', {}), dorder: loadLS('chuster-dorder-v1', {}), dDate: null, dTruck: 0, dStop: null, dShort: {}, dDrop: {}, dStopQ: '', drvShow: 'todo', dSigOpen: false, dPhotos: [] });
 (function prune() { const cut = isoOf(TODAY - 21); let ch = false; Object.keys(S.dstat).forEach(k => { if (k.slice(0, 10) < cut) { delete S.dstat[k]; ch = true; } }); if (ch) saveLS('chuster-dstat-v1', S.dstat); })();
 const saveDstat = () => { try { localStorage.setItem('chuster-dstat-v1', JSON.stringify(S.dstat)); } catch (e) { toast('This device is full. Old photos were not saved.'); } };
 const DTRUCKS = () => { const n = Math.max(1, Math.min(4, +S.dsched.n || 1)); const T = (S.trucks.length ? S.trucks : []).slice(0, n); while (T.length < n) T.push({ name: 'Truck ' + (T.length + 1) }); return T; };
@@ -5327,10 +5327,17 @@ function renderDriver() {
   <div class="chips">${T.map((tr, n) => `<button class="chip" data-act="d-truck" data-t="${n}" aria-pressed="${t === n}">${esc(tr.name)} · ${(byT[n] || []).length}</button>`).join('')}</div>
   <div class="tiles"><div class="tile"><div class="k">Stops left</div><div class="v">${left} of ${list.length}</div><div class="s">${fn(list.reduce((s, x) => s + stopCases(x.o), 0))} cases on the truck</div></div>
     ${next ? `<button class="tile good" data-act="d-open" data-k="${esc(next.k)}" style="text-align:left;font:inherit;cursor:pointer"><div class="k">Next stop</div><div class="v" style="font-size:20px">${esc(next.o.c)}</div><div class="s">${esc(fixAddr(next.c.address))} · tap to start</div></button>` : `<div class="tile good"><div class="k">All done</div><div class="v">🎉</div><div class="s">Send your day to the office</div></div>`}</div>
-  <section class="card" style="padding:8px 14px">${list.map((x, k) => `<div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px;border-top:${k ? '1px solid var(--line)' : 'none'};padding:10px 0">
-    <span class="icode stopn" style="background:${x.st.st ? 'var(--good)' : 'var(--brand)'}">${x.st.st ? '✓' : k + 1}</span>
-    <button data-act="d-open" data-k="${esc(x.k)}" style="flex:1 1 220px;min-width:0;text-align:left;background:none;border:none;font:inherit;color:inherit;cursor:pointer;padding:0"><b>${esc(x.o.c)}</b><span style="display:block;font-size:13px;color:var(--muted)">${esc(fixAddr(x.c.address))} · ${fn(stopCases(x.o))} cases</span></button>
-    <span style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-left:auto">${stTag(x.st)}${!x.st.st && smsHref(x.c.phone, '') ? `<a class="btn ghost sm" href="${esc(smsHref(x.c.phone, onWayTxt()))}" aria-label="Text ${esc(x.o.c)} that the truck is on the way">💬</a>` : ''}${x.c.address ? `<a class="btn ghost sm" href="${esc(mapsHref(fixAddr(x.c.address)))}" target="_blank" rel="noopener">Maps</a><a class="btn ghost sm" href="${esc(wazeHref(fixAddr(x.c.address)))}" target="_blank" rel="noopener">Waze</a>` : ''}</span></div>`).join('') || '<p class="sub">No stops for this truck today.</p>'}</section>`;
+  ${(() => {
+    const todoL = list.filter(x => !x.st.st); const doneL = list.filter(x => x.st.st);
+    const view = S.drvShow === 'done' ? doneL : todoL;
+    const toggle = `<div class="dlv-toggle"><button class="${S.drvShow !== 'done' ? 'on' : ''}" data-act="drv-show" data-v="todo">To deliver · ${todoL.length}</button><button class="${S.drvShow === 'done' ? 'on' : ''}" data-act="drv-show" data-v="done">Delivered · ${doneL.length}</button></div>`;
+    const rows = view.map(x => { const k = list.indexOf(x);
+      return `<div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px;border-top:1px solid var(--line);padding:10px 0">
+      <span class="icode stopn" style="background:${x.st.st ? 'var(--good)' : 'var(--brand)'}">${x.st.st ? '✓' : k + 1}</span>
+      <button data-act="d-open" data-k="${esc(x.k)}" style="flex:1 1 220px;min-width:0;text-align:left;background:none;border:none;font:inherit;color:inherit;cursor:pointer;padding:0"><b>${esc(x.o.c)}</b><span style="display:block;font-size:13px;color:var(--muted)">${esc(fixAddr(x.c.address))} · ${fn(stopCases(x.o))} cases</span></button>
+      <span style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-left:auto">${stTag(x.st)}${!x.st.st && smsHref(x.c.phone, '') ? `<a class="btn ghost sm" href="${esc(smsHref(x.c.phone, onWayTxt()))}" aria-label="Text ${esc(x.o.c)} that the truck is on the way">💬</a>` : ''}${x.c.address ? `<a class="btn ghost sm" href="${esc(mapsHref(fixAddr(x.c.address)))}" target="_blank" rel="noopener">Maps</a><a class="btn ghost sm" href="${esc(wazeHref(fixAddr(x.c.address)))}" target="_blank" rel="noopener">Waze</a>` : ''}</span></div>`; }).join('');
+    return `${toggle}<section class="card" style="padding:8px 14px;margin-top:12px">${rows || `<p class="sub" style="margin:0">${S.drvShow === 'done' ? 'Nothing delivered yet.' : list.length ? 'All stops delivered. 🎉' : 'No stops for this truck today.'}</p>`}</section>`;
+  })()}`;
 }
 function driverStop(x, list) {
   const st = x.st;
@@ -6853,6 +6860,7 @@ document.addEventListener('click', e => {
     case 'd-drop-all': { const n = d.n; const q = +d.q || 0; if ((S.dDrop[n] || 0) >= q) delete S.dDrop[n]; else S.dDrop[n] = q; keep(); break; }
     case 'd-drop-grp': { const x = Object.values(dayStops(S.dDate)).flat().find(y => y.k === S.dStop); if (!x) break; const on = d.on === '1'; (d.ns || '').split(',').filter(s => s !== '').forEach(s => { const n = +s; const q = Math.round(Math.abs((x.o.l[n] || [])[1] || 0)); if (on && q) S.dDrop[n] = q; else delete S.dDrop[n]; }); keep(); break; }
     case 'd-drop-reset': S.dDrop = {}; keep(); break;
+    case 'drv-show': S.drvShow = d.v; keep(); break;
     case 'd-back': S.dStop = null; keep(); break;
     case 'd-truck': S.dTruck = +d.t; S.dStop = null; keep(); break;
     case 'd-sh': { const n = d.n; const v = Math.max(0, Math.min(+d.max || 1e9, (S.dShort[n] || 0) + +d.d)); if (v) S.dShort[n] = v; else delete S.dShort[n]; keep(); break; }
