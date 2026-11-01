@@ -4237,7 +4237,7 @@ const waNum = ph => { const d = (ph || '').replace(/\D/g, ''); return d.length =
 /* ---------- Collections ---------- */
 function colRows() {
   const today = todayIso();
-  let list = REAL.customers.filter(c => pastDue(c) > 1).map(c => {
+  let list = REAL.customers.filter(c => pastDue(c) > 1 && custMine(c)).map(c => {
     const n = S.col[c.name] || {};
     const over60 = Math.max(0, c.aging[3] + c.aging[4]), over90 = Math.max(0, c.aging[4]);
     const oldest = c.open.filter(isPast).map(o => o.date).sort((a, b) => mdy(a) - mdy(b))[0] || null;
