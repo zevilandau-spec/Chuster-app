@@ -5146,7 +5146,7 @@ function renderMySales() {
 // An invoice goes on the first day ON or AFTER its date when its area has the truck.
 const DSCHED_DEFAULT = { v: 3, n: 1, start: '65 Steuben St, Brooklyn, NY 11205', 0: { Monsey: 0, Monroe: 0 }, 1: { Williamsburg: 0 }, 2: { 'Boro Park': 0 }, 3: { Country: 0, 'Boro Park': 0 }, 4: { Lakewood: 0, 'Boro Park': 0 }, 5: {}, season: { Country: [7, 8] } };
 const dsFix = v => (v && v.v === 3) ? Object.assign(v, v.season ? {} : { season: { Country: [7, 8] } }, /4706 10th/.test(v.start || '') ? { start: '65 Steuben St, Brooklyn, NY 11205' } : {}) : JSON.parse(JSON.stringify(DSCHED_DEFAULT));
-Object.assign(S, { dsched: dsFix(loadLS('chuster-dsched-v1', null)), gc: loadLS('chuster-gc-v1', {}), routeBusy: '', dstat: loadLS('chuster-dstat-v1', {}), dorder: loadLS('chuster-dorder-v1', {}), dDate: null, dTruck: 0, dStop: null, dShort: {}, dDrop: {}, dStopQ: '', drvShow: 'todo', dSigOpen: false, dPhotos: [] });
+Object.assign(S, { dsched: dsFix(loadLS('chuster-dsched-v1', null)), gc: loadLS('chuster-gc-v1', {}), routeBusy: '', dstat: loadLS('chuster-dstat-v1', {}), dorder: loadLS('chuster-dorder-v1', {}), dDate: null, dTruck: 0, dStop: null, dShort: {}, dDrop: {}, dStopQ: '', drvShow: 'todo', autoRoute: {}, dSigOpen: false, dPhotos: [] });
 (function prune() { const cut = isoOf(TODAY - 21); let ch = false; Object.keys(S.dstat).forEach(k => { if (k.slice(0, 10) < cut) { delete S.dstat[k]; ch = true; } }); if (ch) saveLS('chuster-dstat-v1', S.dstat); })();
 const saveDstat = () => { try { localStorage.setItem('chuster-dstat-v1', JSON.stringify(S.dstat)); } catch (e) { toast('This device is full. Old photos were not saved.'); } };
 const DTRUCKS = () => { const n = Math.max(1, Math.min(4, +S.dsched.n || 1)); const T = (S.trucks.length ? S.trucks : []).slice(0, n); while (T.length < n) T.push({ name: 'Truck ' + (T.length + 1) }); return T; };
@@ -5218,7 +5218,7 @@ function bestOrder(start, pts) { // nearest stop first, then untangle crossings 
     for (let i = 0; i < n - 1; i++) for (let k = i + 1; k < n; k++) { const o2 = ord.slice(0, i).concat(ord.slice(i, k + 1).reverse(), ord.slice(k + 1)); const l2 = len(o2); if (l2 < best - 0.01) { ord.splice(0, n, ...o2); best = l2; better = true; } } }
   return ord;
 }
-async function routeBest(date, t) {
+async function routeBest(date, t, silent) {
   const list = (dayStops(date)[t] || []); if (!list.length) return;
   try {
     const start = S.dsched.start || DSCHED_DEFAULT.start;
@@ -5230,10 +5230,13 @@ async function routeBest(date, t) {
     const L = done.map(x => x.o.n).concat(ord.map(i => todo[i].o.n), noP.map(x => x.o.n));
     S.dorder[`${date}|${t}`] = L; saveLS('chuster-dorder-v1', S.dorder); SYNC.put('do', `${date}|${t}`, L);
     const km = ord.reduce((s2, j, k) => s2 + kmBetween(k ? S.gc[gcKey(todo[ord[k - 1]].c.address)] : sp, S.gc[gcKey(todo[j].c.address)]), 0);
-    toast(`Stops put in the shortest order (about ${Math.round(km * 0.621)} miles).${noP.length ? ` ${noP.length} address${noP.length > 1 ? 'es were' : ' was'} not found and went to the end.` : ''}`);
-  } catch (e) { toast('Could not make the route: ' + (e.message || e)); }
+    if (!silent) toast(`Stops put in the shortest order (about ${Math.round(km * 0.621)} miles).${noP.length ? ` ${noP.length} address${noP.length > 1 ? 'es were' : ' was'} not found and went to the end.` : ''}`);
+  } catch (e) { if (!silent) toast('Could not make the route: ' + (e.message || e)); }
   S.routeBusy = ''; render();
 }
+// Google Maps directions for one leg (origin = the phone's location)
+function navLegHref(stops) { const A = stops.filter(x => x.c.address).map(x => fixAddr(x.c.address)); if (!A.length) return ''; const dest = A[A.length - 1]; const w = A.slice(0, -1);
+  return 'https://www.google.com/maps/dir/?api=1&travelmode=driving&destination=' + encodeURIComponent(dest) + (w.length ? '&waypoints=' + encodeURIComponent(w.join('|')) : ''); }
 // Google Maps with up to 9 stops at once (its limit); starts from where the phone is
 function navHref(list) { const A = list.filter(x => !x.st.st && x.c.address).slice(0, 10).map(x => fixAddr(x.c.address)); if (!A.length) return ''; const dest = A[A.length - 1]; const w = A.slice(0, -1);
   return 'https://www.google.com/maps/dir/?api=1&travelmode=driving&destination=' + encodeURIComponent(dest) + (w.length ? '&waypoints=' + encodeURIComponent(w.join('|')) : ''); }
@@ -5315,15 +5318,23 @@ function renderDriver() {
   if (!REAL) return renderStop();
   pickDate(); const date = S.dDate; const byT = dayStops(date); const T = DTRUCKS(); const t = Math.min(S.dTruck, T.length - 1); const list = byT[t] || [];
   if (S.dStop) { const x = Object.values(byT).flat().find(y => y.k === S.dStop); if (x) return driverStop(x, list); S.dStop = null; }
+  // auto best order once per truck/day (instant when addresses are already on the map)
+  const dk = `${date}|${t}`;
+  if (list.length > 1 && !S.dorder[dk] && !S.autoRoute[dk] && !S.routeBusy) { S.autoRoute[dk] = 1; setTimeout(() => routeBest(date, t, true), 30); }
   const next = list.find(x => !x.st.st);
   const left = list.filter(x => !x.st.st).length;
-  const nav = navHref(list); const nsms = next ? smsHref(next.c.phone, onWayTxt()) : '';
+  const nsms = next ? smsHref(next.c.phone, onWayTxt()) : '';
+  const undel = list.filter(x => !x.st.st && x.c.address);
+  const legs = []; for (let i = 0; i < undel.length; i += 9) legs.push(undel.slice(i, i + 9));
+  const legBtns = legs.map((leg, g) => { const from = g * 9 + 1, to = g * 9 + leg.length; const href = navLegHref(leg);
+    return `<a class="btn ${g === 0 ? 'primary' : 'ghost'}" href="${esc(href)}" target="_blank" rel="noopener">${g === 0 ? '▶ Start in Google Maps' : '→ Continue'}${legs.length > 1 ? ` · stops ${from}-${to}` : ''}</a>`; }).join('');
   return `${head('Driver', `${fmtLong(isoRd(date))} · ${esc(T[t].name)}`, `<button class="btn good" data-act="d-send">Send my day to the office</button>`)}
   <section class="card" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:10px 14px">
-    ${nav ? `<a class="btn primary" href="${esc(nav)}" target="_blank" rel="noopener">▶ Start route in Google Maps${left > 10 ? ' (next 10 stops)' : ''}</a>` : ''}
+    ${legBtns || '<span class="sub" style="margin:0">No stops with an address to navigate.</span>'}
     ${nsms ? `<a class="btn gold" href="${esc(nsms)}">💬 Text ${esc(next.o.c)}: on the way</a>` : ''}
-    <button class="btn ghost" data-act="r-best" data-t="${t}"${S.routeBusy ? ' disabled' : ''}>${S.routeBusy ? esc(S.routeBusy) : '🧭 Shortest order'}</button>
+    <button class="btn ghost" data-act="r-best" data-t="${t}"${S.routeBusy ? ' disabled' : ''}>${S.routeBusy ? esc(S.routeBusy) : '🧭 Re-sort shortest'}</button>
   </section>
+  ${legs.length > 1 ? `<p class="sub" style="margin:0">Google Maps fits about 9 stops at a time. Drive the first 9 in order, then tap <b>Continue</b> for the next 9.</p>` : ''}
   <div class="chips">${T.map((tr, n) => `<button class="chip" data-act="d-truck" data-t="${n}" aria-pressed="${t === n}">${esc(tr.name)} · ${(byT[n] || []).length}</button>`).join('')}</div>
   <div class="tiles"><div class="tile"><div class="k">Stops left</div><div class="v">${left} of ${list.length}</div><div class="s">${fn(list.reduce((s, x) => s + stopCases(x.o), 0))} cases on the truck</div></div>
     ${next ? `<button class="tile good" data-act="d-open" data-k="${esc(next.k)}" style="text-align:left;font:inherit;cursor:pointer"><div class="k">Next stop</div><div class="v" style="font-size:20px">${esc(next.o.c)}</div><div class="s">${esc(fixAddr(next.c.address))} · tap to start</div></button>` : `<div class="tile good"><div class="k">All done</div><div class="v">🎉</div><div class="s">Send your day to the office</div></div>`}</div>
