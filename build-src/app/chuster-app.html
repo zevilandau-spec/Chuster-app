@@ -836,6 +836,41 @@ main { padding-block: 14px 32px; }
 .of-x { flex: none; width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--line); background: var(--surface-2); font-size: 18px; line-height: 1; cursor: pointer; color: inherit; margin-left: auto; }
 .to-top { position: fixed; right: max(16px, env(safe-area-inset-right,0px)); bottom: calc(84px + env(safe-area-inset-bottom,0px)); z-index: 30; width: 46px; height: 46px; border-radius: 50%; border: none; background: var(--brand, #22409A); color: #fff; font-size: 20px; box-shadow: 0 6px 16px rgba(0,0,0,.25); cursor: pointer; display: none; }
 .to-top.show { display: block; }
+/* clean deliveries list */
+.dlv-toggle { display: flex; gap: 10px; }
+.dlv-toggle button { flex: 1; padding: 13px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); font: inherit; font-weight: 800; font-size: 15px; cursor: pointer; color: var(--muted); }
+.dlv-toggle button.on { background: var(--brand, #22409A); color: #fff; border-color: var(--brand, #22409A); }
+.dlv-count { font-size: 13px; color: var(--muted); font-weight: 700; }
+.dlv-count b { color: var(--fg); }
+.dlv-list { display: flex; flex-direction: column; gap: 10px; }
+.dlv-card { display: flex; align-items: center; gap: 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; }
+.dlv-main { flex: 1; min-width: 0; }
+.dlv-name { font-weight: 800; font-size: 16px; line-height: 1.2; }
+.dlv-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
+.dlv-inv { color: var(--brand, #22409A); font-weight: 800; font-size: 13px; }
+.dlv-box { display: inline-flex; align-items: center; gap: 5px; background: var(--surface-2); border-radius: 7px; padding: 2px 9px; font-size: 12px; font-weight: 800; }
+.dlv-chip { border-radius: 999px; padding: 2px 11px; font-size: 12px; font-weight: 800; background: var(--ct-gold-bg); color: var(--ct-gold); }
+.dlv-area { display: inline-block; margin-top: 8px; font-size: 11px; font-weight: 800; letter-spacing: .05em; padding: 4px 11px; border-radius: 8px; background: var(--ct-blue-bg); color: var(--ct-blue); }
+.dlv-acts { display: flex; gap: 8px; flex: none; }
+.dlv-btn { width: 50px; height: 50px; border-radius: 13px; border: 1px solid var(--line); background: var(--surface); display: grid; place-items: center; cursor: pointer; color: var(--good-text); }
+.dlv-btn svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 2.2; }
+.dlv-btn.done { background: var(--good); color: #fff; border-color: var(--good); }
+.dlv-tsel { font-size: 12px; color: var(--muted); border: 1px solid var(--line); border-radius: 8px; padding: 4px 6px; background: var(--surface); margin-top: 8px; }
+.dlv-addr { font-size: 13px; color: var(--muted); margin-top: 2px; line-height: 1.3; }
+.dlv-chip.pallet { background: var(--ct-blue-bg); color: var(--ct-blue); }
+.dlv-btn.ph { color: var(--brand, #22409A); }
+.dlv-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.dlv-date { display: inline-flex; align-items: center; gap: 6px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; font: inherit; font-weight: 800; cursor: pointer; color: inherit; }
+.dlv-srow { display: flex; align-items: center; gap: 10px 14px; flex-wrap: wrap; }
+.dlv-srow .field { flex: 1 1 200px; margin: 0; }
+.dlv-srow .dlv-count { flex: 0 0 auto; margin-left: auto; white-space: nowrap; }
+.dday-back { position: fixed; inset: 0; z-index: 60; background: rgba(0,0,0,.35); display: grid; place-items: center; padding: 20px; }
+.dday-box { background: var(--surface); border-radius: 18px; padding: 22px; width: min(380px, 100%); box-shadow: 0 20px 50px rgba(0,0,0,.3); }
+.dday-box h2 { margin: 0 0 16px; }
+.dday-opts { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+.dday-opts button { flex: 1; min-width: 90px; padding: 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface-2); font: inherit; font-weight: 800; cursor: pointer; color: inherit; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+.dday-opts button.on { border-color: var(--brand, #22409A); color: var(--brand, #22409A); background: var(--ct-blue-bg); }
+.dday-cancel { display: block; margin: 18px auto 0; background: none; border: none; font: inherit; font-weight: 800; color: var(--muted); cursor: pointer; }
 </style>
 
 <div class="app" id="app">
@@ -5201,33 +5236,68 @@ const wazeHref = addr => 'https://waze.com/ul?navigate=yes&q=' + encodeURICompon
 const stTag = st => st.st === 'done' ? `<span class="tag green">✓ Delivered ${st.at ? st.at.slice(11, 16) : ''}</span>` : st.st === 'partial' ? `<span class="tag gold">Delivered, ${st.shortN || 'some'} short</span>` : st.st === 'skip' ? `<span class="tag red">Not delivered</span>` : `<span class="tag grey">Not delivered yet</span>`;
 const fixAddr = a => String(a || '').replace(/,\s*,/g, ',');
 function pickDate() { const days = delivDays(); if (!S.dDate || !days.includes(S.dDate)) { const t = isoOf(TODAY); S.dDate = days.find(d => d <= t) || days[0]; } return days; }
+Object.assign(S, { dTruckF: null, dShow: 'todo', dQ: '', dDayPop: false, dDayCal: false });
+const SVG_CAR = '<svg viewBox="0 0 24 24"><path d="M5 11l1.5-4.5A2 2 0 0 1 8.4 5h7.2a2 2 0 0 1 1.9 1.5L19 11M4 11h16v5H4zM7 16v1.5M17 16v1.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="7.5" cy="14" r="1"/><circle cx="16.5" cy="14" r="1"/></svg>';
+const SVG_CHK = '<svg viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+const SVG_PHONE = '<svg viewBox="0 0 24 24"><path d="M5 4h3l2 5-2.5 1.5a11 11 0 0 0 5 5L14 13l5 2v3a2 2 0 0 1-2.2 2A16 16 0 0 1 3 6.2 2 2 0 0 1 5 4z" stroke-linejoin="round"/></svg>';
+// calendar grid for the delivery-day popup (picks S.dDate)
+function dayGrid(selIso) {
+  const anchor = S.shipCalM || selIso; const a = dateOf(isoRd(anchor)); const y = a.getFullYear(), m = a.getMonth();
+  const first = RD(y, m + 1, 1); const start = first - dow(first); let cells = '';
+  for (let i = 0; i < 42; i++) { const rd = start + i; const dd = dateOf(rd);
+    if (dd.getMonth() !== m || dd.getFullYear() !== y) { cells += '<span class="cal-x"></span>'; continue; }
+    const sel = isoOf(rd) === selIso; cells += `<button type="button" class="cal-d${sel ? ' sel' : ''}" data-act="d-setday" data-d="${isoOf(rd)}">${dd.getDate()}</button>`;
+  }
+  return `<div class="cal-pop" style="position:static;width:auto;box-shadow:none;border:none;padding:8px 0 0">
+    <div class="cal-head"><span>${MONS[m].toUpperCase()} ${y}</span><span style="display:flex;gap:6px"><button type="button" data-act="ship-mon" data-d="-1" aria-label="Previous month">‹</button><button type="button" data-act="ship-mon" data-d="1" aria-label="Next month">›</button></span></div>
+    <div class="cal-wd"><span>S</span><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span></div>
+    <div class="cal-grid">${cells}</div></div>`;
+}
+function dlvCounts(o) { let cases = 0, loose = 0; (o.l || []).forEach(([ref, q]) => { if (!(q > 0) || typeof ref !== 'number') return; const c = REAL.catalog[ref]; if (!c) return; if (/loose/i.test(c.group || '')) loose += q; else cases += q; }); return { total: cases + loose, cases, loose }; }
 function renderDeliveries() {
   if (!REAL) return renderRoute();
   const days = pickDate(); const date = S.dDate; const byT = dayStops(date); const T = DTRUCKS();
-  const all = Object.values(byT).flat(); const onT = all.filter(x => x.st.truck != null ? x.st.truck >= 0 : truckFor(date, x.area) >= 0 || (x.st.truck != null && x.st.truck >= 0));
-  const done = all.filter(x => x.st.st === 'done' || x.st.st === 'partial').length;
+  const all = Object.values(byT).flat();
   const i = days.indexOf(date);
-  const col = (t, label, list) => `<section class="card stack" style="gap:6px"><div class="card-head" style="margin:0"><h2>${esc(label)}</h2>${t >= 0 && list.length > 1 ? `<button class="btn ghost sm" data-act="r-best" data-t="${t}"${S.routeBusy ? ' disabled' : ''}>${S.routeBusy ? esc(S.routeBusy) : '🧭 Shortest order'}</button>` : ''}<span class="sub" style="margin:0">${list.length} stops · ${fn(list.reduce((s, x) => s + stopCases(x.o), 0))} cases · ${list.filter(x => stopReady(date, x)).length} loaded · ${list.filter(x => x.st.st === 'done' || x.st.st === 'partial').length} delivered</span></div>
-    ${list.map((x, k) => `<div class="irow ${areaCls(x.area)}${x.st.st ? '' : ' on'}" style="margin-top:0">
-      <span class="icode stopn">${k + 1}</span>
-      <div class="main"><div class="name" style="font-size:14px"><a href="#stop" data-act="d-open" data-k="${esc(x.k)}" style="color:inherit">${esc(x.o.c)}</a></div><div class="meta">${esc(x.area)} · ${esc(fixAddr(x.c.address) || 'no address')} · #${esc(x.o.label || x.o.n)} · ${fn(stopCases(x.o))} cases · ${fm(x.o.a)}</div></div>
-      ${readyTag(date, x)}${stTag(x.st)}${x.st.st && (x.st.proof || x.st.sig) ? `<button class="btn ghost sm" data-act="d-proof" data-k="${esc(x.k)}">Proof</button>` : ''}
-      <span style="display:flex;gap:4px">${t >= 0 ? `<button class="btn ghost sm" data-act="d-move" data-k="${esc(x.k)}" data-t="${t}" data-dir="-1" aria-label="Move up"${k ? '' : ' disabled'}>↑</button><button class="btn ghost sm" data-act="d-move" data-k="${esc(x.k)}" data-t="${t}" data-dir="1" aria-label="Move down"${k < list.length - 1 ? '' : ' disabled'}>↓</button>` : ''}
-        <select class="sel d-truck" data-k="${esc(x.k)}" style="width:auto;min-height:36px" aria-label="Truck for ${esc(x.o.c)}">${T.map((tr, n) => `<option value="${n}"${n === t ? ' selected' : ''}>${esc(tr.name)}</option>`).join('')}<option value="-1"${t < 0 ? ' selected' : ''}>Pick up / not on a truck</option></select></span></div>`).join('') || '<p class="sub" style="margin:0">No stops.</p>'}</section>`;
-  const sched = S.dsched[dow(isoRd(date))] || {};
-  return `${head('Deliveries', `${fmtLong(isoRd(date))} · ${hebStr(isoRd(date), false)} · from your QuickBooks invoices`, `<button class="btn ghost" data-act="d-day" data-d="${days[i + 1] || ''}"${days[i + 1] ? '' : ' disabled'}>‹ Day before</button><button class="btn ghost" data-act="d-day" data-d="${days[i - 1] || ''}"${i > 0 ? '' : ' disabled'}>Next day ›</button><a class="btn ghost" href="#dsched" data-go="dsched">Delivery days</a><button class="btn gold" data-act="d-report">Daily report PDF</button>`)}
-  <div class="tiles">
-    <div class="tile"><div class="k">Stops on trucks</div><div class="v">${onT.length}</div><div class="s">${T.map((tr, n) => `${esc(tr.name)} ${(byT[n] || []).length}`).join(' · ')}</div></div>
-    <div class="tile ${onT.length && onT.every(x => stopReady(date, x)) ? 'good' : ''}"><div class="k">Loaded, ready to go</div><div class="v">${onT.filter(x => stopReady(date, x)).length} of ${onT.length}</div><div class="s"><a href="#loadlist" data-go="loadlist">loading list</a></div></div>
-    <div class="tile ${done && done >= onT.length ? 'good' : ''}"><div class="k">Delivered</div><div class="v">${done} of ${onT.length}</div><div class="s">${all.filter(x => x.st.st === 'partial').length} with something short</div></div>
-    <div class="tile"><div class="k">Cases</div><div class="v">${fn(onT.reduce((s, x) => s + stopCases(x.o), 0))}</div><div class="s">${fm(onT.reduce((s, x) => s + x.o.a, 0))} in invoices</div></div>
-    <div class="tile"><div class="k">This ${WD[dow(isoRd(date))]}</div><div class="v" style="font-size:18px">${T.map((tr, n) => `${esc(tr.name)}: ${Object.keys(sched).filter(a => +sched[a] === n).join(', ') || '—'}`).join('<br>')}</div><div class="s"><a href="#dsched" data-go="dsched">change the schedule</a></div></div>
+  const tf = S.dTruckF;
+  const shown = tf == null ? all : (byT[tf] || []);
+  const isDone = x => x.st.st === 'done' || x.st.st === 'partial' || x.st.st === 'skip';
+  const todo = shown.filter(x => !isDone(x)); const doneL = shown.filter(isDone);
+  const view0 = S.dShow === 'done' ? doneL : todo;
+  const q = (S.dQ || '').trim().toLowerCase();
+  const view = q ? view0.filter(x => (x.o.c + ' ' + x.area + ' ' + (x.o.label || x.o.n)).toLowerCase().includes(q)) : view0;
+  const boxes = view.reduce((s, x) => s + stopCases(x.o), 0);
+  const truckOf = x => { for (const t in byT) if (byT[t].some(y => y.k === x.k)) return +t; return -1; };
+  const tchip = (val, label, n) => `<button class="chip" data-act="d-truckf" data-v="${val}" aria-pressed="${(val === 'all' ? tf == null : +val === tf)}">${esc(label)}${n != null ? ' · ' + n : ''}</button>`;
+  const card = x => { const ct = dlvCounts(x.o); const dn = isDone(x); const t = truckOf(x); const addr = fixAddr(x.c.address);
+    return `<div class="dlv-card">
+      <div class="dlv-main">
+        <div class="dlv-name">${esc(x.o.c)}</div>
+        ${addr ? `<div class="dlv-addr">${esc(addr)}</div>` : ''}
+        <div class="dlv-row"><span class="dlv-inv">#${esc(x.o.label || x.o.n)}</span>${ct.total > 0 ? `<span class="dlv-box">▣ ${fn(ct.total)}</span>` : `<span class="dlv-box">${fm(x.o.a)}</span>`}${ct.loose > 0 ? `<span class="dlv-chip pallet">Pallet ${fn(ct.loose)}</span>` : ''}${ct.cases > 0 ? `<span class="dlv-chip">Cases ${fn(ct.cases)}</span>` : ''}<span class="dlv-area">${esc((x.area || 'Other').toUpperCase())}</span></div>
+        ${dn ? '<div style="margin-top:6px">' + stTag(x.st) + '</div>' : ''}
+        ${tf == null ? `<select class="sel d-truck dlv-tsel" data-k="${esc(x.k)}" aria-label="Truck for ${esc(x.o.c)}">${T.map((tr, n) => `<option value="${n}"${n === t ? ' selected' : ''}>${esc(tr.name)}</option>`).join('')}<option value="-1"${t < 0 ? ' selected' : ''}>Pick up</option></select>` : ''}
+      </div>
+      <div class="dlv-acts">
+        ${x.c.phone ? `<a class="dlv-btn ph" href="${telHref(x.c.phone)}" aria-label="Call ${esc(x.o.c)}" onclick="event.stopPropagation()">${SVG_PHONE}</a>` : ''}
+        <button class="dlv-btn" data-act="d-open" data-k="${esc(x.k)}" aria-label="Open ${esc(x.o.c)}">${SVG_CAR}</button>
+        <button class="dlv-btn${dn ? ' done' : ''}" data-act="${dn ? 'd-undo' : 'd-done-quick'}" data-k="${esc(x.k)}" aria-label="${dn ? 'Undo' : 'Mark delivered'}">${SVG_CHK}</button>
+      </div>
+    </div>`; };
+  const dayPop = S.dDayPop ? `<div class="dday-back" data-act="d-daypop" data-v="close"><div class="dday-box" data-act="dday-noop"><h2>Delivery day</h2>
+    <div class="dday-opts"><button class="${date === isoOf(TODAY) ? 'on' : ''}" data-act="d-setday" data-d="${isoOf(TODAY)}">Today</button><button class="${date === isoOf(TODAY + 1) ? 'on' : ''}" data-act="d-setday" data-d="${isoOf(TODAY + 1)}">Tomorrow</button><button data-act="d-daycal">${ic('cal')} Pick</button></div>
+    ${S.dDayCal ? dayGrid(date) : ''}
+    <button class="dday-cancel" data-act="d-daypop" data-v="close">Cancel</button></div></div>` : '';
+  return `${head('Deliveries', `${hebStr(isoRd(date), false)}`, `<a class="btn ghost" href="#dsched" data-go="dsched">Delivery days</a><button class="btn gold" data-act="d-report">Daily report PDF</button>`)}
+  <div class="stack" style="gap:12px">
+    <div class="dlv-head"><button class="dlv-date" data-act="d-daypop" data-v="open">${fmtLong(isoRd(date))} <span aria-hidden="true">▾</span></button><button class="btn ghost sm" data-act="d-day" data-d="${days[i + 1] || ''}"${days[i + 1] ? '' : ' disabled'} aria-label="Day before">‹</button><button class="btn ghost sm" data-act="d-day" data-d="${days[i - 1] || ''}"${i > 0 ? '' : ' disabled'} aria-label="Next day">›</button>${tf != null && tf >= 0 && todo.length > 1 ? `<button class="btn ghost sm" data-act="r-best" data-t="${tf}"${S.routeBusy ? ' disabled' : ''}>${S.routeBusy ? esc(S.routeBusy) : '🧭 Shortest'}</button>` : ''}</div>
+    <div class="chips">${tchip('all', 'All trucks', all.length)}${T.map((tr, n) => tchip(String(n), tr.name, (byT[n] || []).length)).join('')}${byT[-1] && byT[-1].length ? tchip('-1', 'Pick up', byT[-1].length) : ''}</div>
+    <div class="dlv-toggle"><button class="${S.dShow !== 'done' ? 'on' : ''}" data-act="d-show" data-v="todo">To deliver · ${todo.length}</button><button class="${S.dShow === 'done' ? 'on' : ''}" data-act="d-show" data-v="done">Delivered · ${doneL.length}</button></div>
+    <div class="dlv-srow"><div class="field">${ic('search')}<label class="sr" for="d-q">Find a stop</label><input id="d-q" value="${esc(S.dQ || '')}" placeholder="Find a stop" autocomplete="off"></div><div class="dlv-count"><b>${fn(boxes)}</b> boxes · <b>${view.length}</b> stops</div></div>
+    <div class="dlv-list">${view.map(card).join('') || `<p class="sub" style="margin:0">${S.dShow === 'done' ? 'Nothing delivered yet.' : 'All stops delivered. 🎉'}</p>`}</div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">${SYNC.pillHtml()}</div>
   </div>
-  <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">${SYNC.pillHtml()}</div>
-  ${proofCard()}
-  <p class="sub" style="margin:0">Stops are the invoices dated this day, put on a truck by area. Change a stop's truck with its menu and its order with ↑ ↓. The warehouse marks stops loaded on the Loading list, drivers mark them delivered on the Driver screen${SYNC.ready() ? ', and every phone sees it within a few seconds' : '. Until the shared database is set up, status stays on the phone where it was marked'}.</p>
-  <div class="split even">${T.map((tr, n) => col(n, tr.name + (tr.driver ? ' · ' + tr.driver : ''), byT[n] || [])).join('')}</div>
-  ${byT[-1] && byT[-1].length ? col(-1, 'Pick up / not on a truck', byT[-1]) : ''}`;
+  ${proofCard()}${dayPop}`;
 }
 /* ---- driver ---- */
 function renderDriver() {
@@ -6728,6 +6798,13 @@ document.addEventListener('click', e => {
     case 'fin-per': S.finPer = d.p; keep(); break;
     case 'fin-all': S.finAll = !S.finAll; keep(); break;
     case 'd-day': if (d.d) { S.dDate = d.d; keep(); } break;
+    case 'd-truckf': S.dTruckF = d.v === 'all' ? null : +d.v; keep(); break;
+    case 'dday-noop': break;
+    case 'd-daypop': S.dDayPop = d.v === 'open'; S.dDayCal = false; keep(); break;
+    case 'd-daycal': S.dDayCal = !S.dDayCal; S.shipCalM = S.dDate; keep(); break;
+    case 'd-setday': S.dDate = d.d; S.dDayPop = false; S.dDayCal = false; keep(); break;
+    case 'd-show': S.dShow = d.v; keep(); break;
+    case 'd-done-quick': { const x = Object.values(dayStops(S.dDate)).flat().find(y => y.k === d.k); if (!x) break; const now = new Date(); const at = isoOf(TODAY) + 'T' + String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0'); S.dstat[d.k] = Object.assign({}, S.dstat[d.k] || {}, { st: 'done', at, shortN: 0, shortTxt: '', shorts: [], note: '' }); saveDstat(); dsShare(d.k); toast(x.o.c + ' marked delivered.'); keep(); break; }
     case 'd-move': { const t = +d.t; const L = (dayStops(S.dDate)[t] || []).map(x => x.o.n); const k = L.indexOf(d.k.split('|')[1]); const j = k + (+d.dir); if (k < 0 || j < 0 || j >= L.length) break; [L[k], L[j]] = [L[j], L[k]]; S.dorder[`${S.dDate}|${t}`] = L; saveLS('chuster-dorder-v1', S.dorder); SYNC.put('do', `${S.dDate}|${t}`, L); keep(); break; }
     case 'd-open': { S.dStop = d.k; S.dShort = {}; S.proof = { photos: [], sig: null }; const dd = d.k.split('|')[0]; S.dDate = dd; const bt = dayStops(dd); Object.keys(bt).forEach(t => { if (bt[t].some(x => x.k === d.k) && +t >= 0) S.dTruck = +t; }); go('stop'); break; }
     case 'd-back': S.dStop = null; keep(); break;
@@ -6835,7 +6912,7 @@ document.addEventListener('input', e => {
   if (e.target.id === 'sc-q') { S.scQ = e.target.value; const pos = e.target.selectionStart; render(); const q = document.getElementById('sc-q'); if (q) { q.focus(); try { q.setSelectionRange(pos, pos); } catch (x) {} } return; }
   if (e.target.id === 'mg-q') { S.mgQ = e.target.value; const pos = e.target.selectionStart; render(); const q = document.getElementById('mg-q'); if (q) { q.focus(); try { q.setSelectionRange(pos, pos); } catch (x) {} } return; }
   if (e.target.id === 'hb-q') { S.hbQ = e.target.value; const pos = e.target.selectionStart; render(); const q = document.getElementById('hb-q'); if (q) { q.focus(); try { q.setSelectionRange(pos, pos); } catch (x) {} } return; }
-  { const m = { 'pr-q': () => S.pr.q = e.target.value, 'sco-q': () => S.scoQ = e.target.value, 'xs-q': () => S.xsQ = e.target.value, 'fc-q': () => S.fcQ = e.target.value }[e.target.id];
+  { const m = { 'pr-q': () => S.pr.q = e.target.value, 'sco-q': () => S.scoQ = e.target.value, 'xs-q': () => S.xsQ = e.target.value, 'fc-q': () => S.fcQ = e.target.value, 'd-q': () => S.dQ = e.target.value }[e.target.id];
     if (m) { m(); const id = e.target.id; const pos = e.target.selectionStart; render(); const q = document.getElementById(id); if (q) { q.focus(); try { q.setSelectionRange(pos, pos); } catch (x) {} } return; } }
   if (e.target.id === 'nl-q') { S.nlQ = e.target.value; const pos = e.target.selectionStart; render(); const q = document.getElementById('nl-q'); if (q) { q.focus(); try { q.setSelectionRange(pos, pos); } catch (x) {} } return; }
   if (e.target.id === 'ss-q') { S.ss.q = e.target.value; const pos = e.target.selectionStart; render(); const q = document.getElementById('ss-q'); if (q) { q.focus(); try { q.setSelectionRange(pos, pos); } catch (x) {} } return; }
