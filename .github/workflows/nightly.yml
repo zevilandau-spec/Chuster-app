@@ -33,6 +33,7 @@ jobs:
           if [ -z "$CHUSTER_DB_URL" ] || [ -z "$CHUSTER_SECRETS" ]; then echo '{"result":"secrets missing"}' > build-status.json; exit 0; fi
           sh build-src/ci/nightly.sh > build-log.txt 2>&1 && R=ok || R=failed
           cat build-log.txt
+          echo "::notice::nightly-log result=$R :: $(tail -6 build-log.txt | tr '\n' '|')"
           if grep -q -e UNCHANGED -e "No full history yet" build-log.txt; then rm -f build-log.txt; exit 0; fi
           H=$(cat build-src/history-at.txt 2>/dev/null || true); rm -f build-src/history-at.txt
           python3 -c "import json,sys,datetime; L=open('build-log.txt').read().strip().splitlines(); json.dump({'result': sys.argv[1], 'history': sys.argv[2], 'at': datetime.datetime.utcnow().isoformat(timespec='minutes') + 'Z', 'last': L[-8:]}, open('build-status.json','w'), indent=1)" "$R" "$H"
