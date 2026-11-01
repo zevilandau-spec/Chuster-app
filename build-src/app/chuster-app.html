@@ -1181,6 +1181,7 @@ const VIEWS = {
   finance: { title: 'Finance', r: renderFinance },
   mysales: { title: 'Salesman dashboard', r: renderMySales },
   storesales: { title: 'Store sales', r: renderStoreSales },
+  newlost: { title: 'New & lost stores', r: renderNewLost },
   orders: { title: 'Orders', r: renderOrders },
   customers: { title: 'Customers', r: renderCustomers }
 };
@@ -1188,7 +1189,7 @@ const NAV = [
   { items: [['home', 'Dashboard', 'home'], ['ask', 'Ask AI ✨', 'chat'], ['calendar', 'Calendar', 'cal']] },
   { h: 'ORDERS', items: [['order', 'New order', 'order'], ['orders', 'Orders', 'order'], ['inbox', 'Incoming orders', 'chat', 'inbox'], ['toqb', 'To QuickBooks', 'check', 'toqb']] },
   { h: 'CUSTOMERS', items: [['customers', 'Customers', 'people', 'late'], ['payments', 'Payments', 'card', 'pay'], ['collect', 'Collections', 'card'], ['stmts', 'Statements by email', 'mail'], ['custprofit', 'Profit by store', 'chart'], ['lost', 'Lost items', 'alert'], ['yomtov', 'Yom Tov list', 'cal']] },
-  { h: 'SALES & MONEY', items: [['mysales', 'Salesman dashboard', 'chart'], ['storesales', 'Store sales', 'chart'], ['reps', 'Sales by rep & commission', 'people'], ['finance', 'Finance', 'chart']] },
+  { h: 'SALES & MONEY', items: [['mysales', 'Salesman dashboard', 'chart'], ['storesales', 'Store sales', 'chart'], ['newlost', 'New & lost stores', 'people'], ['reps', 'Sales by rep & commission', 'people'], ['finance', 'Finance', 'chart']] },
   { h: 'PRODUCTS', items: [['items', 'Products & profit', 'chart'], ['pricelist', 'Price list', 'order'], ['pricecheck', 'Price check', 'card']] },
   { h: 'DELIVERIES', items: [['route', 'Deliveries', 'box'], ['stop', 'Driver', 'wheel'], ['live', 'Live trucks', 'pin'], ['loading', 'Loading', 'truck'], ['dsched', 'Delivery days', 'cal']] },
   { h: 'WAREHOUSE', items: [['packnext', 'What to pack', 'clip'], ['packing', 'Packing plan', 'clip'], ['packlog', 'Pack log', 'clip'], ['packrep', 'Packing report', 'chart'], ['yield', 'Yield', 'chart']] },
@@ -4237,7 +4238,7 @@ function openPOSection() {
 /* ================= Salesman dashboard (e.g. "Dudi's sales") ================= */
 const DLY = REAL && REAL.daily ? REAL.daily : null;
 Object.assign(S, { ms: { rep: S.user === 'Motty' ? 'All' : 'Dudi', range: 'days', area: 'All', end: null } });
-Object.assign(S, { ss: { range: 'month', end: null, sort: 'sales', q: '', area: 'All' } });
+Object.assign(S, { ss: { range: 'month', end: null, sort: 'sales', q: '', area: 'All' }, nlTab: 'new', nlQ: '' });
 const addDays = (iso, n) => isoOf(isoRd(iso) + n);
 function msRange() {
   const end = S.ms.end || DLY.to; const e = isoRd(end); const R = S.ms.range;
@@ -4282,6 +4283,36 @@ function ssRange() {
   else if (R === '12') a = e - 364;
   if (a < isoRd(DLY.from)) a = isoRd(DLY.from);
   return [isoOf(a), end];
+}
+function renderNewLost() {
+  if (!REAL) return needData('New & lost stores');
+  const CY = +REAL.asOf.slice(0, 4), PY = CY - 1;
+  const cs = REAL.customers.filter(c => (!salesLocked() || custMine(c)));
+  const EPS = 1;
+  const neu = cs.filter(c => (c.ytd || 0) > EPS && (c.ytdPrev || 0) <= EPS).sort((a, b) => b.ytd - a.ytd);
+  const lost = cs.filter(c => (c.ytdPrev || 0) > EPS && (c.ytd || 0) <= EPS).sort((a, b) => (b.ytdPrev || 0) - (a.ytdPrev || 0));
+  const slip = cs.filter(c => c.active && (c.ytdPrev || 0) > EPS && (c.ytd || 0) > EPS && c.ytd < c.ytdPrev * 0.6).map(c => ({ c, drop: c.ytdPrev - c.ytd })).sort((a, b) => b.drop - a.drop);
+  const newTot = neu.reduce((s, c) => s + c.ytd, 0), lostTot = lost.reduce((s, c) => s + (c.ytdPrev || 0), 0), slipTot = slip.reduce((s, x) => s + x.drop, 0);
+  const q = S.nlQ.trim().toLowerCase();
+  const filt = arr => q ? arr.filter(o => { const c = o.c || o; return c.name.toLowerCase().includes(q) || (c.area || '').toLowerCase().includes(q); }) : arr;
+  const telBtn = c => c.phone ? `<a class="btn ghost sm" href="${telHref(c.phone)}" onclick="event.stopPropagation()">${ic('phone')}</a>` : '';
+  const row = (c, amt, note) => `<div style="border-top:1px solid var(--line);display:flex;align-items:center;gap:8px;padding:8px 0"><button style="flex:1;min-width:0;background:none;border:none;font:inherit;text-align:left;cursor:pointer;color:inherit" data-act="cust-sel-go" data-n="${esc(c.name)}"><b>${esc(c.name)}</b><div class="sub" style="margin:0;font-size:12px">${esc(c.area || '')}${note ? ' · ' + note : ''}</div></button>${telBtn(c)}<b class="num">${fm(amt)}</b></div>`;
+  const tab = S.nlTab || 'new';
+  const list = tab === 'new' ? filt(neu).map(c => row(c, c.ytd, c.last ? 'last order ' + fmtShort(isoRd(c.last)) : ''))
+    : tab === 'lost' ? filt(lost).map(c => row(c, c.ytdPrev, c.last ? 'last order ' + fmtShort(isoRd(c.last)) : 'no recent order'))
+    : filt(slip).map(x => row(x.c, x.drop, `now ${fm(x.c.ytd)} vs ${fm(x.c.ytdPrev)} · −${pct(x.c.ytdPrev - x.c.ytd, x.c.ytdPrev)}%`));
+  const chip = (k, l, n) => `<button class="chip" data-act="nl-tab" data-v="${k}" aria-pressed="${tab === k}">${l} · ${n}</button>`;
+  return `${head('New & lost stores', `this year so far vs the same days in ${PY}${salesLocked() ? ' · your stores' : ''}`)}
+  <div class="tiles">
+    <div class="tile ct ct-green"><div class="k">New stores</div><div class="v">${neu.length}</div><div class="s">${fm(newTot)} in new sales</div></div>
+    <div class="tile ct ct-red"><div class="k">Lost stores</div><div class="v">${lost.length}</div><div class="s">bought ${fm(lostTot)} last year, nothing this year</div></div>
+    <div class="tile ct ct-gold"><div class="k">Slipping</div><div class="v">${slip.length}</div><div class="s">down ${fm(slipTot)} and still active</div></div>
+  </div>
+  <section class="card stack" style="gap:6px">
+    <div class="chips">${chip('new', 'New', neu.length)}${chip('lost', 'Lost', lost.length)}${chip('slip', 'Slipping', slip.length)}</div>
+    <div class="field">${ic('search')}<label class="sr" for="nl-q">Search</label><input id="nl-q" value="${esc(S.nlQ)}" placeholder="Search store or area" autocomplete="off"></div>
+    <p class="sub" style="margin:0">${tab === 'new' ? 'Stores buying this year that bought nothing in the same days last year.' : tab === 'lost' ? 'Stores that bought last year but nothing this year — worth a call.' : 'Stores still buying but down more than 40% from last year.'}</p>
+    ${list.join('') || '<p class="sub" style="margin:0">None.</p>'}</section>`;
 }
 function renderStoreSales() {
   if (!REAL || !DLY) return needData('Store sales');
@@ -5923,6 +5954,7 @@ document.addEventListener('click', e => {
     case 'ss-range': S.ss.range = d.v; keep(); break;
     case 'ss-area': S.ss.area = d.v; keep(); break;
     case 'ss-sort': S.ss.sort = d.v; keep(); break;
+    case 'nl-tab': S.nlTab = d.v; keep(); break;
     case 'ms-range': S.ms.range = d.v; keep(); break;
     case 'ms-area': S.ms.area = d.v; keep(); break;
     case 'rep-sel': S.repSel = d.r ? (S.repSel === d.r ? null : d.r) : null; keep(); break;
@@ -6075,6 +6107,7 @@ document.addEventListener('input', e => {
   }
   if (e.target.classList && e.target.classList.contains('ive-inp') && S.ivEdit) { S.ivEdit.q[e.target.dataset.k] = Math.max(0, parseInt(e.target.value, 10) || 0); return; }
   if (e.target.id === 'ive-find' && S.ivEdit) { S.ivEdit.find = e.target.value; const el = document.getElementById('ive-res'); if (el) el.innerHTML = ivFind(S.ivEdit); return; }
+  if (e.target.id === 'nl-q') { S.nlQ = e.target.value; const pos = e.target.selectionStart; render(); const q = document.getElementById('nl-q'); if (q) { q.focus(); try { q.setSelectionRange(pos, pos); } catch (x) {} } return; }
   if (e.target.id === 'ss-q') { S.ss.q = e.target.value; const pos = e.target.selectionStart; render(); const q = document.getElementById('ss-q'); if (q) { q.focus(); try { q.setSelectionRange(pos, pos); } catch (x) {} } return; }
   if (e.target.id === 'sx-test') { S.sxTest = e.target.value; return; }
   if (e.target.classList && e.target.classList.contains('iv-deliv-date')) { const o = REAL.orders.list.find(x => x.n === e.target.dataset.n); if (o) { const v = e.target.value; setLmove(o.n, v && v !== dDateAuto(o) ? v : null); render(); } return; }
