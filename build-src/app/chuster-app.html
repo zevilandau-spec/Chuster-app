@@ -1182,6 +1182,7 @@ const VIEWS = {
   mysales: { title: 'Salesman dashboard', r: renderMySales },
   storesales: { title: 'Store sales', r: renderStoreSales },
   newlost: { title: 'New & lost stores', r: renderNewLost },
+  habits: { title: 'Order habits', r: renderHabits },
   orders: { title: 'Orders', r: renderOrders },
   customers: { title: 'Customers', r: renderCustomers }
 };
@@ -1189,7 +1190,7 @@ const NAV = [
   { items: [['home', 'Dashboard', 'home'], ['ask', 'Ask AI ✨', 'chat'], ['calendar', 'Calendar', 'cal']] },
   { h: 'ORDERS', items: [['order', 'New order', 'order'], ['orders', 'Orders', 'order'], ['inbox', 'Incoming orders', 'chat', 'inbox'], ['toqb', 'To QuickBooks', 'check', 'toqb']] },
   { h: 'CUSTOMERS', items: [['customers', 'Customers', 'people', 'late'], ['payments', 'Payments', 'card', 'pay'], ['collect', 'Collections', 'card'], ['stmts', 'Statements by email', 'mail'], ['custprofit', 'Profit by store', 'chart'], ['lost', 'Lost items', 'alert'], ['yomtov', 'Yom Tov list', 'cal']] },
-  { h: 'SALES & MONEY', items: [['mysales', 'Salesman dashboard', 'chart'], ['storesales', 'Store sales', 'chart'], ['newlost', 'New & lost stores', 'people'], ['reps', 'Sales by rep & commission', 'people'], ['finance', 'Finance', 'chart']] },
+  { h: 'SALES & MONEY', items: [['mysales', 'Salesman dashboard', 'chart'], ['storesales', 'Store sales', 'chart'], ['newlost', 'New & lost stores', 'people'], ['habits', 'Order habits', 'clock'], ['reps', 'Sales by rep & commission', 'people'], ['finance', 'Finance', 'chart']] },
   { h: 'PRODUCTS', items: [['items', 'Products & profit', 'chart'], ['pricelist', 'Price list', 'order'], ['pricecheck', 'Price check', 'card']] },
   { h: 'DELIVERIES', items: [['route', 'Deliveries', 'box'], ['stop', 'Driver', 'wheel'], ['live', 'Live trucks', 'pin'], ['loading', 'Loading', 'truck'], ['dsched', 'Delivery days', 'cal']] },
   { h: 'WAREHOUSE', items: [['packnext', 'What to pack', 'clip'], ['packing', 'Packing plan', 'clip'], ['packlog', 'Pack log', 'clip'], ['packrep', 'Packing report', 'chart'], ['yield', 'Yield', 'chart']] },
@@ -4238,7 +4239,7 @@ function openPOSection() {
 /* ================= Salesman dashboard (e.g. "Dudi's sales") ================= */
 const DLY = REAL && REAL.daily ? REAL.daily : null;
 Object.assign(S, { ms: { rep: S.user === 'Motty' ? 'All' : 'Dudi', range: 'days', area: 'All', end: null } });
-Object.assign(S, { ss: { range: 'month', end: null, sort: 'sales', q: '', area: 'All' }, nlTab: 'new', nlQ: '' });
+Object.assign(S, { ss: { range: 'month', end: null, sort: 'sales', q: '', area: 'All' }, nlTab: 'new', nlQ: '', hbTab: 'overdue', hbQ: '' });
 const addDays = (iso, n) => isoOf(isoRd(iso) + n);
 function msRange() {
   const end = S.ms.end || DLY.to; const e = isoRd(end); const R = S.ms.range;
@@ -4283,6 +4284,34 @@ function ssRange() {
   else if (R === '12') a = e - 364;
   if (a < isoRd(DLY.from)) a = isoRd(DLY.from);
   return [isoOf(a), end];
+}
+function renderHabits() {
+  if (!REAL) return needData('Order habits');
+  const cs = REAL.customers.filter(c => c.active && (!salesLocked() || custMine(c)) && (c.orders12 || 0) > 0);
+  const gaps = cs.filter(c => c.gap); const avgGap = gaps.length ? Math.round(gaps.reduce((s, c) => s + c.gap, 0) / gaps.length) : 0;
+  const totSales = cs.reduce((s, c) => s + (c.sales12 || 0), 0), totOrd = cs.reduce((s, c) => s + (c.orders12 || 0), 0);
+  const avgOrder = totOrd ? totSales / totOrd : 0;
+  const overdue = cs.filter(c => c.late).sort((a, b) => (b.sales12 || 0) - (a.sales12 || 0));
+  const osize = c => (c.orders12 ? (c.sales12 || 0) / c.orders12 : 0);
+  const daysSince = c => c.last ? isoRd(REAL.asOf) - isoRd(c.last) : null;
+  const tab = S.hbTab || 'overdue';
+  const q = S.hbQ.trim().toLowerCase();
+  let list = tab === 'overdue' ? overdue : tab === 'freq' ? cs.slice().filter(c => c.gap).sort((a, b) => a.gap - b.gap) : cs.slice().sort((a, b) => osize(b) - osize(a));
+  if (q) list = list.filter(c => c.name.toLowerCase().includes(q) || (c.area || '').toLowerCase().includes(q));
+  const telBtn = c => c.phone ? `<a class="btn ghost sm" href="${telHref(c.phone)}" onclick="event.stopPropagation()">${ic('phone')}</a>` : '';
+  const row = c => { const ds = daysSince(c); const over = c.gap && ds != null && ds > c.gap; return `<div style="border-top:1px solid var(--line);display:flex;align-items:center;gap:8px;padding:8px 0"><button style="flex:1;min-width:0;background:none;border:none;font:inherit;text-align:left;cursor:pointer;color:inherit" data-act="cust-sel-go" data-n="${esc(c.name)}"><b>${esc(c.name)}</b><div class="sub" style="margin:0;font-size:12px">${esc(c.area || '')} · ${c.gap ? 'every ~' + c.gap + ' days' : 'no pattern'} · avg ${fm(osize(c))}/order${ds != null ? ' · ' + (over ? '<span style="color:var(--bad-text)">' + ds + ' days since</span>' : ds + ' days since') : ''}</div></button>${telBtn(c)}<b class="num">${fn(c.orders12 || 0)}</b></div>`; };
+  const chip = (k, l, n) => `<button class="chip" data-act="hb-tab" data-v="${k}" aria-pressed="${tab === k}">${l}${n != null ? ' · ' + n : ''}</button>`;
+  return `${head('Order habits', `how often each store orders and how big${salesLocked() ? ' · your stores' : ''}`)}
+  <div class="tiles">
+    <div class="tile ct ct-blue"><div class="k">Usual gap between orders</div><div class="v">${avgGap} days</div><div class="s">average across ${gaps.length} stores</div></div>
+    <div class="tile ct ct-green"><div class="k">Average order</div><div class="v">${fm(avgOrder)}</div><div class="s">${fn(totOrd)} orders in 12 months</div></div>
+    <div class="tile ct ct-red"><div class="k">Overdue to reorder</div><div class="v">${overdue.length}</div><div class="s">past their usual gap</div></div>
+  </div>
+  <section class="card stack" style="gap:6px">
+    <div class="chips">${chip('overdue', 'Overdue', overdue.length)}${chip('freq', 'Most frequent', null)}${chip('size', 'Biggest orders', null)}</div>
+    <div class="field">${ic('search')}<label class="sr" for="hb-q">Search</label><input id="hb-q" value="${esc(S.hbQ)}" placeholder="Search store or area" autocomplete="off"></div>
+    <p class="sub" style="margin:0">The number on the right is how many orders in the last 12 months.</p>
+    ${list.slice(0, 200).map(row).join('') || '<p class="sub" style="margin:0">None.</p>'}</section>`;
 }
 function renderNewLost() {
   if (!REAL) return needData('New & lost stores');
@@ -5955,6 +5984,7 @@ document.addEventListener('click', e => {
     case 'ss-area': S.ss.area = d.v; keep(); break;
     case 'ss-sort': S.ss.sort = d.v; keep(); break;
     case 'nl-tab': S.nlTab = d.v; keep(); break;
+    case 'hb-tab': S.hbTab = d.v; keep(); break;
     case 'ms-range': S.ms.range = d.v; keep(); break;
     case 'ms-area': S.ms.area = d.v; keep(); break;
     case 'rep-sel': S.repSel = d.r ? (S.repSel === d.r ? null : d.r) : null; keep(); break;
@@ -6107,6 +6137,7 @@ document.addEventListener('input', e => {
   }
   if (e.target.classList && e.target.classList.contains('ive-inp') && S.ivEdit) { S.ivEdit.q[e.target.dataset.k] = Math.max(0, parseInt(e.target.value, 10) || 0); return; }
   if (e.target.id === 'ive-find' && S.ivEdit) { S.ivEdit.find = e.target.value; const el = document.getElementById('ive-res'); if (el) el.innerHTML = ivFind(S.ivEdit); return; }
+  if (e.target.id === 'hb-q') { S.hbQ = e.target.value; const pos = e.target.selectionStart; render(); const q = document.getElementById('hb-q'); if (q) { q.focus(); try { q.setSelectionRange(pos, pos); } catch (x) {} } return; }
   if (e.target.id === 'nl-q') { S.nlQ = e.target.value; const pos = e.target.selectionStart; render(); const q = document.getElementById('nl-q'); if (q) { q.focus(); try { q.setSelectionRange(pos, pos); } catch (x) {} } return; }
   if (e.target.id === 'ss-q') { S.ss.q = e.target.value; const pos = e.target.selectionStart; render(); const q = document.getElementById('ss-q'); if (q) { q.focus(); try { q.setSelectionRange(pos, pos); } catch (x) {} } return; }
   if (e.target.id === 'sx-test') { S.sxTest = e.target.value; return; }
