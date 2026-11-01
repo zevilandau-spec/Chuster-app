@@ -70,6 +70,14 @@ lock_ui = '''<div id="lock" style="position:fixed;inset:0;z-index:100;background
   var saved = null; try { saved = localStorage.getItem('chuster-pass'); } catch (e) { /* storage blocked */ }
   if (saved) { btn.disabled = true; btn.textContent = 'Opening…'; unlock(saved).then(start).catch(function () { try { localStorage.removeItem('chuster-pass'); } catch (e) { /* ignore */ } btn.disabled = false; btn.textContent = 'Open'; hideSplash(); }); }
   else { hideSplash(); }
+  // safety net: never let the logo splash spin forever (slow device / low power)
+  setTimeout(function () { var s = document.getElementById('splash'); if (!s || s.dataset.esc) return; s.dataset.esc = '1';
+    var m = document.createElement('div'); m.style.cssText = 'text-align:center;margin-top:14px;max-width:300px;padding:0 16px';
+    var p = document.createElement('p'); p.textContent = 'Still loading… if this iPad is low on battery, plug it in or turn off Low Power Mode.'; p.style.cssText = 'color:#6b6250;font-size:13px;margin:0 0 10px';
+    var b1 = document.createElement('button'); b1.textContent = 'Show passcode screen'; b1.className = 'btn ghost sm'; b1.onclick = hideSplash;
+    var b2 = document.createElement('button'); b2.textContent = 'Reset & reload'; b2.className = 'btn ghost sm'; b2.style.marginLeft = '8px'; b2.onclick = function () { try { localStorage.removeItem('chuster-pass'); } catch (e) {} location.reload(); };
+    m.appendChild(p); m.appendChild(b1); m.appendChild(b2); s.appendChild(m);
+  }, 14000);
   form.addEventListener('submit', function (e) {
     e.preventDefault();
     var pass = input.value.trim(); if (!pass) return;
