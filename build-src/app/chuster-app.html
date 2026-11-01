@@ -1156,6 +1156,7 @@ const VIEWS = {
   route: { title: 'Deliveries', r: () => renderDeliveries() },
   stop: { title: 'Driver', r: () => renderDriver() },
   dsched: { title: 'Delivery days', r: () => renderDSched() },
+  delivstats: { title: 'Delivery stats', r: renderDelivStats },
   tools: { title: 'Tools', r: renderTools },
   inbox: { title: 'Incoming orders', r: renderInbox },
   payments: { title: 'Payments', r: renderPayments },
@@ -1193,7 +1194,7 @@ const NAV = [
   { h: 'CUSTOMERS', items: [['customers', 'Customers', 'people', 'late'], ['payments', 'Payments', 'card', 'pay'], ['collect', 'Collections', 'card'], ['stmts', 'Statements by email', 'mail'], ['custprofit', 'Profit by store', 'chart'], ['lost', 'Lost items', 'alert'], ['yomtov', 'Yom Tov list', 'cal']] },
   { h: 'SALES & MONEY', items: [['mysales', 'Salesman dashboard', 'chart'], ['storesales', 'Store sales', 'chart'], ['newlost', 'New & lost stores', 'people'], ['habits', 'Order habits', 'clock'], ['reps', 'Sales by rep & commission', 'people'], ['finance', 'Finance', 'chart']] },
   { h: 'PRODUCTS', items: [['items', 'Products & profit', 'chart'], ['margin', 'Margins', 'chart'], ['pricelist', 'Price list', 'order'], ['pricecheck', 'Price check', 'card']] },
-  { h: 'DELIVERIES', items: [['route', 'Deliveries', 'box'], ['stop', 'Driver', 'wheel'], ['live', 'Live trucks', 'pin'], ['loading', 'Loading', 'truck'], ['dsched', 'Delivery days', 'cal']] },
+  { h: 'DELIVERIES', items: [['route', 'Deliveries', 'box'], ['stop', 'Driver', 'wheel'], ['live', 'Live trucks', 'pin'], ['loading', 'Loading', 'truck'], ['dsched', 'Delivery days', 'cal'], ['delivstats', 'Delivery stats', 'chart']] },
   { h: 'WAREHOUSE', items: [['packnext', 'What to pack', 'clip'], ['packing', 'Packing plan', 'clip'], ['packlog', 'Pack log', 'clip'], ['packrep', 'Packing report', 'chart'], ['yield', 'Yield', 'chart']] },
   { h: 'STOCK & BUYING', items: [['inventory', 'Inventory', 'box', 'inv'], ['reorder', 'Reorder alerts', 'alert'], ['buying', 'Buying & suppliers', 'card'], ['polist', 'All purchase orders', 'clip'], ['stockmoves', 'Stock moves', 'box']] },
   { h: 'BOOKS', items: [['expenses', 'Expenses', 'chart'], ['bank', 'Bank & deposits', 'card'], ['vendors', 'Vendors & bills', 'people'], ['salesorders', 'Sales orders & estimates', 'order'], ['journal', 'Journal entries', 'clip'], ['accounts', 'Chart of accounts', 'chart']] }
@@ -4275,7 +4276,7 @@ function openPOSection() {
 /* ================= Salesman dashboard (e.g. "Dudi's sales") ================= */
 const DLY = REAL && REAL.daily ? REAL.daily : null;
 Object.assign(S, { ms: { rep: S.user === 'Motty' ? 'All' : 'Dudi', range: 'days', area: 'All', end: null } });
-Object.assign(S, { ss: { range: 'month', end: null, sort: 'sales', q: '', area: 'All' }, nlTab: 'new', nlQ: '', hbTab: 'overdue', hbQ: '', mgTab: 'best', mgQ: '' });
+Object.assign(S, { ss: { range: 'month', end: null, sort: 'sales', q: '', area: 'All' }, nlTab: 'new', nlQ: '', hbTab: 'overdue', hbQ: '', mgTab: 'best', mgQ: '', dvWeeks: 8 });
 const addDays = (iso, n) => isoOf(isoRd(iso) + n);
 function msRange() {
   const end = S.ms.end || DLY.to; const e = isoRd(end); const R = S.ms.range;
@@ -4694,6 +4695,40 @@ function deliveryReportDoc() {
 function storeDays() {
   const cnt = {}; REAL.orders.list.forEach(o => { if (o.t !== 'inv') return; const w = dow(isoRd(o.d)); (cnt[o.c] || (cnt[o.c] = Array(7).fill(0)))[w]++; });
   return Object.keys(cnt).map(n => { const a = cnt[n]; const tot = a.reduce((s, v) => s + v, 0); const days = a.map((v, w) => [w, v]).filter(([w, v]) => v / tot >= 0.25).sort((x, y) => y[1] - x[1]).map(x => x[0]); return { c: custByName(n) || { name: n, area: 'Other' }, days, tot }; }).filter(x => x.tot >= 3);
+}
+function renderDelivStats() {
+  if (!REAL || !DLY) return needData('Delivery stats');
+  const casesOf = o => o.l.reduce((t, [ref, q]) => t + (typeof ref === 'number' && REAL.catalog[ref] && !bulkOf(REAL.catalog[ref].full) ? Math.abs(q) : 0), 0);
+  const invs = REAL.orders.list.filter(o => o.t === 'inv' && o.a > 0);
+  const wks = +(S.dvWeeks || 8);
+  const to = isoRd(DLY.to), from = to - wks * 7 + 1;
+  // per delivery day
+  const byDay = {}, byArea = {}, byDow = {};
+  let totCases = 0, totStops = 0;
+  invs.forEach(o => { const dd = isoRd(dDateOf(o)); if (dd < from || dd > to) return; const cs = casesOf(o); const sun = dd - dow(dd); byDay[sun] = (byDay[sun] || 0) + cs; const ar = (custByName(o.c) || {}).area || 'Other'; byArea[ar] = (byArea[ar] || 0) + cs; byDow[dow(dd)] = (byDow[dow(dd)] || 0) + cs; totCases += cs; totStops++; });
+  const wkKeys = Object.keys(byDay).map(Number).sort((a, b) => a - b);
+  const wkVals = wkKeys.map(k => byDay[k]), wkLab = wkKeys.map(k => fmtShort(k).replace(/^\w+, /, ''));
+  const delivDaysN = new Set(invs.filter(o => { const dd = isoRd(dDateOf(o)); return dd >= from && dd <= to; }).map(o => dDateOf(o))).size;
+  const avgPerDay = delivDaysN ? Math.round(totCases / delivDaysN) : 0;
+  // recent performance from the delivery status the crew marks
+  const st = Object.values(S.dstat || {}); const done = st.filter(x => x.st === 'done').length, part = st.filter(x => x.st === 'partial').length, skip = st.filter(x => x.st === 'skip').length;
+  const AREA_COLORS2 = ['#22409A', '#C98A1B', '#2E8B74', '#8A6FC0', '#C7402F', '#4A7CB5', '#9A8464', '#6B8E23'];
+  const areaParts = Object.keys(byArea).sort((x, y) => byArea[y] - byArea[x]).map((a, i) => ({ name: a, v: byArea[a], color: AREA_COLORS2[i % AREA_COLORS2.length] }));
+  const dowBars = [0, 1, 2, 3, 4, 5].map(w => byDow[w] || 0); const dowLab = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
+  const chip = (k) => `<button class="chip" data-act="dv-weeks" data-v="${k}" aria-pressed="${wks === k}">${k} weeks</button>`;
+  return `${head('Delivery stats', 'cases out the door, by day, area and weekday — from your invoices')}
+  <section class="card" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:12px 16px"><span class="eyebrow" style="color:var(--muted)">LAST</span><div class="chips">${[4, 8, 12, 26].map(chip).join('')}</div></section>
+  <div class="tiles">
+    <div class="tile ct ct-blue"><div class="k">Cases delivered</div><div class="v">${fn(totCases)}</div><div class="s">last ${wks} weeks</div></div>
+    <div class="tile ct ct-green"><div class="k">Average per delivery day</div><div class="v">${fn(avgPerDay)}</div><div class="s">${delivDaysN} delivery days</div></div>
+    <div class="tile ct ct-gold"><div class="k">Stops</div><div class="v">${fn(totStops)}</div><div class="s">${fn(Math.round(totStops / Math.max(1, wks)))} a week</div></div>
+    <div class="tile ct ct-red"><div class="k">Marked delivered</div><div class="v">${done}</div><div class="s">${part} short · ${skip} skipped (recent)</div></div>
+  </div>
+  <figure class="card" style="margin:0"><figcaption class="card-head"><h2>Cases by week</h2></figcaption>${wkVals.length ? bkBars(wkVals, wkLab, 150) : '<p class="sub">No deliveries in range.</p>'}</figure>
+  <div class="split">
+    <section class="card"><div class="card-head"><h2>By weekday</h2></div>${bkBars(dowBars, dowLab, 130)}<p class="sub" style="margin:6px 0 0">Which days carry the most cases.</p></section>
+    <section class="card"><div class="card-head"><h2>By area</h2></div><div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap">${donutSvg(areaParts, totCases)}<div style="flex:1;min-width:150px">${areaParts.slice(0, 8).map(p => `<div style="display:flex;align-items:center;gap:8px;padding:3px 0;font-size:14px"><i style="width:10px;height:10px;border-radius:3px;background:${p.color};flex:none"></i><span style="flex:1">${esc(p.name)}</span><b class="num">${fn(p.v)}</b></div>`).join('')}</div></div></section>
+  </div>`;
 }
 function renderDSched() {
   if (!REAL) return needData('Delivery days');
@@ -6022,6 +6057,7 @@ document.addEventListener('click', e => {
     case 'nl-tab': S.nlTab = d.v; keep(); break;
     case 'hb-tab': S.hbTab = d.v; keep(); break;
     case 'mg-tab': S.mgTab = d.v; keep(); break;
+    case 'dv-weeks': S.dvWeeks = +d.v; keep(); break;
     case 'go-item': go('items'); break;
     case 'ms-range': S.ms.range = d.v; keep(); break;
     case 'ms-area': S.ms.area = d.v; keep(); break;
