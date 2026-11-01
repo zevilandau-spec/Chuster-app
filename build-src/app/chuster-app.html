@@ -1173,6 +1173,7 @@ const VIEWS = {
   aging: { title: 'Collections dashboard', r: renderAgingDash },
   stmts: { title: 'Statements by email', r: renderStmts },
   yomtov: { title: 'Yom Tov list', r: renderYomTov },
+  ytplan: { title: 'Yom Tov planner', r: renderYtPlanner },
   lost: { title: 'Lost items', r: renderLost },
   custprofit: { title: 'Profit by store', r: renderCustProfit },
   pricecheck: { title: 'Price check', r: renderPriceCheck },
@@ -1193,7 +1194,7 @@ const VIEWS = {
 const NAV = [
   { items: [['home', 'Dashboard', 'home'], ['ask', 'Ask AI ✨', 'chat'], ['calendar', 'Calendar', 'cal']] },
   { h: 'ORDERS', items: [['order', 'New order', 'order'], ['orders', 'Orders', 'order'], ['inbox', 'Incoming orders', 'chat', 'inbox'], ['toqb', 'To QuickBooks', 'check', 'toqb']] },
-  { h: 'CUSTOMERS', items: [['customers', 'Customers', 'people', 'late'], ['payments', 'Payments', 'card', 'pay'], ['collect', 'Collections', 'card'], ['aging', 'Collections dashboard', 'chart'], ['stmts', 'Statements by email', 'mail'], ['custprofit', 'Profit by store', 'chart'], ['lost', 'Lost items', 'alert'], ['yomtov', 'Yom Tov list', 'cal']] },
+  { h: 'CUSTOMERS', items: [['customers', 'Customers', 'people', 'late'], ['payments', 'Payments', 'card', 'pay'], ['collect', 'Collections', 'card'], ['aging', 'Collections dashboard', 'chart'], ['stmts', 'Statements by email', 'mail'], ['custprofit', 'Profit by store', 'chart'], ['lost', 'Lost items', 'alert'], ['yomtov', 'Yom Tov list', 'cal'], ['ytplan', 'Yom Tov planner', 'chart']] },
   { h: 'SALES & MONEY', items: [['mysales', 'Salesman dashboard', 'chart'], ['storesales', 'Store sales', 'chart'], ['newlost', 'New & lost stores', 'people'], ['habits', 'Order habits', 'clock'], ['seasonality', 'Seasonality', 'chart'], ['reps', 'Sales by rep & commission', 'people'], ['finance', 'Finance', 'chart']] },
   { h: 'PRODUCTS', items: [['items', 'Products & profit', 'chart'], ['margin', 'Margins', 'chart'], ['pricelist', 'Price list', 'order'], ['pricecheck', 'Price check', 'card']] },
   { h: 'DELIVERIES', items: [['route', 'Deliveries', 'box'], ['stop', 'Driver', 'wheel'], ['live', 'Live trucks', 'pin'], ['loading', 'Loading', 'truck'], ['dsched', 'Delivery days', 'cal'], ['delivstats', 'Delivery stats', 'chart']] },
@@ -3805,6 +3806,42 @@ function ytData() {
 function ytMsg(r, last) {
   return `Hi ${r.c.name},\n${S.ytName === 'After Pesach' ? 'After Pesach is coming. Time to fill your shelves with fresh stock.' : S.ytName + ' is coming.'} Last year ${seaWord(S.ytName)} you took:\n` + r.items.map(x => `• ${fnu(x.q)} ${x.c.name}${x.c.pack ? ' ' + x.c.pack : ''}`).join('\n') + `\n\nDo you want the same this year? Reply with any changes.\nThank you, Chuster Noodle`;
 }
+function renderYtPlanner() {
+  if (!REAL || !HIST) return needData('Yom Tov planner');
+  const t = isoOf(TODAY);
+  // next upcoming Yom Tov across all seasons (last known date rolled forward a year)
+  let next = null;
+  REAL.seasons.forEach(x => { const r = x.rows[x.rows.length - 1]; if (!r) return; let y = +r.yt.slice(0, 4), d = r.yt; while (d <= t) { y++; d = y + r.yt.slice(4); } if (!next || d < next.date) next = { name: x.name, date: d, x }; });
+  if (!next) return head('Yom Tov planner', '') + '<section class="card"><p class="sub">No season data.</p></section>';
+  const rows = next.x.rows; const last = rows[rows.length - 1], prev = rows[rows.length - 2];
+  const grow = prev && prev.sales ? last.sales / prev.sales : 1;
+  const proj = Math.round(last.sales * grow), projCs = Math.round(last.cases * grow);
+  const daysTo = isoRd(next.date) - isoRd(t);
+  const wk = last.weeks || 4; const startBy = isoRd(next.date) - wk * 7;
+  // top products that season last year, aggregated across stores
+  const prod = {};
+  REAL.customers.forEach((c, ci) => { if (salesLocked() && !custMine(c)) return; const so = seasOf(ci); Object.keys(so).forEach(ii => { const q = so[ii][ytSeasonsIdx(next.name)] || 0; if (q > 0) prod[ii] = (prod[ii] || 0) + q; }); });
+  const topProd = Object.keys(prod).map(ii => ({ c: REAL.catalog[+ii], q: prod[ii] })).filter(x => x.c && !bulkOf(x.c.full)).sort((a, b) => b.q - a.q).slice(0, 15);
+  // top stores (reuse ytData for this season)
+  const savedName = S.ytName; S.ytName = next.name; const D = ytData(); S.ytName = savedName;
+  const topStores = D ? D.rows.slice(0, 12) : [];
+  const spark = rows.map(r => r.sales); const mxs = Math.max(...spark, 1);
+  const bars = rows.map(r => `<div style="display:flex;flex-direction:column;align-items:center;gap:4px;flex:1"><div style="width:70%;background:var(--brand);border-radius:4px 4px 0 0;height:${Math.max(6, r.sales / mxs * 90)}px"></div><span style="font-size:11px;color:var(--muted)">${r.year}</span><span style="font-size:11px;font-weight:700">${fm(r.sales)}</span></div>`).join('');
+  return `${head(next.name + ' planner', `${fmtLong(isoRd(next.date))} · ${daysTo} days away${salesLocked() ? ' · your stores' : ''}`, `<a class="btn primary" href="#yomtov" data-go="yomtov">Store reorder list ›</a>`)}
+  <div class="tiles">
+    <div class="tile ct ct-blue"><div class="k">${daysTo} days to ${esc(next.name)}</div><div class="v" style="font-size:18px">Start packing by</div><div class="s">${fmtShort(startBy)} (${wk} weeks before)</div></div>
+    <div class="tile ct ct-gold"><div class="k">Last year (${last.year})</div><div class="v">${fm(last.sales)}</div><div class="s">${fn(last.cases)} cases${prev ? ' · ' + sgn(pct(last.sales, prev.sales)) + ' vs ' + prev.year : ''}</div></div>
+    <div class="tile ct ct-green"><div class="k">Plan for about</div><div class="v">${fm(proj)}</div><div class="s">${fn(projCs)} cases if it grows the same</div></div>
+  </div>
+  <section class="card"><div class="card-head"><h2>${esc(next.name)} by year</h2></div><div style="display:flex;gap:8px;align-items:flex-end;padding:8px 0;min-height:120px">${bars}</div></section>
+  <div class="split">
+    <section class="card stack" style="gap:4px"><h2>Top products to pack</h2><p class="sub" style="margin:0">what sold most ${esc(next.name)} ${last.year}</p>
+      ${topProd.map(x => `<div style="display:flex;justify-content:space-between;gap:8px;border-top:1px solid var(--line);padding:6px 0"><span>${itName(x.c)}</span><b class="num">${fn(x.q)} cs</b></div>`).join('') || '<p class="sub">No data.</p>'}</section>
+    <section class="card stack" style="gap:4px"><h2>Top stores</h2><p class="sub" style="margin:0">tap to open · or use the reorder list</p>
+      ${topStores.map(r => `<button class="cust-row" data-act="cust-sel-go" data-n="${esc(r.c.name)}"><span class="main"><span style="display:block;font-weight:800">${esc(r.c.name)}</span><span style="display:block;font-size:12px;color:var(--muted)">${esc(r.c.area || '')}</span></span><b class="num">${fn(r.tot)} cs</b></button>`).join('') || '<p class="sub">No data.</p>'}</section>
+  </div>`;
+}
+function ytSeasonsIdx(name) { const ss = ytSeasons(name); return ss.length ? ss[ss.length - 1].i : -1; }
 function renderYomTov() {
   if (!REAL || !HIST) return needData('Yom Tov list');
   const names = REAL.seasons.map(x => x.name);
