@@ -5465,6 +5465,18 @@ function bkBars(vals, labels, h = 120) {
     <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted)"><span>${esc(labels[0] || '')}</span><span>${esc(labels[labels.length - 1] || '')}</span></div>`;
 }
 const MSHORT = ym => { const [y, m] = ym.split('-'); return MONS[+m - 1] + ' ' + y.slice(2); };
+function bkRangePicker(months) {
+  if (!months || !months.length) return '';
+  const yrs = [...new Set(months.map(m => m.slice(0, 4)))].sort();
+  const rf = S.bkPer === 'range' ? (S.bkFrom || months[0]) : '';
+  const rt = S.bkPer === 'range' ? (S.bkTo || months[months.length - 1]) : '';
+  const activeYear = (S.bkPer === 'range' && rf.slice(5) === '01' && rf.slice(0, 4) === rt.slice(0, 4) && (rt.slice(5) === '12' || rt === months[months.length - 1])) ? rf.slice(0, 4) : '';
+  const opts = (sel) => months.map(m => `<option value="${m}"${m === sel ? ' selected' : ''}>${esc(MSHORT(m))}</option>`).join('');
+  return `<section class="card stack" style="gap:10px;padding:12px 14px">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span class="sub" style="margin:0;min-width:62px">A year:</span><div class="chips" style="flex-wrap:wrap">${yrs.map(y => `<button class="chip" data-act="bk-year" data-y="${y}" aria-pressed="${activeYear === y}">${y}</button>`).join('')}</div></div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span class="sub" style="margin:0;min-width:62px">Or range:</span><label class="sr" for="bk-from">From</label><select class="sel" id="bk-from" style="width:auto">${opts(rf || months[0])}</select><span class="sub" style="margin:0">to</span><label class="sr" for="bk-to">To</label><select class="sel" id="bk-to" style="width:auto">${opts(rt || months[months.length - 1])}</select>${S.bkPer === 'range' ? '<button class="btn ghost sm" data-act="bk-set" data-k="bkPer" data-v="ytd">Clear</button>' : ''}</div>
+  </section>`;
+}
 function bkPeriod(months) {
   const n = months.length, cur = REAL.asOf.slice(0, 7), ci = months.indexOf(cur), y = REAL.asOf.slice(0, 4);
   const rf = S.bkFrom || months[0], rt = S.bkTo || months[n - 1];
@@ -5485,17 +5497,7 @@ function renderExpenses() {
   const rec = E.recent.filter(r => (!S.bkAcct || r[6].some(l => l[0] === S.bkAcct)) && bkHit(r[3], r[2], ...r[6].map(l => l[0] + ' ' + (l[2] || ''))));
   return `${head('Expenses', 'Checks, bills and card charges by account, from QuickBooks')}
   ${bkTabs('bkPer', [['m', 'This month'], ['lm', 'Last month'], ['ytd', 'This year'], ['12', '12 months']])}
-  ${(() => {
-    const yrs = [...new Set(E.months.map(m => m.slice(0, 4)))].sort();
-    const rf = S.bkPer === 'range' ? (S.bkFrom || E.months[0]) : '';
-    const rt = S.bkPer === 'range' ? (S.bkTo || E.months[E.months.length - 1]) : '';
-    const activeYear = (S.bkPer === 'range' && rf.slice(5) === '01' && rf.slice(0, 4) === rt.slice(0, 4) && (rt.slice(5) === '12' || rt === E.months[E.months.length - 1])) ? rf.slice(0, 4) : '';
-    const opts = (sel) => E.months.map(m => `<option value="${m}"${m === sel ? ' selected' : ''}>${esc(MSHORT(m))}</option>`).join('');
-    return `<section class="card stack" style="gap:10px;padding:12px 14px">
-      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span class="sub" style="margin:0;min-width:62px">A year:</span><div class="chips" style="flex-wrap:wrap">${yrs.map(y => `<button class="chip" data-act="bk-year" data-y="${y}" aria-pressed="${activeYear === y}">${y}</button>`).join('')}</div></div>
-      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span class="sub" style="margin:0;min-width:62px">Or range:</span><label class="sr" for="bk-from">From</label><select class="sel" id="bk-from" style="width:auto">${opts(rf || E.months[0])}</select><span class="sub" style="margin:0">to</span><label class="sr" for="bk-to">To</label><select class="sel" id="bk-to" style="width:auto">${opts(rt || E.months[E.months.length - 1])}</select>${S.bkPer === 'range' ? '<button class="btn ghost sm" data-act="bk-set" data-k="bkPer" data-v="ytd">Clear</button>' : ''}</div>
-    </section>`;
-  })()}
+  ${bkRangePicker(E.months)}
   <div class="tiles"><div class="tile"><div class="k">Expenses · ${esc(P.label)}</div><div class="v">${fm(tot)}</div><div class="s">${totP ? `${sgn(pct(tot, totP))} vs a year before (${fm(totP)})` : ''}</div></div>
     <div class="tile"><div class="k">Biggest</div><div class="v" style="font-size:18px">${esc(rows[0] ? rows[0].a : '—')}</div><div class="s">${rows[0] ? fm(rows[0].s) : ''}</div></div></div>
   <section class="card stack"><h2>Every month, all accounts</h2><p class="sub" style="margin:0">${E.months.length ? MSHORT(E.months[0]) + ' to ' + MSHORT(E.months[E.months.length - 1]) : ''}</p>${bkBars(monthly, E.months.map(MSHORT))}</section>
@@ -5525,19 +5527,20 @@ function renderBank() {
 function renderVendors() {
   const B = BK(); if (!B || !B.vendors) return bkEmpty('Vendors & bills', 'What you owe each vendor and what you paid');
   const V = B.vendors; const owe = V.list.reduce((s, v) => s + Math.max(0, v[1]), 0);
+  const E = B.expenses || { months: [], venMonths: [] }; const P = bkPeriod(E.months); const venMap = {}; (E.venMonths || []).forEach(([v, vals]) => { venMap[v] = bkSum(vals, P.idx); }); const bought = v => venMap[v[0]] || 0;
   if (S.bkVen) { const v = V.list.find(x => x[0] === S.bkVen); if (v) {
     const pays = V.payments.filter(p => p[3] === v[0]);
     return `${head(v[0], 'Vendor from QuickBooks', '<button class="btn ghost" data-act="bk-ven" data-v="">Back</button>')}
-      <div class="tiles"><div class="tile"><div class="k">You owe</div><div class="v">${fm(v[1])}</div><div class="s">${esc(v[5] || '')}</div></div><div class="tile"><div class="k">Bought · 12 months</div><div class="v">${fm(v[2])}</div><div class="s">${v[6] ? 'Last paid ' + bkDay(v[6]) + ' · ' + fm(v[7]) : ''}</div></div></div>
+      <div class="tiles"><div class="tile"><div class="k">You owe</div><div class="v">${fm(v[1])}</div><div class="s">${esc(v[5] || '')}</div></div><div class="tile"><div class="k">Bought · ${esc(P.label)}</div><div class="v">${fm(bought(v) || v[2])}</div><div class="s">${v[6] ? 'Last paid ' + bkDay(v[6]) + ' · ' + fm(v[7]) : ''}</div></div></div>
       <section class="card stack">${v[3] ? `<div>Phone: <b>${esc(v[3])}</b></div>` : ''}${v[4] ? `<div>Email: <b>${esc(v[4])}</b></div>` : ''}<h2>Payments · last 6 months</h2>${pays.map(p => `<div class="bk-line"><span>${bkDay(p[0])} · ${esc(p[1])}${p[2] ? ' #' + esc(p[2]) : ''} · ${esc(p[4])}</span><b class="num">${money(p[5])}</b></div>`).join('') || '<p class="sub">No payments in the last 6 months.</p>'}</section>`; } }
-  const srt = { owe: (a, b) => b[1] - a[1], spend: (a, b) => b[2] - a[2], az: (a, b) => a[0].localeCompare(b[0]) }[S.bkVSort];
+  const srt = { owe: (a, b) => b[1] - a[1], spend: (a, b) => bought(b) - bought(a), az: (a, b) => a[0].localeCompare(b[0]) }[S.bkVSort];
   const L = V.list.filter(v => bkHit(v[0], v[3], v[4])).sort(srt);
   return `${head('Vendors & bills', 'What you owe, what you bought, what you paid')}
   <div class="tiles"><div class="tile"><div class="k">You owe vendors</div><div class="v">${fm(owe)}</div><div class="s">${V.list.filter(v => v[1] > 0.01).length} vendors</div></div><div class="tile"><div class="k">Paid · last 30 days</div><div class="v">${fm(V.payments.filter(p => isoRd(REAL.asOf) - isoRd(p[0]) < 30).reduce((s, p) => s + p[5], 0))}</div></div></div>
   ${bkTabs('bkVenTab', [['list', 'Vendors'], ['pay', 'Bill payments']])}
   ${S.bkVenTab === 'pay' ? `<section class="card stack" style="gap:6px">${bkSearch('Search vendor or check #')}${V.payments.filter(p => bkHit(p[3], p[2])).slice(0, 150).map(p => `<div class="bk-line"><span style="min-width:0"><b>${esc(p[3])}</b><br><small class="sub" style="margin:0">${bkDay(p[0])} · ${esc(p[1])}${p[2] ? ' #' + esc(p[2]) : ''} · ${esc(p[4])}</small></span><b class="num">${money(p[5])}</b></div>`).join('')}</section>`
-    : `<div class="chips">${[['owe', 'Owe most'], ['spend', 'Bought most'], ['az', 'A to Z']].map(([k, n]) => `<button class="chip" data-act="bk-set" data-k="bkVSort" data-v="${k}" aria-pressed="${S.bkVSort === k}">${n}</button>`).join('')}</div>
-    <section class="card stack" style="gap:6px">${bkSearch('Search vendor')}${L.slice(0, 200).map(v => `<button class="bk-row" data-act="bk-ven" data-v="${esc(v[0])}"><span class="bk-name">${esc(v[0])}<small>${v[6] ? 'paid ' + bkDay(v[6]) : ''}</small></span><span class="sub num" style="margin:0">${v[2] ? fm(v[2]) + ' bought' : ''}</span><b class="num" style="color:${v[1] > 0.01 ? 'var(--bad-text)' : 'inherit'}">${fm(v[1])}</b></button>`).join('')}</section>`}`;
+    : `${bkRangePicker(E.months)}<div class="chips">${[['owe', 'Owe most'], ['spend', 'Bought most'], ['az', 'A to Z']].map(([k, n]) => `<button class="chip" data-act="bk-set" data-k="bkVSort" data-v="${k}" aria-pressed="${S.bkVSort === k}">${n}</button>`).join('')}</div>
+    <section class="card stack" style="gap:6px">${bkSearch('Search vendor')}${L.slice(0, 200).map(v => `<button class="bk-row" data-act="bk-ven" data-v="${esc(v[0])}"><span class="bk-name">${esc(v[0])}<small>${v[6] ? 'paid ' + bkDay(v[6]) : ''}</small></span><span class="sub num" style="margin:0">${bought(v) ? fm(bought(v)) + ' bought' : ''}</span><b class="num" style="color:${v[1] > 0.01 ? 'var(--bad-text)' : 'inherit'}">${fm(v[1])}</b></button>`).join('')}</section>`}`;
 }
 function renderSalesOrders() {
   const B = BK(); if (!B || !B.orders) return bkEmpty('Sales orders & estimates', 'Open sales orders and estimates from QuickBooks');
