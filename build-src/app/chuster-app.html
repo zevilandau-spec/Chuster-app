@@ -856,6 +856,8 @@ main { padding-block: 14px 32px; }
 .dlv-btn svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 2.2; }
 .dlv-btn.done { background: var(--good); color: #fff; border-color: var(--good); }
 .dlv-tsel { font-size: 12px; color: var(--muted); border: 1px solid var(--line); border-radius: 8px; padding: 4px 6px; background: var(--surface); margin-top: 8px; }
+.dlv-tap { cursor: pointer; border-radius: 10px; margin: -4px; padding: 4px; }
+.dlv-tap:hover { background: var(--surface-2); }
 .dlv-addr { font-size: 13px; color: var(--muted); margin-top: 2px; line-height: 1.3; }
 .dlv-chip.pallet { background: var(--ct-blue-bg); color: var(--ct-blue); }
 .dlv-btn.ph { color: var(--brand, #22409A); }
@@ -5272,10 +5274,12 @@ function renderDeliveries() {
   const card = x => { const ct = dlvCounts(x.o); const dn = isDone(x); const t = truckOf(x); const addr = fixAddr(x.c.address);
     return `<div class="dlv-card">
       <div class="dlv-main">
-        <div class="dlv-name">${esc(x.o.c)}</div>
-        ${addr ? `<div class="dlv-addr">${esc(addr)}</div>` : ''}
-        <div class="dlv-row"><span class="dlv-inv">#${esc(x.o.label || x.o.n)}</span>${ct.total > 0 ? `<span class="dlv-box">▣ ${fn(ct.total)}</span>` : `<span class="dlv-box">${fm(x.o.a)}</span>`}${ct.loose > 0 ? `<span class="dlv-chip pallet">Pallet ${fn(ct.loose)}</span>` : ''}${ct.cases > 0 ? `<span class="dlv-chip">Cases ${fn(ct.cases)}</span>` : ''}<span class="dlv-area">${esc((x.area || 'Other').toUpperCase())}</span></div>
-        ${dn ? '<div style="margin-top:6px">' + stTag(x.st) + '</div>' : ''}
+        <div class="dlv-tap" data-act="d-open" data-k="${esc(x.k)}" role="button" tabindex="0">
+          <div class="dlv-name">${esc(x.o.c)}</div>
+          ${addr ? `<div class="dlv-addr">${esc(addr)}</div>` : ''}
+          <div class="dlv-row"><span class="dlv-inv">#${esc(x.o.label || x.o.n)}</span>${ct.total > 0 ? `<span class="dlv-box">▣ ${fn(ct.total)}</span>` : `<span class="dlv-box">${fm(x.o.a)}</span>`}${ct.loose > 0 ? `<span class="dlv-chip pallet">Pallet ${fn(ct.loose)}</span>` : ''}${ct.cases > 0 ? `<span class="dlv-chip">Cases ${fn(ct.cases)}</span>` : ''}<span class="dlv-area">${esc((x.area || 'Other').toUpperCase())}</span></div>
+          ${dn ? '<div style="margin-top:6px">' + stTag(x.st) + '</div>' : ''}
+        </div>
         ${tf == null ? `<select class="sel d-truck dlv-tsel" data-k="${esc(x.k)}" aria-label="Truck for ${esc(x.o.c)}">${T.map((tr, n) => `<option value="${n}"${n === t ? ' selected' : ''}>${esc(tr.name)}</option>`).join('')}<option value="-1"${t < 0 ? ' selected' : ''}>Pick up</option></select>` : ''}
       </div>
       <div class="dlv-acts">
