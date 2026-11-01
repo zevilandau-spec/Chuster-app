@@ -480,6 +480,35 @@ body:has(#ai-fab:not([hidden])) #view { padding-bottom: 72px; }
 .ps-g td { background: var(--gt); color: #FFFFFF; font-weight: 800; font-size: 12px; letter-spacing: .06em; text-transform: uppercase; padding: 7px 8px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 .ps-t tr { break-inside: avoid; }
 .ps-foot { margin-top: 14px; font-size: 12px; color: #5A6273; }
+/* QuickBooks-style statement */
+.stmt { color: #2b2b2b; font-family: Arial, Helvetica, var(--font); }
+.stmt .st-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; }
+.stmt .st-co { font-weight: 700; font-size: 16px; color: #1a1a1a; }
+.stmt .st-co .sub { font-weight: 400; font-size: 13px; color: #333; }
+.stmt .st-logo { width: 96px; flex: none; }
+.stmt .st-title { font-size: 34px; font-weight: 800; color: #6f5a42; text-align: right; line-height: 1; }
+.stmt .st-datebox { margin-top: 18px; text-align: center; min-width: 160px; margin-left: auto; }
+.stmt .st-datebox .lab { font-weight: 700; color: #6f5a42; border-bottom: 1px solid #6f5a42; padding-bottom: 2px; }
+.stmt .st-datebox .val { margin-top: 4px; }
+.stmt .st-to { margin-top: 34px; }
+.stmt .st-to b { display: block; margin-bottom: 4px; }
+.stmt .st-to .ln { font-size: 13px; }
+.stmt .st-enc { display: grid; grid-template-columns: 1fr 1fr; gap: 0; max-width: 360px; margin: 26px 0 0 auto; text-align: center; }
+.stmt .st-enc .lab { font-weight: 700; color: #6f5a42; border-bottom: 1px solid #6f5a42; padding: 2px 10px; }
+.stmt .st-enc .val { padding-top: 6px; }
+.stmt table.st-t { width: 100%; border-collapse: collapse; margin-top: 8px; }
+.stmt table.st-t th { font-weight: 700; color: #6f5a42; text-align: left; padding: 6px 10px; border-bottom: 1.5px solid #6f5a42; border-top: 1.5px solid #6f5a42; }
+.stmt table.st-t th.r, .stmt table.st-t td.r { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.stmt table.st-t td { padding: 4px 10px; font-size: 13px; }
+.stmt table.st-t td.amt, .stmt table.st-t td.bal { border-left: 1px solid #c9b79a; }
+.stmt table.st-t th.amt, .stmt table.st-t th.bal { border-left: 1px solid #6f5a42; }
+.stmt .st-age { width: 100%; border-collapse: collapse; margin-top: 26px; }
+.stmt .st-age th { font-weight: 700; color: #6f5a42; font-size: 12px; text-align: center; padding: 6px 4px; border-bottom: 1.5px solid #6f5a42; border-top: 1.5px solid #6f5a42; }
+.stmt .st-age td { text-align: center; padding: 6px 4px; font-size: 13px; font-variant-numeric: tabular-nums; border-left: 1px solid #c9b79a; }
+.stmt .st-age td:first-child { border-left: none; }
+.stmt .st-foot { display: flex; gap: 60px; margin-top: 30px; }
+.stmt .st-foot .lab { font-weight: 700; color: #6f5a42; border-bottom: 1px solid #6f5a42; padding-bottom: 2px; min-width: 120px; }
+.stmt .st-foot .val { margin-top: 4px; font-size: 13px; }
 #print-sheet { display: none; }
 @media print {
   @page { margin: 12mm; }
@@ -3594,14 +3623,39 @@ function invoiceDoc(o) {
     totals: [['Total', money(o.a), true]], note: 'Thank you for your business.' });
 }
 function statementDoc(c) {
-  const sumOpen = c.open.reduce((s2, o) => s2 + o.amt, 0); const pd = pastDue(c);
-  const rows = c.open.map(o => ({ cls: isPast(o) ? 'ps-late' : '', cells: [esc(o.date), '#' + esc(o.num), esc(o.due || ''), isPast(o) ? '<b style="color:#8A1C12">Past due</b>' : 'Open', money(o.amt)] }));
-  const totals = [];
-  if (Math.abs(c.balance - sumOpen) >= 1) totals.push(['Open invoices', money(sumOpen)], ['Credits and payments not applied', money(c.balance - sumOpen)]);
-  if (pd > 1) totals.push(['Past due', money(pd)]);
-  totals.push(['Total due', money(c.balance), true]);
-  return docSheet({ title: 'Statement', meta: [['Date', fmtLong(isoRd(REAL.asOf))], ...(c.terms ? [['Terms', c.terms]] : [])], parties: [['To', [c.name, c.address, c.phone]]],
-    cols: ['Date', 'Invoice', 'Due', 'Status', 'Amount'], right: 1, rows, totals, note: pd > 1 ? 'Please send payment for the past-due invoices. Thank you for your business.' : 'Thank you for your business.' });
+  const CO = { name: 'Chuster Noodle Packaging USA', addr: ['65 Steuben St.', 'Brooklyn NY 11205'], phone: '718-399-2864', email: 'Chusternoodle@gmail.com' };
+  const mdy = s => { if (!s) return ''; if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(5, 7) + '/' + s.slice(8, 10) + '/' + s.slice(0, 4); return s; };
+  const f2 = n => (n < 0 ? '-' : '') + Math.abs(n).toFixed(2);           // table numbers, no $
+  const d2 = n => (n < 0 ? '-$' : '$') + Math.abs(n).toFixed(2);          // amount-due box, with $
+  const sortKey = o => { const m = (o.date || '').split('/'); return m.length === 3 ? m[2] + m[0] + m[1] : o.date || ''; };
+  const open = (c.open || []).slice().sort((a, b) => sortKey(a).localeCompare(sortKey(b)));
+  const sumOpen = open.reduce((s, o) => s + o.amt, 0);
+  let run = 0; const rows = [];
+  open.forEach(o => { run += o.amt; rows.push([mdy(o.date), 'Invoice #' + o.num, f2(o.amt), f2(run)]); });
+  const diff = (c.balance || 0) - sumOpen;
+  if (Math.abs(diff) >= 1) { run = c.balance || 0; rows.push([mdy(isoOf(isoRd(REAL.asOf))), diff < 0 ? 'Payments & credits' : 'Other charges', f2(diff), f2(run)]); }
+  const ag = c.aging && c.aging.length ? c.aging : [c.balance || 0, 0, 0, 0, 0];
+  const ageLabels = ['CURRENT', '1-30 DAYS PAST DUE', '31-60 DAYS PAST DUE', '61-90 DAYS PAST DUE', 'OVER 90 DAYS PAST DUE', 'Amount Due'];
+  const toLines = [c.name, c.address && String(c.address).replace(/,\s*,/g, ',').replace(/\s+,/g, ',').trim()].filter(Boolean);
+  return `<div class="ps stmt">
+    <div class="st-head">
+      <div style="display:flex;gap:14px;align-items:flex-start">
+        <div class="brand-logo st-logo" role="img" aria-label="Chuster"></div>
+        <div class="st-co">${esc(CO.name)}<div class="sub">${CO.addr.map(esc).join('<br>')}</div></div>
+      </div>
+      <div style="text-align:right">
+        <div class="st-title">Statement</div>
+        <div class="st-datebox"><div class="lab">Date</div><div class="val">${esc(mdy(isoOf(isoRd(REAL.asOf))))}</div></div>
+      </div>
+    </div>
+    <div class="st-to"><b>To:</b>${toLines.map(l => `<div class="ln">${esc(l)}</div>`).join('')}</div>
+    <div class="st-enc"><div class="lab">Amount Due</div><div class="lab">Amount Enc.</div><div class="val">${d2(c.balance || 0)}</div><div class="val"></div></div>
+    <table class="st-t"><thead><tr><th>Date</th><th>Transaction</th><th class="r amt">Amount</th><th class="r bal">Balance</th></tr></thead>
+      <tbody>${rows.map(r => `<tr><td>${esc(r[0])}</td><td>${esc(r[1])}</td><td class="r amt">${esc(r[2])}</td><td class="r bal">${esc(r[3])}</td></tr>`).join('') || '<tr><td colspan="4" style="padding:14px 10px;color:#777">No open transactions.</td></tr>'}</tbody></table>
+    <table class="st-age"><thead><tr>${ageLabels.map(l => `<th>${esc(l)}</th>`).join('')}</tr></thead>
+      <tbody><tr>${ag.slice(0, 5).map(v => `<td>${f2(v || 0)}</td>`).join('')}<td><b>${d2(c.balance || 0)}</b></td></tr></tbody></table>
+    <div class="st-foot"><div><div class="lab">Phone #</div><div class="val">${esc(CO.phone)}</div></div><div><div class="lab">E-mail</div><div class="val">${esc(CO.email)}</div></div></div>
+  </div>`;
 }
 /* ---- purchase orders ---- */
 Object.assign(S, { poV: null, poQ: {}, poNo: '', poNote: '' });
