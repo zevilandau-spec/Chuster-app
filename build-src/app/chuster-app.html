@@ -6289,7 +6289,7 @@ function nextInvNum() {
   return mx ? String(mx + 1) : '';
 }
 function sendOrder() {
-  const done = loc => { if (qwFromOrder(loc)) { S.catalog.forEach(p => { delete S.oq[keyOf(p)]; }); toast(SYNC.ready() ? 'Sent to QuickBooks. The invoice number shows in To QuickBooks in a minute or two.' : 'Saved. It goes to QuickBooks once the shared database is set up.'); render(); } };
+  const done = loc => { if (qwFromOrder(loc)) { const sent = S.orderStore; S.oq = {}; S.orderStore = ''; S.orderGroup = 'All'; S.orderQ = ''; S.storeOpen = false; S.storeQ = ''; S.orderRef = ''; S.orderShip = null; S.shipCalOpen = false; S.lyPick = null; S.creditOk = null; toast((sent ? sent + ': ' : '') + (SYNC.ready() ? 'sent to QuickBooks. Ready for the next order.' : 'saved. Ready for the next order.')); render(); window.scrollTo(0, 0); } };
   if (navigator.geolocation) {
     let fired = false; const once = loc => { if (!fired) { fired = true; done(loc); } };
     navigator.geolocation.getCurrentPosition(
