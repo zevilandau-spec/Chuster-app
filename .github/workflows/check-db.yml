@@ -34,6 +34,31 @@ jobs:
           TOK=$(python3 -c "import json,os,hmac,hashlib,base64;k=base64.b64decode(json.loads(os.environ['CHUSTER_SECRETS'])['sync']['key']);print(base64.b64encode(hmac.new(k,b'chuster-ai',hashlib.sha256).digest()).decode())")
           code=$(curl -s -o geo.txt -w '%{http_code}' -X POST https://chuster.netlify.app/geo -H 'content-type: application/json' -H "x-chuster: $TOK" -d '{"addrs":["4706 10th Ave, Brooklyn, NY 11219","232 Terhune Ave, Passaic, NJ 07055"]}')
           echo "::notice::geo -> $code :: $(head -c 300 geo.txt)"
+      - name: History pieces present
+        env:
+          CHUSTER_SECRETS: ${{ secrets.CHUSTER_SECRETS }}
+          CHUSTER_DB_URL: ${{ secrets.CHUSTER_DB_URL }}
+        run: |
+          pip install -q cryptography
+          python3 - <<'PY'
+          import json, os, base64, hmac, hashlib, gzip, urllib.request
+          from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+          S=json.loads(os.environ['CHUSTER_SECRETS'])['sync']; url=os.environ['CHUSTER_DB_URL'].strip().rstrip('/'); sp=S['space']; k=base64.b64decode(S['key'])
+          EK=hmac.new(k,b'chuster-qb-enc',hashlib.sha256).digest(); MK=hmac.new(k,b'chuster-qb-mac',hashlib.sha256).digest()
+          def un(v):
+            b=base64.b64decode(v[3:]); body=b[:-32]; mac=b[-32:]
+            assert hmac.compare_digest(hmac.new(MK,body,hashlib.sha256).digest(),mac),'mac'
+            d=Cipher(algorithms.AES(EK),modes.CBC(body[:16])).decryptor(); p=d.update(body[16:])+d.finalize(); return p[:-p[-1]]
+          keys=json.load(urllib.request.urlopen(f"{url}/{sp}/hx.json?shallow=true",timeout=120)) or {}
+          man=json.loads(un(json.load(urllib.request.urlopen(f"{url}/{sp}/hx/manifest.json",timeout=120))['v']))
+          print("::notice::hx-diag manifest at=%s from=%s asOf=%s sets=%d" % (man.get('at'),man.get('from'),man.get('asOf'),len(man.get('sets',{}))))
+          miss=[]
+          for name,info in man['sets'].items():
+            parts=int(info['parts'])
+            have=sum(1 for i in range(parts) if f'{name}-{i:04d}' in keys)
+            if have<parts: miss.append(f"{name} {have}/{parts}")
+          print("::notice::hx-diag total-keys=%d missing=%s" % (len(keys), (', '.join(miss) if miss else 'none - all pieces present')))
+          PY
       - name: When the office PC last checked in
         env:
           CHUSTER_SECRETS: ${{ secrets.CHUSTER_SECRETS }}
