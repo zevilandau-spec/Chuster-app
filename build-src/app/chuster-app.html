@@ -5265,6 +5265,8 @@ function dayGrid(selIso) {
     <div class="cal-wd"><span>S</span><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span></div>
     <div class="cal-grid">${cells}</div></div>`;
 }
+// QuickBooks summary / non-product lines (not deliverable) — e.g. "Cases Total", subtotal, tax, discount
+function isSummaryLine(ref) { return typeof ref !== 'number' && /\b(total|subtotal|sub-?total|sales ?tax|\btax\b|discount|balance|amount due|shipping|handling|freight|rounding)\b/i.test(String(ref || '')); }
 function dlvCounts(o) { let cases = 0, loose = 0; (o.l || []).forEach(([ref, q]) => { if (!(q > 0) || typeof ref !== 'number') return; const c = REAL.catalog[ref]; if (!c) return; if (/loose/i.test(c.group || '')) loose += q; else cases += q; }); return { total: cases + loose, cases, loose }; }
 function renderDeliveries() {
   if (!REAL) return renderRoute();
@@ -5333,6 +5335,7 @@ function renderDriver() {
     ${legBtns || '<span class="sub" style="margin:0">No stops with an address to navigate.</span>'}
     ${nsms ? `<a class="btn gold" href="${esc(nsms)}">💬 Text ${esc(next.o.c)}: on the way</a>` : ''}
     <button class="btn ghost" data-act="r-best" data-t="${t}"${S.routeBusy ? ' disabled' : ''}>${S.routeBusy ? esc(S.routeBusy) : '🧭 Re-sort shortest'}</button>
+    ${undel.length ? `<button class="btn ghost" data-act="d-copy-route" data-t="${t}">${ic('clip')} Copy stops for a route app</button>` : ''}
   </section>
   ${legs.length > 1 ? `<p class="sub" style="margin:0">Google Maps fits about 9 stops at a time. Drive the first 9 in order, then tap <b>Continue</b> for the next 9.</p>` : ''}
   <div class="chips">${T.map((tr, n) => `<button class="chip" data-act="d-truck" data-t="${n}" aria-pressed="${t === n}">${esc(tr.name)} · ${(byT[n] || []).length}</button>`).join('')}</div>
@@ -5352,7 +5355,7 @@ function renderDriver() {
 }
 function driverStop(x, list) {
   const st = x.st;
-  const lines = x.o.l.map((l, n) => ({ l, n })).filter(o => o.l[1] > 0);
+  const lines = x.o.l.map((l, n) => ({ l, n })).filter(o => o.l[1] > 0 && typeof o.l[0] === 'number');
   const k = list.findIndex(y => y.k === x.k);
   const drop = S.dDrop || (S.dDrop = {});
   const qOf = o => Math.round(Math.abs(o.l[1]));
@@ -6872,6 +6875,7 @@ document.addEventListener('click', e => {
     case 'd-drop-grp': { const x = Object.values(dayStops(S.dDate)).flat().find(y => y.k === S.dStop); if (!x) break; const on = d.on === '1'; (d.ns || '').split(',').filter(s => s !== '').forEach(s => { const n = +s; const q = Math.round(Math.abs((x.o.l[n] || [])[1] || 0)); if (on && q) S.dDrop[n] = q; else delete S.dDrop[n]; }); keep(); break; }
     case 'd-drop-reset': S.dDrop = {}; keep(); break;
     case 'drv-show': S.drvShow = d.v; keep(); break;
+    case 'd-copy-route': { const tt = Math.min(+d.t, DTRUCKS().length - 1); const list = dayStops(S.dDate)[tt] || []; const addrs = list.filter(x => !x.st.st && x.c.address).map(x => fixAddr(x.c.address)); if (!addrs.length) { toast('No stops with an address.'); break; } const txt = addrs.join('\n'); const done = () => toast(`${addrs.length} stops copied, in order. Paste them into Circuit or RoadWarrior's "add stops".`); try { navigator.clipboard.writeText(txt).then(done, () => { const ta = document.createElement('textarea'); ta.value = txt; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); } catch (e) {} ta.remove(); done(); }); } catch (e) { const ta = document.createElement('textarea'); ta.value = txt; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); } catch (x) {} ta.remove(); done(); } break; }
     case 'd-back': S.dStop = null; keep(); break;
     case 'd-truck': S.dTruck = +d.t; S.dStop = null; keep(); break;
     case 'd-sh': { const n = d.n; const v = Math.max(0, Math.min(+d.max || 1e9, (S.dShort[n] || 0) + +d.d)); if (v) S.dShort[n] = v; else delete S.dShort[n]; keep(); break; }
@@ -6879,7 +6883,7 @@ document.addEventListener('click', e => {
     case 'd-finish': case 'd-skip': {
       const all = Object.values(dayStops(S.dDate)).flat(); const x = all.find(y => y.k === d.k); if (!x) break;
       const miss = [];
-      x.o.l.forEach((ln, n) => { const q = Math.round(Math.abs(ln[1] || 0)); if (q <= 0) return; const got = Math.min(q, Math.max(0, (S.dDrop || {})[n] || 0)); const m = q - got; if (m > 0) { const ref = ln[0]; const c = typeof ref === 'number' ? REAL.catalog[ref] : null; miss.push({ n, m, name: c ? c.name : String(ref), full: c ? c.full : (ln[3] || String(ref)), price: q ? Math.round((ln[2] || 0) / q * 100) / 100 : 0 }); } });
+      x.o.l.forEach((ln, n) => { const q = Math.round(Math.abs(ln[1] || 0)); if (q <= 0 || typeof ln[0] !== 'number') return; const got = Math.min(q, Math.max(0, (S.dDrop || {})[n] || 0)); const m = q - got; if (m > 0) { const ref = ln[0]; const c = typeof ref === 'number' ? REAL.catalog[ref] : null; miss.push({ n, m, name: c ? c.name : String(ref), full: c ? c.full : (ln[3] || String(ref)), price: q ? Math.round((ln[2] || 0) / q * 100) / 100 : 0 }); } });
       const shortN = miss.reduce((t, o) => t + o.m, 0);
       const shortTxt = miss.map(o => `${o.m} ${o.name}`).join(', ');
       const shorts = miss.map(o => [o.full, o.m, o.price, o.name]);
