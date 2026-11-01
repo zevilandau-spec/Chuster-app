@@ -54,9 +54,11 @@ lock_ui = '''<div id="lock" style="position:fixed;inset:0;z-index:100;background
         return ds.text().then(JSON.parse);
       });
   }
+  function hideSplash() { var s = document.getElementById('splash'); if (s) s.remove(); }
   function start(data) {
     window.CHUSTER_DATA = data; var l = document.getElementById('lock'); if (l) l.remove();
-    try { window.__startApp(); } catch (e) {
+    try { window.__startApp(); hideSplash(); } catch (e) {
+      hideSplash();
       var box = document.createElement('div'); box.setAttribute('style', 'position:fixed;inset:12px;z-index:9999;background:#fff;border:3px solid #b42318;border-radius:14px;padding:18px;overflow:auto;font:14px system-ui;color:#111');
       box.innerHTML = '<h2 style="margin:0 0 8px">The app could not start</h2><p>Send a screenshot of this to Claude.</p><pre style="white-space:pre-wrap;font-size:12px"></pre><button id="lock-clear" style="padding:10px 14px;font-size:15px">Clear saved data and reload</button>';
       box.querySelector('#lock-clear').addEventListener('click', function () { try { Object.keys(localStorage).forEach(function (k) { if (k !== 'chuster-pass') localStorage.removeItem(k); }); } catch (x) { /* ignore */ } location.reload(); });
@@ -64,9 +66,10 @@ lock_ui = '''<div id="lock" style="position:fixed;inset:0;z-index:100;background
       document.body.appendChild(box);
     }
   }
-  if (!(window.crypto && crypto.subtle) || !window.DecompressionStream) { err.textContent = 'This browser is too old to open the app. Update your iPad / iPhone (Settings → General → Software Update), or open the link in Chrome.'; err.hidden = false; btn.disabled = true; return; }
+  if (!(window.crypto && crypto.subtle) || !window.DecompressionStream) { err.textContent = 'This browser is too old to open the app. Update your iPad / iPhone (Settings → General → Software Update), or open the link in Chrome.'; err.hidden = false; btn.disabled = true; hideSplash(); return; }
   var saved = null; try { saved = localStorage.getItem('chuster-pass'); } catch (e) { /* storage blocked */ }
-  if (saved) { btn.disabled = true; btn.textContent = 'Opening…'; unlock(saved).then(start).catch(function () { try { localStorage.removeItem('chuster-pass'); } catch (e) { /* ignore */ } btn.disabled = false; btn.textContent = 'Open'; }); }
+  if (saved) { btn.disabled = true; btn.textContent = 'Opening…'; unlock(saved).then(start).catch(function () { try { localStorage.removeItem('chuster-pass'); } catch (e) { /* ignore */ } btn.disabled = false; btn.textContent = 'Open'; hideSplash(); }); }
+  else { hideSplash(); }
   form.addEventListener('submit', function (e) {
     e.preventDefault();
     var pass = input.value.trim(); if (!pass) return;
@@ -96,8 +99,14 @@ doc = ('<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n'
        '<meta name="apple-mobile-web-app-capable" content="yes">\n'
        '<meta name="mobile-web-app-capable" content="yes">\n'
        '<meta name="theme-color" content="#21409A">\n'
-       '<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)} body{margin:0} [hidden]{display:none!important} img{max-width:100%}</style>\n'
-       + app[:head_end] + '\n</head>\n<body>\n' + app[head_end:] + '\n</body>\n</html>\n')
+       '<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)} body{margin:0} [hidden]{display:none!important} img{max-width:100%}'
+       '#splash{position:fixed;inset:0;z-index:200;background:var(--bg,#FBF8EF);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px}'
+       '#splash .brand-logo{width:min(240px,60vw)}'
+       '#splash .sp{width:44px;height:44px;border:4px solid rgba(33,64,140,.18);border-top-color:#21409A;border-radius:50%;animation:ch-spin .8s linear infinite}'
+       '@keyframes ch-spin{to{transform:rotate(360deg)}}</style>\n'
+       + app[:head_end] + '\n</head>\n<body>\n'
+       '<div id="splash"><div class="brand-logo" role="img" aria-label="Chuster"></div><div class="sp"></div></div>\n'
+       + app[head_end:] + '\n</body>\n</html>\n')
 assert 'window.CHUSTER_DATA=' not in doc and 'ROSENFELD' not in doc and 'Aron' not in doc and 'WINLAND' not in doc
 out = os.path.join(root, 'netlify')
 os.makedirs(out, exist_ok=True)
