@@ -2473,7 +2473,7 @@ function renderStop() {
       <h2>Finish this stop</h2>${proofHtml()}
       <div style="display:flex;justify-content:space-between"><span>Collect today</span><strong>[$ amount]</strong></div>
       <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px"><button class="btn ghost sm" data-act="sig-open">${S.proof.sig ? 'Signed ✓' : 'Signature'}</button><label class="btn ghost sm" style="cursor:pointer">Photo${S.proof.photos.length ? ' · ' + S.proof.photos.length : ''}<input type="file" accept="image/*" capture="environment" id="stop-photo2" hidden></label><button class="btn pink sm" data-act="soon" data-name="Collecting payment on the road">Payment</button></div>
-      ${S.stopConfirm ? `<div class="card confirm stack" style="padding:14px"><strong>${t.need - t.got} box${t.need - t.got > 1 ? 'es' : ''} not delivered.</strong><span class="sub" style="margin:0">Finish anyway and mark them short? The office gets a note for a credit.</span><div class="actions"><button class="btn primary" data-act="stop-finish" data-force="1">Finish as short</button><button class="btn ghost" data-act="stop-cancel">Keep delivering</button></div></div>`
+      ${S.stopConfirm ? `<div class="card confirm stack" style="padding:14px"><strong>${t.need - t.got} box${t.need - t.got > 1 ? 'es' : ''} not delivered.</strong><span class="sub" style="margin:0">Finish anyway and mark them missing? The office gets a note for a credit.</span><div class="actions"><button class="btn primary" data-act="stop-finish" data-force="1">Finish, mark missing</button><button class="btn ghost" data-act="stop-cancel">Keep delivering</button></div></div>`
         : `<button class="btn primary big full" data-act="stop-finish">Finish delivery</button>`}
     </aside>
   </div>`;
@@ -5175,7 +5175,7 @@ function deliverBox(o) {
   const auto = dDateAuto(o); const cur = (S.lmove && S.lmove[o.n]) || auto; const pushed = cur !== auto;
   return `<div class="iv-deliv card stack" style="gap:8px;margin:8px 0"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"><b>Deliver ${fmtShort(isoRd(cur))}</b>${pushed ? '<span class="tag gold">pushed</span>' : '<span class="tag blue">automatic (next day)</span>'}</div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><label class="sr" for="dlv-${esc(o.n)}">Delivery date</label><input id="dlv-${esc(o.n)}" class="inp iv-deliv-date" type="date" data-n="${esc(o.n)}" value="${cur}" min="${isoOf(TODAY)}" style="width:auto"><button class="btn ghost sm" data-act="dlv-push" data-n="${esc(o.n)}">Push to next delivery day ›</button>${pushed ? `<button class="btn ghost sm" data-act="dlv-auto" data-n="${esc(o.n)}">Back to automatic</button>` : ''}</div>
-    ${st ? `<span class="sub" style="margin:0">${st.st === 'partial' ? 'Delivered, something short' : st.st === 'skip' ? 'Skipped on the truck' : ''}</span>` : ''}</div>`;
+    ${st ? `<span class="sub" style="margin:0">${st.st === 'partial' ? 'Delivered, something missing' : st.st === 'skip' ? 'Skipped on the truck' : ''}</span>` : ''}</div>`;
 }
 const delivDays = () => { const s = new Set(REAL.orders.list.filter(o => o.t === 'inv').map(dDateOf)); s.add(isoOf(TODAY)); return [...s].sort().reverse(); };
 function truckFor(date, area) { const m = S.dsched[dow(isoRd(date))] || {}; return areaOn(dow(isoRd(date)), area, date) ? Math.min(+m[area], DTRUCKS().length - 1) : -1; }
@@ -5235,7 +5235,7 @@ const onWayTxt = () => 'Hi, this is Chuster Noodle. Our truck is on the way to y
 const stopCases = o => o.l.reduce((s, [ref, q]) => s + (typeof ref === 'number' && !bulkOf(REAL.catalog[ref].full) ? q : 0), 0);
 const mapsHref = addr => 'https://www.google.com/maps/dir/?api=1&destination=' + encodeURIComponent(addr || '');
 const wazeHref = addr => 'https://waze.com/ul?navigate=yes&q=' + encodeURIComponent(addr || '');
-const stTag = st => st.st === 'done' ? `<span class="tag green">✓ Delivered ${st.at ? st.at.slice(11, 16) : ''}</span>` : st.st === 'partial' ? `<span class="tag gold">Delivered, ${st.shortN || 'some'} short</span>` : st.st === 'skip' ? `<span class="tag red">Not delivered</span>` : `<span class="tag grey">Not delivered yet</span>`;
+const stTag = st => st.st === 'done' ? `<span class="tag green">✓ Delivered ${st.at ? st.at.slice(11, 16) : ''}</span>` : st.st === 'partial' ? `<span class="tag gold">Delivered, ${st.shortN || 'some'} missing</span>` : st.st === 'skip' ? `<span class="tag red">Not delivered</span>` : `<span class="tag grey">Not delivered yet</span>`;
 const fixAddr = a => String(a || '').replace(/,\s*,/g, ',');
 function pickDate() { const days = delivDays(); if (!S.dDate || !days.includes(S.dDate)) { const t = isoOf(TODAY); S.dDate = days.find(d => d <= t) || days[0]; } return days; }
 Object.assign(S, { dTruckF: null, dShow: 'todo', dQ: '', dDayPop: false, dDayCal: false });
@@ -5334,16 +5334,16 @@ function driverStop(x, list) {
   <div class="note"><b>${esc(fixAddr(x.c.address) || 'No address in QuickBooks')}</b>${x.c.phone ? ' · ' + esc(x.c.phone) : ''}</div>
   ${st.st ? `<div class="card stack" style="border:2px solid var(--good)"><b>${stTag(st)}</b>${st.note ? `<span>${esc(st.note)}</span>` : ''}${st.sig ? `<img src="${st.sig}" alt="Signature" style="height:80px;background:#fff;border-radius:8px;align-self:flex-start">` : ''}<button class="btn ghost sm" data-act="d-undo" data-k="${esc(x.k)}" style="align-self:flex-start">Undo, mark again</button></div>` : ''}
   <div class="split">
-    <section class="card stack" style="gap:6px"><h2>What's on the invoice</h2><p class="sub" style="margin:0">${lines.length ? 'Everything is delivered unless you type how many are short.' : `The products on this invoice aren't in the app yet (the product detail goes to ${fmtShort(isoRd(DLY ? DLY.casesTo : REAL.asOf))}). Check the paper invoice.`}</p>
+    <section class="card stack" style="gap:6px"><h2>What's on the invoice</h2><p class="sub" style="margin:0">${lines.length ? 'Everything is delivered unless you type how many are missing.' : `The products on this invoice aren't in the app yet (the product detail goes to ${fmtShort(isoRd(DLY ? DLY.casesTo : REAL.asOf))}). Check the paper invoice.`}</p>
       ${lines.map(([ref, q], n) => { const c = typeof ref === 'number' ? REAL.catalog[ref] : null; const sv = short[n] || 0;
-        return `<div class="irow ${c ? gcls(c.group) : 'gc gc-6'}${sv ? ' on' : ''}" style="margin-top:0"><span class="icode">${c ? esc(c.code || '·') : '·'}</span><div class="main"><div class="name" style="font-size:14px">${c ? itName(c) : esc(ref)}</div><div class="meta">${c ? casesTxt(c, q) : fnu(q)}${sv ? ` · <b style="color:var(--bad-text)">${sv} short</b>` : ''}</div></div>
-          <div class="step"><button data-act="d-sh" data-n="${n}" data-d="-1" aria-label="One less short"${sv ? '' : ' disabled'}>−</button><output class="num" title="short">${sv}</output><button data-act="d-sh" data-n="${n}" data-d="1" data-max="${q}" aria-label="One more short">+</button></div></div>`; }).join('')}
+        return `<div class="irow ${c ? gcls(c.group) : 'gc gc-6'}${sv ? ' on' : ''}" style="margin-top:0"><span class="icode">${c ? esc(c.code || '·') : '·'}</span><div class="main"><div class="name" style="font-size:14px">${c ? itName(c) : esc(ref)}</div><div class="meta">${c ? casesTxt(c, q) : fnu(q)}${sv ? ` · <b style="color:var(--bad-text)">${sv} missing</b>` : ''}</div></div>
+          <div class="step"><button data-act="d-sh" data-n="${n}" data-d="-1" aria-label="One less missing"${sv ? '' : ' disabled'}>−</button><output class="num" title="missing">${sv}</output><button data-act="d-sh" data-n="${n}" data-d="1" data-max="${q}" aria-label="One more missing">+</button></div></div>`; }).join('')}
     </section>
     <aside class="card stack" style="position:sticky;top:calc(80px + env(safe-area-inset-top, 0px))"><h2>Finish this stop</h2>
       <div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn ghost" data-act="d-sig">${S.proof.sig ? 'Signed ✓' : 'Signature'}</button><label class="btn ghost" style="cursor:pointer">${ic('camera')} Photo${S.proof.photos.length ? ' · ' + S.proof.photos.length : ''}<input type="file" accept="image/*" capture="environment" id="stop-photo" hidden></label></div>
       ${proofHtml()}
       <label class="lbl" for="d-note">Note (optional)</label><input class="inp" id="d-note" placeholder="e.g. left at back door, 2 cases returned">
-      <button class="btn primary big full" data-act="d-finish" data-k="${esc(x.k)}">${shortN ? `Delivered, ${shortN} short` : 'Delivered, all cases'}</button>
+      <button class="btn primary big full" data-act="d-finish" data-k="${esc(x.k)}">${shortN ? `Delivered, ${shortN} missing` : 'Delivered, all cases'}</button>
       <button class="btn danger full" data-act="d-skip" data-k="${esc(x.k)}">Could not deliver</button>
     </aside></div>`;
 }
@@ -5356,7 +5356,7 @@ function driverDayText() {
 function deliveryReportDoc() {
   const date = S.dDate; const byT = dayStops(date); const T = DTRUCKS(); const rows = [];
   T.forEach((tr, n) => { const L = byT[n] || []; if (!L.length) return; rows.push({ cls: 'ps-g gc gc-1', cells: [`<b>${esc(tr.name)}</b>`, '', '', '', ''] });
-    L.forEach((x, k) => rows.push({ cells: [String(k + 1), esc(x.o.c) + `<div style="color:#5F5A4E;font-size:11px">${esc(fixAddr(x.c.address))}</div>`, '#' + esc(x.o.n), fn(stopCases(x.o)), x.st.st === 'done' ? 'Delivered ' + (x.st.at || '').slice(11, 16) : x.st.st === 'partial' ? 'Short: ' + esc(x.st.shortTxt || '') : x.st.st === 'skip' ? '<b style="color:#8A1C12">Not delivered</b>' : '☐'] })); });
+    L.forEach((x, k) => rows.push({ cells: [String(k + 1), esc(x.o.c) + `<div style="color:#5F5A4E;font-size:11px">${esc(fixAddr(x.c.address))}</div>`, '#' + esc(x.o.n), fn(stopCases(x.o)), x.st.st === 'done' ? 'Delivered ' + (x.st.at || '').slice(11, 16) : x.st.st === 'partial' ? 'Missing: ' + esc(x.st.shortTxt || '') : x.st.st === 'skip' ? '<b style="color:#8A1C12">Not delivered</b>' : '☐'] })); });
   const all = Object.keys(byT).filter(k => +k >= 0).flatMap(k => byT[k]);
   return docSheet({ title: 'Delivery report', meta: [['Day', fmtLong(isoRd(date))], ['', hebStr(isoRd(date), false)]], parties: [], cols: ['#', 'Store', 'Invoice', 'Cases', 'Status'], right: 1, rows,
     totals: [['Stops', String(all.length)], ['Delivered', String(all.filter(x => x.st.st === 'done' || x.st.st === 'partial').length)], ['Cases', fn(all.reduce((s, x) => s + stopCases(x.o), 0)), true]], note: SYNC.ready() ? 'Status from the shared database.' : 'Status as marked on this device.' });
@@ -5392,7 +5392,7 @@ function renderDelivStats() {
     <div class="tile ct ct-blue"><div class="k">Cases delivered</div><div class="v">${fn(totCases)}</div><div class="s">last ${wks} weeks</div></div>
     <div class="tile ct ct-green"><div class="k">Average per delivery day</div><div class="v">${fn(avgPerDay)}</div><div class="s">${delivDaysN} delivery days</div></div>
     <div class="tile ct ct-gold"><div class="k">Stops</div><div class="v">${fn(totStops)}</div><div class="s">${fn(Math.round(totStops / Math.max(1, wks)))} a week</div></div>
-    <div class="tile ct ct-red"><div class="k">Marked delivered</div><div class="v">${done}</div><div class="s">${part} short · ${skip} skipped (recent)</div></div>
+    <div class="tile ct ct-red"><div class="k">Marked delivered</div><div class="v">${done}</div><div class="s">${part} missing · ${skip} skipped (recent)</div></div>
   </div>
   <figure class="card" style="margin:0"><figcaption class="card-head"><h2>Cases by week</h2></figcaption>${wkVals.length ? bkBars(wkVals, wkLab, 150) : '<p class="sub">No deliveries in range.</p>'}</figure>
   <div class="split">
@@ -6216,9 +6216,9 @@ function renderToQB() {
   ${SYNC.ready() ? '' : `<div class="note">The shared database isn't set up on this phone yet, so nothing here can reach the office PC. Set it up in <a href="#tools" data-go="tools">Tools</a>.</div>`}
   <div class="chips">${tabs.map(([id, n]) => `<button class="chip" data-act="qw-tab" data-t="${id}" aria-pressed="${S.qbTab === id}">${n} · ${by[id].length}</button>`).join('')}</div>
   <div class="split"><div class="stack" style="gap:12px">${by[S.qbTab].map(qwCard).join('') || `<section class="card"><p class="sub" style="margin:0">${{ wait: 'Nothing is waiting. New orders from the app and payments you record show up here.', sending: 'Nothing is on the way right now.', error: 'No problems.', done: 'Nothing sent yet.' }[S.qbTab]}</p></section>`}</div>
-  <aside class="stack" style="gap:12px">${S.role === 'Owner' ? `<section class="card stack"><div class="card-head" style="margin:0"><h2>Shorts from drivers</h2><span class="sub" style="margin:0">${shorts.length}</span></div>
-      <p class="sub" style="margin:0;font-size:13px">Boxes a driver marked short. Only you can turn them into credit memos.</p>
-      ${shorts.map(x => `<div class="qw-short"><div style="min-width:0"><b>${esc(x.stop.o.c)}</b><div class="sub" style="margin:0;font-size:12px">${esc(fmtShort(isoRd(x.date)))} · #${esc((x.stop.o.nums || [x.stop.o.n]).join(', #'))} · ${esc(x.v.shortTxt || '')}</div></div><div class="actions" style="flex:none"><button class="btn primary sm" data-act="qw-cm-short" data-k="${esc(x.k)}">Make credit</button><button class="btn ghost sm" data-act="qw-cm-skip" data-k="${esc(x.k)}">No credit</button></div></div>`).join('') || '<p class="sub" style="margin:0">No shorts waiting.</p>'}</section>` : ''}
+  <aside class="stack" style="gap:12px">${S.role === 'Owner' ? `<section class="card stack"><div class="card-head" style="margin:0"><h2>Missing from drivers</h2><span class="sub" style="margin:0">${shorts.length}</span></div>
+      <p class="sub" style="margin:0;font-size:13px">Boxes a driver marked missing. Only you can turn them into credit memos.</p>
+      ${shorts.map(x => `<div class="qw-short"><div style="min-width:0"><b>${esc(x.stop.o.c)}</b><div class="sub" style="margin:0;font-size:12px">${esc(fmtShort(isoRd(x.date)))} · #${esc((x.stop.o.nums || [x.stop.o.n]).join(', #'))} · ${esc(x.v.shortTxt || '')}</div></div><div class="actions" style="flex:none"><button class="btn primary sm" data-act="qw-cm-short" data-k="${esc(x.k)}">Make credit</button><button class="btn ghost sm" data-act="qw-cm-skip" data-k="${esc(x.k)}">No credit</button></div></div>`).join('') || '<p class="sub" style="margin:0">Nothing waiting.</p>'}</section>` : ''}
     <section class="card stack"><h2>How it works</h2><p class="sub" style="margin:0;font-size:13px">Orders saved in the app go straight into QuickBooks as invoices. Payments from Zevi and the office go straight in; payments a salesman records wait here until the office taps <b>Send</b>. Credit memos are only made by Zevi. The office PC makes each one in a few seconds and its QuickBooks number shows up here. If QuickBooks says no, it shows under Problems with the reason.</p></section></aside></div>
   ${qwSheet()}`;
 }
@@ -6246,7 +6246,7 @@ function qwSheet() {
     const invs = f.c ? REAL.orders.list.filter(o => o.c === f.c && o.t === 'inv' && o.l.length).slice(0, 25) : [];
     return wrap('Credit memo', `${stores}
       <label class="lbl" for="qw-cc">Store</label><input class="inp" id="qw-cc" list="qw-stores" value="${esc(f.c)}" placeholder="Start typing the store name" autocomplete="off"${f.from ? ' disabled' : ''}>
-      ${f.from ? `<span class="sub" style="margin:-6px 0 0">Short on ${esc(fmtShort(isoRd(f.from.slice(0, 10))))}, invoice #${esc((f.inv || []).join(', #'))}</span>` : f.c ? `<label class="lbl" for="qw-ci">From invoice</label><select class="sel" id="qw-ci"><option value="">Pick an invoice…</option>${invs.map(o => `<option value="${esc(o.n)}"${(f.inv || [])[0] === o.n ? ' selected' : ''}>#${esc(o.n)} · ${esc(fmtShort(isoRd(o.d)))} · ${money(o.a)}</option>`).join('')}</select>` : ''}
+      ${f.from ? `<span class="sub" style="margin:-6px 0 0">Missing on ${esc(fmtShort(isoRd(f.from.slice(0, 10))))}, invoice #${esc((f.inv || []).join(', #'))}</span>` : f.c ? `<label class="lbl" for="qw-ci">From invoice</label><select class="sel" id="qw-ci"><option value="">Pick an invoice…</option>${invs.map(o => `<option value="${esc(o.n)}"${(f.inv || [])[0] === o.n ? ' selected' : ''}>#${esc(o.n)} · ${esc(fmtShort(isoRd(o.d)))} · ${money(o.a)}</option>`).join('')}</select>` : ''}
       ${f.lines.length ? `<div class="qw-cmlines">${f.lines.map((l, i) => `<div><span>${esc(l[3] || nameOfFull(l[0]))}</span><label class="sr" for="qw-cq${i}">Boxes</label><input class="inp num" id="qw-cq${i}" data-qwcm="${i}" data-f="1" inputmode="decimal" value="${l[1]}"><label class="sr" for="qw-cr${i}">Price</label><input class="inp num" id="qw-cr${i}" data-qwcm="${i}" data-f="2" inputmode="decimal" value="${l[2]}"></div>`).join('')}</div>
         <div class="qw-head"><span>Credit total</span><b class="num">−${money(total)}</b></div>` : ''}
       <label class="lbl" for="qw-cmemo">Note</label><input class="inp" id="qw-cmemo" value="${esc(f.memo)}">
@@ -6272,7 +6272,7 @@ function qwAction(a, d) {
     }
     case 'qw-cm-new': S.cmForm = { c: '', lines: [], memo: '', inv: [] }; S.qbSheet = 'cm'; break;
     case 'qw-cm-short': { const v = S.dstat[d.k]; const x = Object.values(dayStops(d.k.slice(0, 10))).flat().find(y => y.k === d.k); if (!v || !x) return;
-      S.cmForm = { c: x.o.c, from: d.k, inv: x.o.nums || [x.o.n], lines: v.shorts.map(l => l.slice()), memo: `Short delivery ${fmtShort(isoRd(d.k.slice(0, 10)))}, invoice #${(x.o.nums || [x.o.n]).join(', #')}` }; S.qbSheet = 'cm'; break; }
+      S.cmForm = { c: x.o.c, from: d.k, inv: x.o.nums || [x.o.n], lines: v.shorts.map(l => l.slice()), memo: `Missing on delivery ${fmtShort(isoRd(d.k.slice(0, 10)))}, invoice #${(x.o.nums || [x.o.n]).join(', #')}` }; S.qbSheet = 'cm'; break; }
     case 'qw-cm-skip': { const v = S.dstat[d.k]; if (!v) return; S.dstat[d.k] = Object.assign({}, v, { noCredit: 1 }); saveDstat(); dsShare(d.k); toast('OK, no credit for that one.'); break; }
     case 'qw-cm-save': {
       if (S.role !== 'Owner') return toast('Only Zevi can make credit memos.');
@@ -6675,7 +6675,7 @@ document.addEventListener('click', e => {
       if (S.stops[i + 1]) S.stops[i + 1].st = 'now';
       S.stop.forEach(g => g.items.forEach(it => { it.got = 0; }));
       S.stopConfirm = false;
-      toast(t.got < t.need ? `Stop finished. ${t.need - t.got} short, sent to the office.` : 'Stop finished. Invoice emailed to the store.');
+      toast(t.got < t.need ? `Stop finished. ${t.need - t.got} missing, sent to the office.` : 'Stop finished. Invoice emailed to the store.');
       go('route'); break;
     }
     case 'tools-tab': S.toolsTab = d.t; keep(); break;
