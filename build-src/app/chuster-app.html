@@ -1170,6 +1170,7 @@ const VIEWS = {
   reps: { title: 'Sales by rep', r: renderReps },
   ask: { title: 'Ask AI', r: renderAsk },
   collect: { title: 'Collections', r: renderCollect },
+  aging: { title: 'Collections dashboard', r: renderAgingDash },
   stmts: { title: 'Statements by email', r: renderStmts },
   yomtov: { title: 'Yom Tov list', r: renderYomTov },
   lost: { title: 'Lost items', r: renderLost },
@@ -1191,7 +1192,7 @@ const VIEWS = {
 const NAV = [
   { items: [['home', 'Dashboard', 'home'], ['ask', 'Ask AI ✨', 'chat'], ['calendar', 'Calendar', 'cal']] },
   { h: 'ORDERS', items: [['order', 'New order', 'order'], ['orders', 'Orders', 'order'], ['inbox', 'Incoming orders', 'chat', 'inbox'], ['toqb', 'To QuickBooks', 'check', 'toqb']] },
-  { h: 'CUSTOMERS', items: [['customers', 'Customers', 'people', 'late'], ['payments', 'Payments', 'card', 'pay'], ['collect', 'Collections', 'card'], ['stmts', 'Statements by email', 'mail'], ['custprofit', 'Profit by store', 'chart'], ['lost', 'Lost items', 'alert'], ['yomtov', 'Yom Tov list', 'cal']] },
+  { h: 'CUSTOMERS', items: [['customers', 'Customers', 'people', 'late'], ['payments', 'Payments', 'card', 'pay'], ['collect', 'Collections', 'card'], ['aging', 'Collections dashboard', 'chart'], ['stmts', 'Statements by email', 'mail'], ['custprofit', 'Profit by store', 'chart'], ['lost', 'Lost items', 'alert'], ['yomtov', 'Yom Tov list', 'cal']] },
   { h: 'SALES & MONEY', items: [['mysales', 'Salesman dashboard', 'chart'], ['storesales', 'Store sales', 'chart'], ['newlost', 'New & lost stores', 'people'], ['habits', 'Order habits', 'clock'], ['reps', 'Sales by rep & commission', 'people'], ['finance', 'Finance', 'chart']] },
   { h: 'PRODUCTS', items: [['items', 'Products & profit', 'chart'], ['margin', 'Margins', 'chart'], ['pricelist', 'Price list', 'order'], ['pricecheck', 'Price check', 'card']] },
   { h: 'DELIVERIES', items: [['route', 'Deliveries', 'box'], ['stop', 'Driver', 'wheel'], ['live', 'Live trucks', 'pin'], ['loading', 'Loading', 'truck'], ['dsched', 'Delivery days', 'cal'], ['delivstats', 'Delivery stats', 'chart']] },
@@ -3721,6 +3722,37 @@ function renderStmts() {
   ${list('Over 90 days', 'Gets a statement every week', g90, '90', c => c.aging[4])}
   ${list('61 to 90 days', 'Gets a statement every 2 weeks', g60, '60', c => c.aging[3])}`;
 }
+function renderAgingDash() {
+  if (!REAL) return needData('Collections dashboard');
+  const cs = REAL.customers.filter(c => (!salesLocked() || custMine(c)));
+  const t = REAL.ar.totals, bk = REAL.ar.buckets;
+  const owed = cs.reduce((s, c) => s + Math.max(0, c.balance || 0), 0);
+  const pastSum = cs.reduce((s, c) => s + pastDue(c), 0);
+  const over60 = cs.reduce((s, c) => s + Math.max(0, (c.aging[3] || 0) + (c.aging[4] || 0)), 0);
+  // age of each open past-due invoice, weighted
+  let wAge = 0, wAmt = 0, oldest = [];
+  cs.forEach(c => (c.open || []).forEach(o => { if (!o.due) return; const days = isoRd(REAL.asOf) - mdy(o.due); if (days > 0 && o.amt > 0) { wAge += days * o.amt; wAmt += o.amt; oldest.push({ c, o, days }); } }));
+  const avgAge = wAmt ? Math.round(wAge / wAmt) : 0;
+  oldest.sort((a, b) => b.days - a.days);
+  const AGE_C = ['#2E8B74', '#F4BC3A', '#E38B2C', '#C7702C', '#C7402F'];
+  const parts = bk.map((b2, i) => ({ name: b2, v: Math.max(0, t[i] || 0), color: AGE_C[i] }));
+  const worst = cs.filter(c => pastDue(c) > 1).sort((a, b) => pastDue(b) - pastDue(a)).slice(0, 25);
+  const telBtn = c => c.phone ? `<a class="btn ghost sm" href="${telHref(c.phone)}" onclick="event.stopPropagation()">${ic('phone')}</a>` : '';
+  const tab = S.agTab || 'worst';
+  const rows = tab === 'worst'
+    ? worst.map(c => `<div style="border-top:1px solid var(--line);display:flex;align-items:center;gap:8px;padding:8px 0"><button style="flex:1;min-width:0;background:none;border:none;font:inherit;text-align:left;cursor:pointer;color:inherit" data-act="cust-sel-go" data-n="${esc(c.name)}"><b>${esc(c.name)}</b><div class="sub" style="margin:0;font-size:12px">${esc(c.area || '')} · owes ${fm(c.balance)}${(c.aging[4] || 0) > 1 ? ' · <span style=\'color:var(--bad-text)\'>' + fm(c.aging[4]) + ' over 90</span>' : ''}</div></button>${telBtn(c)}<b class="num" style="color:var(--bad-text)">${fm(pastDue(c))}</b></div>`).join('')
+    : oldest.slice(0, 50).map(x => `<div style="border-top:1px solid var(--line);display:flex;align-items:center;gap:8px;padding:8px 0"><button style="flex:1;min-width:0;background:none;border:none;font:inherit;text-align:left;cursor:pointer;color:inherit" data-act="cust-sel-go" data-n="${esc(x.c.name)}"><b>${esc(x.c.name)}</b><div class="sub" style="margin:0;font-size:12px">#${esc(x.o.num)} · due ${esc(x.o.due)} · <span style="color:var(--bad-text)">${x.days} days late</span></div></button>${telBtn(x.c)}<b class="num">${fm(x.o.amt)}</b></div>`).join('');
+  const chip = (k, l) => `<button class="chip" data-act="ag-tab" data-v="${k}" aria-pressed="${tab === k}">${l}</button>`;
+  return `${head('Collections dashboard', `who owes and how old${salesLocked() ? ' · your stores' : ''} · from QuickBooks ${fmtShort(isoRd(REAL.asOf))}`)}
+  <div class="tiles">
+    <div class="tile ct ct-blue"><div class="k">Total owed</div><div class="v">${fm(owed)}</div><div class="s">${cs.filter(c => (c.balance || 0) > 1).length} stores</div></div>
+    <div class="tile ct ct-red"><div class="k">Past due</div><div class="v">${fm(pastSum)}</div><div class="s">${fm(over60)} over 60 days</div></div>
+    <div class="tile ct ct-gold"><div class="k">Average age of unpaid</div><div class="v">${avgAge} days</div><div class="s">weighted by amount</div></div>
+  </div>
+  <section class="card"><div class="card-head"><h2>By age</h2></div><div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap">${donutSvg(parts, parts.reduce((s, p) => s + p.v, 0))}<div style="flex:1;min-width:160px">${parts.map(p => `<div style="display:flex;align-items:center;gap:8px;padding:3px 0;font-size:14px"><i style="width:10px;height:10px;border-radius:3px;background:${p.color};flex:none"></i><span style="flex:1">${esc(p.name)}${/^\d/.test(p.name) ? ' days' : ''}</span><b class="num">${fm(p.v)}</b></div>`).join('')}</div></div></section>
+  <section class="card stack" style="gap:6px"><div class="card-head" style="margin:0"><h2>${tab === 'worst' ? 'Who owes the most' : 'Oldest unpaid invoices'}</h2><div class="chips">${chip('worst', 'Worst balances')}${chip('old', 'Oldest invoices')}</div></div>
+    ${rows || '<p class="sub" style="margin:0">Nobody past due.</p>'}</section>`;
+}
 function renderCollect() {
   if (!REAL) return needData('Collections');
   const all = REAL.customers.filter(c => pastDue(c) > 1 && custMine(c));
@@ -4276,7 +4308,7 @@ function openPOSection() {
 /* ================= Salesman dashboard (e.g. "Dudi's sales") ================= */
 const DLY = REAL && REAL.daily ? REAL.daily : null;
 Object.assign(S, { ms: { rep: S.user === 'Motty' ? 'All' : 'Dudi', range: 'days', area: 'All', end: null } });
-Object.assign(S, { ss: { range: 'month', end: null, sort: 'sales', q: '', area: 'All' }, nlTab: 'new', nlQ: '', hbTab: 'overdue', hbQ: '', mgTab: 'best', mgQ: '', dvWeeks: 8 });
+Object.assign(S, { ss: { range: 'month', end: null, sort: 'sales', q: '', area: 'All' }, nlTab: 'new', nlQ: '', hbTab: 'overdue', hbQ: '', mgTab: 'best', mgQ: '', dvWeeks: 8, agTab: 'worst' });
 const addDays = (iso, n) => isoOf(isoRd(iso) + n);
 function msRange() {
   const end = S.ms.end || DLY.to; const e = isoRd(end); const R = S.ms.range;
@@ -6058,6 +6090,7 @@ document.addEventListener('click', e => {
     case 'hb-tab': S.hbTab = d.v; keep(); break;
     case 'mg-tab': S.mgTab = d.v; keep(); break;
     case 'dv-weeks': S.dvWeeks = +d.v; keep(); break;
+    case 'ag-tab': S.agTab = d.v; keep(); break;
     case 'go-item': go('items'); break;
     case 'ms-range': S.ms.range = d.v; keep(); break;
     case 'ms-area': S.ms.area = d.v; keep(); break;
