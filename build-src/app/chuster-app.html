@@ -1206,6 +1206,11 @@ const ROLE_VIEWS = {
   SalesDriver: ['ask', 'mysales', 'customers', 'collect', 'orders', 'order', 'inbox', 'toqb', 'payments', 'yomtov', 'lost', 'pricelist', 'pricecheck', 'calendar', 'route', 'stop', 'loading', 'loadlist', 'salesorders']
 };
 const isSales = () => S.role === 'Sales' || S.role === 'SalesDriver';
+// a salesman is locked to his own customers (the rep codes set for his name); owners/office see everyone
+function myRepCodes() { const p = (S.repCfg && S.repCfg.people || {})[S.user]; return (p && p.length) ? p : null; }
+const salesLocked = () => isSales() && !!myRepCodes();
+const custMine = c => !salesLocked() || (!!c && myRepCodes().includes(c.rep || '—'));
+const custMineName = n => !salesLocked() || custMine(custByName(n));
 const allowed = v => S.role === 'Owner' ? true : S.role === 'Office' ? !['tools', 'custprofit', 'finance', 'expenses', 'bank', 'journal', 'accounts'].includes(v) : (ROLE_VIEWS[S.role] || []).includes(v);
 const roleHome = () => S.role === 'Warehouse' ? 'packnext' : S.role === 'Driver' ? 'route' : isSales() ? 'mysales' : 'home';
 const YI = { 'Dashboard': 'הויפט בלאט', 'Ask the portal': 'פרעג די אפּ', 'Ask AI': 'פרעג AI', 'Ask AI ✨': 'פרעג AI ✨', 'Ask': 'פרעג', 'Orders': 'ארדערס', 'New order': 'נייע ארדער', '+ New order': '+ נייע ארדער', 'Incoming orders': 'אריינקומענדיגע ארדערס', 'Payments': 'באצאלונגען',
@@ -2333,6 +2338,7 @@ function monthsTxt(ms) {
 function custFiltered() {
   const q = S.custQ.trim().toLowerCase();
   const list = custData().filter(c => {
+    if (!custMine(c)) return false;
     if (S.custF === 'owe' && !(pastDue(c) > 1 && c.active)) return false;
     if (S.custF === 'late' && !c.late) return false;
     if (S.custF === 'off' && !(c.offSeason && c.active)) return false;
@@ -2413,7 +2419,7 @@ function stmtPanel(c) {
   </div>`;
 }
 function renderCustomers() {
-  const all = custData();
+  const all = custData().filter(custMine);
   const areas = ['All', ...[...new Set(all.map(c => c.area))].sort()];
   const sel = S.custSel ? all.find(c => c.name === S.custSel) : null;
   const n = f => all.filter(c => f === 'owe' ? pastDue(c) > 1 && c.active : f === 'late' ? c.late : f === 'off' ? c.offSeason && c.active : f === 'inactive' ? !c.active : c.active).length;
@@ -2757,7 +2763,7 @@ function ordFlags(o) {
 }
 function ordFiltered() {
   const OR = REAL.orders; const q = S.ordQ.trim().toLowerCase();
-  return OR.list.filter(o => (S.ordType === 'all' || o.t === S.ordType) && (!S.ordFrom || o.d <= S.ordFrom) && (S.ordArea === 'All' || areaOf(o.c) === S.ordArea) && (!q || o.c.toLowerCase().includes(q) || o.n.includes(q)));
+  return OR.list.filter(o => custMineName(o.c) && (S.ordType === 'all' || o.t === S.ordType) && (!S.ordFrom || o.d <= S.ordFrom) && (S.ordArea === 'All' || areaOf(o.c) === S.ordArea) && (!q || o.c.toLowerCase().includes(q) || o.n.includes(q)));
 }
 const ordBoxes = o => o.l.reduce((s, [ref, q]) => s + (typeof ref === 'number' && S.catalog[ref] && (S.catalog[ref].full || '').startsWith('Packs') ? q : 0), 0);
 function ordDetail(o) {
@@ -3435,6 +3441,18 @@ function aiData() {
   } else {
     D.recentInvoices = Object.values((REAL.orders && REAL.orders.list) || []).map(o => ({ date: o.d, num: o.n, customer: o.c, lines: (o.l || []).map(l => ({ item: l[0], qty: l[2] })) }));
   }
+  if (salesLocked()) {
+    // a salesman's AI sees only his own customers and his own sales, never the company totals
+    const names = new Set(REAL.customers.filter(custMine).map(c => c.name));
+    const mine = new Set(REAL.customers.map((c, i) => custMine(c) ? i : -1).filter(i => i >= 0));
+    if (D.customers) D.customers = D.customers.filter(c => names.has(c.name));
+    if (D.salesByCustomerMonth) { const o = {}; Object.keys(D.salesByCustomerMonth).forEach(n => { if (names.has(n)) o[n] = D.salesByCustomerMonth[n]; }); D.salesByCustomerMonth = o; }
+    if (D.recentInvoices) D.recentInvoices = D.recentInvoices.filter(o => names.has(o.customer));
+    if (D.productTotals) D.productTotals = D.productTotals.map(x => ({ name: x.name, group: x.group, code: x.code }));
+    delete D.salesByMonth; delete D.reps;
+    if (D._hist) { const o = {}; Object.keys(D._hist).forEach(k => { if (mine.has(+k)) o[k] = D._hist[k]; }); D._hist = o; }
+    if (D._seasonQ) { const o = {}; Object.keys(D._seasonQ).forEach(k => { if (mine.has(+k)) o[k] = D._seasonQ[k]; }); D._seasonQ = o; }
+  }
   if (owner) {
     const F = REAL.fin; if (F) { D.profitAndLoss = { months: F.months, note: F.partial, rows: F.pl.map(r => r.h ? { heading: r.n } : { name: r.n, byMonth: r.v }) }; D.balanceSheet = { asOf: F.snap, rows: F.bs.map(r => r.h ? { heading: r.n } : { name: r.n, value: r.v }) }; }
     if (REAL.books) D.books = REAL.books;
@@ -3662,7 +3680,7 @@ function renderStmts() {
 }
 function renderCollect() {
   if (!REAL) return needData('Collections');
-  const all = REAL.customers.filter(c => pastDue(c) > 1);
+  const all = REAL.customers.filter(c => pastDue(c) > 1 && custMine(c));
   const tot = all.reduce((s, c) => s + pastDue(c), 0), t60 = all.reduce((s, c) => s + Math.max(0, c.aging[3] + c.aging[4]), 0), t90 = all.reduce((s, c) => s + Math.max(0, c.aging[4]), 0);
   const today = todayIso();
   const promised = all.filter(c => (S.col[c.name] || {}).promise >= today), missed = all.filter(c => { const p = (S.col[c.name] || {}).promise; return p && p < today; });
@@ -3699,7 +3717,7 @@ function ytSeasons(name) { return HIST ? HIST.seasons.map((s, i) => ({ s, i })).
 function ytData() {
   const ss = ytSeasons(S.ytName); const last = ss[ss.length - 1], prev = ss[ss.length - 2];
   if (!last) return null;
-  const rows = REAL.customers.map((c, ci) => {
+  const rows = REAL.customers.filter(custMine).map((c) => { const ci = REAL.customers.indexOf(c);
     const so = seasOf(ci); const items = [];
     let tot = 0, totPrev = 0;
     Object.keys(so).forEach(ii => { const q = so[ii][last.i] || 0, qp = prev ? so[ii][prev.i] || 0 : 0; const cat = REAL.catalog[+ii]; if (q > 0) { items.push({ c: cat, q }); if (!bulkOf(cat.full)) tot += q; } if (qp > 0 && !bulkOf(cat.full)) totPrev += qp; });
@@ -3746,7 +3764,7 @@ function lostData() {
   const M = REP.months, last = M.length - 1;
   const recentFrom = last - 2; // this month + the 2 before
   const out = [];
-  REAL.customers.forEach((c, ci) => {
+  REAL.customers.forEach((c, ci) => { if (!custMine(c)) return;
     if (!c.active || c.offSeason) return;
     const h = histOf(ci); const lost = [];
     Object.keys(h).forEach(ii => {
@@ -4226,7 +4244,7 @@ function msRange() {
 }
 function msCusts() {
   const rows = repRows(); const r = rows.find(x => x.code === S.ms.rep);
-  const set = new Set(); REAL.customers.forEach((c, i) => { if (S.ms.rep === 'All' || (r && r.codes.includes(c.rep || '—'))) set.add(i); });
+  const set = new Set(); REAL.customers.forEach((c, i) => { if (salesLocked() ? custMine(c) : (S.ms.rep === 'All' || (r && r.codes.includes(c.rep || '—')))) set.add(i); });
   return set;
 }
 function msAgg(a, b, set, area) {
@@ -4247,7 +4265,8 @@ const pctTxt = (x, y) => y ? `<span style="color:${x >= y ? 'var(--good-text)' :
 function renderMySales() {
   if (!DLY || !REP) return needData('Salesman dashboard');
   const rows = repRows().filter(r => sumIdx(r.sales, REP.months.length - 12, REP.months.length - 1) > 0);
-  if (S.ms.rep !== 'All' && !rows.some(r => r.code === S.ms.rep)) S.ms.rep = rows[0] ? rows[0].code : 'All';
+  if (salesLocked()) S.ms.rep = rows.some(r => r.code === S.user) ? S.user : (rows[0] ? rows[0].code : S.user);
+  else if (S.ms.rep !== 'All' && !rows.some(r => r.code === S.ms.rep)) S.ms.rep = rows[0] ? rows[0].code : 'All';
   const set = msCusts(); const areas = ['All', ...[...new Set([...set].map(i => REAL.customers[i].area || 'Other'))].sort((x, y) => (AREA_ORDER.indexOf(x) + 1 || 99) - (AREA_ORDER.indexOf(y) + 1 || 99))];
   if (!areas.includes(S.ms.area)) S.ms.area = 'All';
   const [a, b] = msRange(); const la = addDays(a, -364), lb = addDays(b, -364);
@@ -4292,7 +4311,7 @@ function renderMySales() {
   const monthName = MON[md.getMonth()].toUpperCase();
   return `${head(who === 'All' ? 'Sales dashboard' : `${who}’s sales`, '', `<span class="tag blue" style="font-size:14px;padding:8px 12px">📅 ${rng(a, b)}</span><input class="inp" type="date" id="ms-end" value="${b}" max="${DLY.to}" min="${DLY.from}" style="width:auto" aria-label="Show dates ending on">`)}
   <section class="card" style="display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;padding:12px 16px">
-    <span class="eyebrow" style="color:var(--muted)">REP</span><div class="chips" style="flex-wrap:wrap">${chip('ms-rep', 'All', S.ms.rep, 'All')}${rows.map(r => { const [c, bg] = repColor(r.code); const on = S.ms.rep === r.code; return `<button class="chip" data-act="ms-rep" data-v="${esc(r.code)}" aria-pressed="${on}" style="${on ? `background:${c};color:#fff;border-color:${c}` : `background:${bg};color:${c};border-color:${c}`}">${esc(r.name)}</button>`; }).join('')}</div>
+    ${salesLocked() ? '' : `<span class="eyebrow" style="color:var(--muted)">REP</span><div class="chips" style="flex-wrap:wrap">${chip('ms-rep', 'All', S.ms.rep, 'All')}${rows.map(r => { const [c, bg] = repColor(r.code); const on = S.ms.rep === r.code; return `<button class="chip" data-act="ms-rep" data-v="${esc(r.code)}" aria-pressed="${on}" style="${on ? `background:${c};color:#fff;border-color:${c}` : `background:${bg};color:${c};border-color:${c}`}">${esc(r.name)}</button>`; }).join('')}</div>`}
     <span class="eyebrow" style="color:var(--muted)">DATES</span><div class="chips" style="flex-wrap:wrap">${[['day', 'Day'], ['days', '7 days'], ['week', 'Week'], ['2w', '2 weeks'], ['3w', '3 weeks'], ['month', 'Month']].map(([k, l]) => chip('ms-range', k, S.ms.range, l)).join('')}</div>
     <span class="eyebrow" style="color:var(--muted)">AREA</span><div class="chips" style="flex-wrap:wrap">${areas.map(x => chip('ms-area', x, S.ms.area, x)).join('')}</div>
   </section>
