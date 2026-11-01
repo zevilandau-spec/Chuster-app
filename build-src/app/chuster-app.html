@@ -5383,12 +5383,13 @@ function driverStop(x, list) {
       <button class="lx-ok${full ? ' on' : ''}" data-act="d-drop-all" data-n="${o.n}" data-q="${qty}" aria-label="${full ? 'Uncheck' : 'Delivered all'} ${c ? esc(c.name) : ''}">✓</button>
     </div>`; };
   const hasLines = lines.length > 0;
+  const proofOk = !!(S.proof.sig && S.proof.photos.length);
+  const finishLabel = proofOk ? (missN > 0 ? `Finish delivery — ${fn(missN)} missing` : 'Finish delivery — all delivered') : '🔒 Add signature + photo to finish';
   return `<div class="page-head"><div style="display:flex;align-items:center;gap:8px"><button class="icon-btn" data-act="d-back" aria-label="Back to stops" style="color:var(--fg)"><svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg></button><div><h1 style="display:block;font-size:22px">${esc(x.o.c)}</h1><p class="sub">Stop ${k + 1} of ${list.length} · invoice${(x.o.nums || []).length > 1 ? 's' : ''} #${esc(x.o.label || x.o.n)} · ${fm(x.o.a)}</p></div></div>
     <div class="actions">${x.c.address ? `<a class="btn primary" href="${esc(mapsHref(fixAddr(x.c.address)))}" target="_blank" rel="noopener">Google Maps</a><a class="btn ghost" href="${esc(wazeHref(fixAddr(x.c.address)))}" target="_blank" rel="noopener">Waze</a>` : ''}${x.c.phone ? `<a class="btn ghost" href="${telHref(x.c.phone)}">${ic('phone')} Call</a>` : ''}</div></div>
   <div class="note"><b>${esc(fixAddr(x.c.address) || 'No address in QuickBooks')}</b>${x.c.phone ? ' · ' + esc(x.c.phone) : ''}</div>
   ${st.st ? `<div class="card stack" style="border:2px solid var(--good)"><b>${stTag(st)}</b>${st.note ? `<span>${esc(st.note)}</span>` : ''}${st.sig ? `<img src="${st.sig}" alt="Signature" style="height:80px;background:#fff;border-radius:8px;align-self:flex-start">` : ''}<button class="btn ghost sm" data-act="d-undo" data-k="${esc(x.k)}" style="align-self:flex-start">Undo, mark again</button></div>` : ''}
-  ${!hasLines ? `<section class="card stack"><h2>Check off what you drop</h2><p class="sub" style="margin:0">The products on this invoice aren't in the app yet (the detail goes to ${fmtShort(isoRd(DLY ? DLY.casesTo : REAL.asOf))}). Check the paper invoice, then mark the stop delivered below.</p>
-    <button class="btn primary big full" data-act="d-finish" data-k="${esc(x.k)}">Delivered</button><button class="btn danger full" data-act="d-skip" data-k="${esc(x.k)}">Could not deliver</button></section>` : `
+  ${!hasLines ? `<section class="card stack"><h2>Check off what you drop</h2><p class="sub" style="margin:0">The products on this invoice aren't in the app yet (the detail goes to ${fmtShort(isoRd(DLY ? DLY.casesTo : REAL.asOf))}). Check the paper invoice, then add a signature and photo and finish below.</p></section>` : `
   <section class="card stack" style="gap:10px">
     <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"><div><b style="font-size:22px">${fn(gotBox)}</b> <span class="sub">of ${fn(totBox)} boxes · ${itemsGot}/${lines.length} items</span></div><div style="display:flex;gap:6px"><button class="btn ${gotBox >= totBox ? 'good' : 'gold'} sm" data-act="d-drop-grp" data-ns="${allKeys}" data-on="${gotBox >= totBox ? '0' : '1'}">✓ All</button><button class="btn ghost sm" data-act="d-drop-reset" aria-label="Reset">↺</button></div></div>
     ${bar('Pallet', palletG, palletT)}${bar('Cases', caseG, caseT)}
@@ -5397,14 +5398,16 @@ function driverStop(x, list) {
     <div class="field">${ic('search')}<label class="sr" for="d-stopq">Find an item</label><input id="d-stopq" value="${esc(S.dStopQ || '')}" placeholder="Find an item" autocomplete="off"></div>
     ${gkeys.map(g => { const gl = groups[g]; const gt = gl.reduce((s, o) => s + qOf(o), 0); const gg = gl.reduce((s, o) => s + dOf(o), 0); const ns = gl.map(o => o.n).join(','); const rows = gl.map(row).join(''); if (!rows) return '';
       return `<div class="ghead ${gcls(g)}" style="margin-top:8px"><span>${esc(((LX_GROUP_SHORT[g] || [null, g])[1] || g).toUpperCase())}</span><span style="display:flex;gap:8px;align-items:center">${fn(gt)} box${gt === 1 ? '' : 'es'} <button class="btn ${gg >= gt ? 'good' : 'ghost'} sm" data-act="d-drop-grp" data-ns="${ns}" data-on="${gg >= gt ? '0' : '1'}">✓ All</button></span></div>${rows}`; }).join('')}
-  </section>
+  </section>`}
   <section class="card stack" style="gap:8px">
-    <div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn ghost" data-act="d-sig">${S.proof.sig ? 'Signed ✓' : 'Signature'}</button><label class="btn ghost" style="cursor:pointer">${ic('camera')} Photo${S.proof.photos.length ? ' · ' + S.proof.photos.length : ''}<input type="file" accept="image/*" capture="environment" id="stop-photo" hidden></label></div>
+    <div class="card-head" style="margin:0"><h2 style="font-size:16px">Proof of delivery <span style="color:var(--bad-text)">*required</span></h2>${proofOk ? '<span class="tag green">Ready ✓</span>' : ''}</div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn ${S.proof.sig ? 'good' : 'ghost'}" data-act="d-sig">${S.proof.sig ? '✓ Signed' : '✍️ Signature'}</button><label class="btn ${S.proof.photos.length ? 'good' : 'ghost'}" style="cursor:pointer">${ic('camera')} ${S.proof.photos.length ? '✓ Photo · ' + S.proof.photos.length : 'Photo'}<input type="file" accept="image/*" capture="environment" id="stop-photo" hidden></label></div>
+    ${proofOk ? '' : '<p class="sub" style="margin:0;color:var(--bad-text)">A signature and at least one photo are needed before you can finish.</p>'}
     ${proofHtml()}
     <label class="lbl" for="d-note">Note (optional)</label><input class="inp" id="d-note" placeholder="e.g. left at back door, 2 cases returned">
     <button class="btn danger" data-act="d-skip" data-k="${esc(x.k)}">Could not deliver at all</button>
   </section>
-  <div class="ds-finishbar"><button class="btn primary big full" data-act="d-finish" data-k="${esc(x.k)}">${missN > 0 ? `Finish delivery — ${fn(missN)} missing` : 'Finish delivery — all delivered'}</button></div>`}`;
+  <div class="ds-finishbar"><button class="btn ${proofOk ? 'primary' : 'gold'} big full" data-act="d-finish" data-k="${esc(x.k)}"${proofOk ? '' : ' aria-disabled="true"'}>${finishLabel}</button></div>`;
 }
 function driverDayText() {
   const date = S.dDate; const T = DTRUCKS(); const t = Math.min(S.dTruck, T.length - 1); const list = dayStops(date)[t] || [];
@@ -6881,6 +6884,7 @@ document.addEventListener('click', e => {
     case 'd-sh': { const n = d.n; const v = Math.max(0, Math.min(+d.max || 1e9, (S.dShort[n] || 0) + +d.d)); if (v) S.dShort[n] = v; else delete S.dShort[n]; keep(); break; }
     case 'd-sig': S.sigOpen = true; keep(); break;
     case 'd-finish': case 'd-skip': {
+      if (a === 'd-finish' && !(S.proof.sig && S.proof.photos.length)) { toast(!S.proof.sig && !S.proof.photos.length ? 'Add a signature and a photo before finishing.' : !S.proof.sig ? 'Add a signature before finishing.' : 'Add a photo before finishing.'); break; }
       const all = Object.values(dayStops(S.dDate)).flat(); const x = all.find(y => y.k === d.k); if (!x) break;
       const miss = [];
       x.o.l.forEach((ln, n) => { const q = Math.round(Math.abs(ln[1] || 0)); if (q <= 0 || typeof ln[0] !== 'number') return; const got = Math.min(q, Math.max(0, (S.dDrop || {})[n] || 0)); const m = q - got; if (m > 0) { const ref = ln[0]; const c = typeof ref === 'number' ? REAL.catalog[ref] : null; miss.push({ n, m, name: c ? c.name : String(ref), full: c ? c.full : (ln[3] || String(ref)), price: q ? Math.round((ln[2] || 0) / q * 100) / 100 : 0 }); } });
