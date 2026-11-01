@@ -60,6 +60,10 @@ for t in exp:
     if t['d'][:4] == str(as_of.year): by_vendor[t.get('v') or '—'][1] += tot
     if days_ago(t['d']) < 180:
         recent.append([t['d'], t['t'], t.get('n', ''), t.get('v', ''), t.get('acct', ''), r2(tot), [[l[0], r2(l[2]), l[1]] for l in t['l']][:6]])
+# inventory purchases (item receipts / bills) count toward each vendor's monthly spend too
+for t in pur:
+    k = mi.get(t['d'][:7])
+    if k is not None: by_vendor_m[t.get('v') or '—'][k] += sum(float(l[4] or 0) for l in t['l'])
 recent.sort(key=lambda x: x[0], reverse=True)
 expenses = {'months': months, 'accounts': sorted(([a, [r2(v) for v in vals]] for a, vals in by_acct.items()), key=lambda x: -sum(x[1][-12:])),
             'vendors': sorted(([v, r2(a[0]), r2(a[1])] for v, a in by_vendor.items()), key=lambda x: -x[1])[:150],
