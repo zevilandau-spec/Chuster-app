@@ -1180,6 +1180,7 @@ const VIEWS = {
   live: { title: 'Live trucks', r: renderLive },
   finance: { title: 'Finance', r: renderFinance },
   mysales: { title: 'Salesman dashboard', r: renderMySales },
+  storesales: { title: 'Store sales', r: renderStoreSales },
   orders: { title: 'Orders', r: renderOrders },
   customers: { title: 'Customers', r: renderCustomers }
 };
@@ -1187,7 +1188,7 @@ const NAV = [
   { items: [['home', 'Dashboard', 'home'], ['ask', 'Ask AI ✨', 'chat'], ['calendar', 'Calendar', 'cal']] },
   { h: 'ORDERS', items: [['order', 'New order', 'order'], ['orders', 'Orders', 'order'], ['inbox', 'Incoming orders', 'chat', 'inbox'], ['toqb', 'To QuickBooks', 'check', 'toqb']] },
   { h: 'CUSTOMERS', items: [['customers', 'Customers', 'people', 'late'], ['payments', 'Payments', 'card', 'pay'], ['collect', 'Collections', 'card'], ['stmts', 'Statements by email', 'mail'], ['custprofit', 'Profit by store', 'chart'], ['lost', 'Lost items', 'alert'], ['yomtov', 'Yom Tov list', 'cal']] },
-  { h: 'SALES & MONEY', items: [['mysales', 'Salesman dashboard', 'chart'], ['reps', 'Sales by rep & commission', 'people'], ['finance', 'Finance', 'chart']] },
+  { h: 'SALES & MONEY', items: [['mysales', 'Salesman dashboard', 'chart'], ['storesales', 'Store sales', 'chart'], ['reps', 'Sales by rep & commission', 'people'], ['finance', 'Finance', 'chart']] },
   { h: 'PRODUCTS', items: [['items', 'Products & profit', 'chart'], ['pricelist', 'Price list', 'order'], ['pricecheck', 'Price check', 'card']] },
   { h: 'DELIVERIES', items: [['route', 'Deliveries', 'box'], ['stop', 'Driver', 'wheel'], ['live', 'Live trucks', 'pin'], ['loading', 'Loading', 'truck'], ['dsched', 'Delivery days', 'cal']] },
   { h: 'WAREHOUSE', items: [['packnext', 'What to pack', 'clip'], ['packing', 'Packing plan', 'clip'], ['packlog', 'Pack log', 'clip'], ['packrep', 'Packing report', 'chart'], ['yield', 'Yield', 'chart']] },
@@ -4236,6 +4237,7 @@ function openPOSection() {
 /* ================= Salesman dashboard (e.g. "Dudi's sales") ================= */
 const DLY = REAL && REAL.daily ? REAL.daily : null;
 Object.assign(S, { ms: { rep: S.user === 'Motty' ? 'All' : 'Dudi', range: 'days', area: 'All', end: null } });
+Object.assign(S, { ss: { range: 'month', end: null, sort: 'sales', q: '', area: 'All' } });
 const addDays = (iso, n) => isoOf(isoRd(iso) + n);
 function msRange() {
   const end = S.ms.end || DLY.to; const e = isoRd(end); const R = S.ms.range;
@@ -4265,6 +4267,64 @@ function msAgg(a, b, set, area) {
   return out;
 }
 const pctTxt = (x, y) => y ? `<span style="color:${x >= y ? 'var(--good-text)' : 'var(--bad-text)'};font-weight:700">${x >= y ? '▲' : '▼'} ${Math.abs(Math.round((x - y) / Math.abs(y) * 100))}%</span>` : '';
+function donutSvg(parts, total, size) {
+  size = size || 128; const r = 42, cx = size / 2, cy = size / 2, C = 2 * Math.PI * r; let off = 0;
+  const segs = parts.filter(p => p.v > 0).map(p => { const len = (p.v / (total || 1)) * C; const el = `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${p.color}" stroke-width="16" stroke-dasharray="${len.toFixed(2)} ${(C - len).toFixed(2)}" stroke-dashoffset="${(-off).toFixed(2)}" transform="rotate(-90 ${cx} ${cy})"/>`; off += len; return el; }).join('');
+  return `<svg viewBox="0 0 ${size} ${size}" style="width:${size}px;height:${size}px;flex:none" role="img" aria-label="Share by area"><circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="var(--surface-2)" stroke-width="16"/>${segs}<text x="${cx}" y="${cy - 2}" text-anchor="middle" style="font-size:15px;font-weight:800;fill:var(--fg)">${fm(total)}</text><text x="${cx}" y="${cy + 15}" text-anchor="middle" style="font-size:9px;fill:var(--muted)">this period</text></svg>`;
+}
+const AREA_COLORS = ['#22409A', '#C98A1B', '#2E8B74', '#8A6FC0', '#C7402F', '#4A7CB5', '#9A8464', '#6B8E23'];
+function ssRange() {
+  const end = S.ss.end || DLY.to; const e = isoRd(end); const R = S.ss.range; let a = e;
+  if (R === 'days') a = e - 6;
+  else if (R === 'month') { a = e - (dateOf(e).getDate() - 1); }
+  else if (R === 'lmonth') { const d = dateOf(e); const first = e - (d.getDate() - 1); const pe = first - 1; a = pe - (dateOf(pe).getDate() - 1); return [isoOf(a), isoOf(pe)]; }
+  else if (R === 'ytd') a = isoRd(end.slice(0, 4) + '-01-01');
+  else if (R === '12') a = e - 364;
+  if (a < isoRd(DLY.from)) a = isoRd(DLY.from);
+  return [isoOf(a), end];
+}
+function renderStoreSales() {
+  if (!REAL || !DLY) return needData('Store sales');
+  const set = new Set(); REAL.customers.forEach((c, i) => { if (!salesLocked() || custMine(c)) set.add(i); });
+  const [a, b] = ssRange(); const la = addDays(a, -364), lb = addDays(b, -364);
+  const N = msAgg(a, b, set, S.ss.area), P = msAgg(la, lb, set, S.ss.area);
+  const chip = (act, val, cur, label) => `<button class="chip" data-act="${act}" data-v="${esc(val)}" aria-pressed="${cur === val}">${esc(label)}</button>`;
+  const rng = (x, y) => x === y ? fmtShort(isoRd(x)) : `${MONS[+x.slice(5, 7) - 1]} ${+x.slice(8)} – ${MONS[+y.slice(5, 7) - 1]} ${+y.slice(8)}`;
+  const areas = ['All', ...Object.keys(N.byArea).sort((x, y) => N.byArea[y] - N.byArea[x])];
+  // by area for the donut + bars
+  const areaParts = Object.keys(N.byArea).sort((x, y) => N.byArea[y] - N.byArea[x]).map((ar, i) => ({ name: ar, v: N.byArea[ar], color: AREA_COLORS[i % AREA_COLORS.length], ly: (P.byArea[ar] || 0) }));
+  // weekly bars
+  const weeks = {}; for (let r = isoRd(a); r <= isoRd(b); r++) { const d = isoOf(r); const sun = r - dow(r); const L = DLY.days[d] || []; L.forEach(([ci, amt]) => { if (set.has(ci) && (S.ss.area === 'All' || (REAL.customers[ci].area || 'Other') === S.ss.area)) weeks[sun] = (weeks[sun] || 0) + amt; }); }
+  const wk = Object.keys(weeks).map(Number).sort((x, y) => x - y); const wkVals = wk.map(w => weeks[w]); const wkLab = wk.map(w => fmtShort(w).replace(/^\w+, /, ''));
+  // stores table
+  const stores = [...set].map(i => ({ c: REAL.customers[i], s: N.byCust[i] || 0, p: P.byCust[i] || 0 })).filter(x => x.s > 0 || x.p > 0);
+  const q = S.ss.q.trim().toLowerCase();
+  let rows = stores.filter(x => !q || x.c.name.toLowerCase().includes(q) || (x.c.area || '').toLowerCase().includes(q));
+  rows.sort(S.ss.sort === 'name' ? (x, y) => x.c.name.localeCompare(y.c.name) : S.ss.sort === 'grow' ? (x, y) => (y.s - y.p) - (x.s - x.p) : (x, y) => y.s - x.s);
+  const topArea = areaParts[0];
+  const sc = (v, p) => p ? `<span style="color:${v >= p ? 'var(--good-text)' : 'var(--bad-text)'};font-weight:700">${sgn(pct(v, p))}</span>` : '<span class="sub">new</span>';
+  return `${head('Store sales', `from your QuickBooks invoices${salesLocked() ? ' · your stores' : ''}`, `<span class="tag blue" style="font-size:14px;padding:8px 12px">📅 ${rng(a, b)}</span>`)}
+  <section class="card" style="display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;padding:12px 16px">
+    <span class="eyebrow" style="color:var(--muted)">DATES</span><div class="chips" style="flex-wrap:wrap">${[['days', '7 days'], ['month', 'This month'], ['lmonth', 'Last month'], ['ytd', 'This year'], ['12', '12 months']].map(([k, l]) => chip('ss-range', k, S.ss.range, l)).join('')}</div>
+    <span class="eyebrow" style="color:var(--muted)">AREA</span><div class="chips" style="flex-wrap:wrap">${areas.map(x => chip('ss-area', x, S.ss.area, x)).join('')}</div>
+  </section>
+  <div class="tiles">
+    <div class="tile ct ct-blue"><div class="k">Sales</div><div class="v">${fm(N.sales)}</div><div class="s">${sc(N.sales, P.sales)} vs last year (${fm(P.sales)})</div></div>
+    <div class="tile ct ct-green"><div class="k">Cases</div><div class="v">${fn(N.cases)}${N.casesKnown ? '' : '*'}</div><div class="s">${N.casesKnown ? sc(N.cases, P.cases) + ' vs last year' : 'some still loading'}</div></div>
+    <div class="tile ct ct-gold"><div class="k">Stores that bought</div><div class="v">${N.stores.size}</div><div class="s">of ${set.size} · ${P.stores.size} last year</div></div>
+    <div class="tile ct ct-red"><div class="k">Top area</div><div class="v" style="font-size:18px">${topArea ? esc(topArea.name) : '—'}</div><div class="s">${topArea ? fm(topArea.v) : ''}</div></div>
+  </div>
+  <div class="split">
+    <figure class="card" style="margin:0"><figcaption class="card-head"><h2>By week</h2></figcaption>${wkVals.length ? bkBars(wkVals, wkLab, 150) : '<p class="sub">No sales in this range.</p>'}</figure>
+    <section class="card"><div class="card-head"><h2>By area</h2></div>
+      <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap">${donutSvg(areaParts, N.sales)}<div style="flex:1;min-width:160px">${areaParts.slice(0, 8).map(p => `<div style="display:flex;align-items:center;gap:8px;padding:3px 0;font-size:14px"><i style="width:10px;height:10px;border-radius:3px;background:${p.color};flex:none"></i><span style="flex:1">${esc(p.name)}</span><b class="num">${fm(p.v)}</b><span style="width:52px;text-align:right">${p.ly ? sc(p.v, p.ly) : ''}</span></div>`).join('')}</div></div></section>
+  </div>
+  <section class="card stack" style="gap:6px"><div class="card-head" style="margin:0"><h2>Stores · ${rows.length}</h2><div class="chips">${[['sales', 'Most sales'], ['grow', 'Biggest change'], ['name', 'A to Z']].map(([k, l]) => chip('ss-sort', k, S.ss.sort, l)).join('')}</div></div>
+    <div class="field">${ic('search')}<label class="sr" for="ss-q">Search store</label><input id="ss-q" value="${esc(S.ss.q)}" placeholder="Search store or area" autocomplete="off"></div>
+    <table class="mini-table"><tr><td><b>Store</b></td><td style="text-align:right"><b>Sales</b></td><td style="text-align:right"><b>vs last yr</b></td></tr>
+    ${rows.slice(0, 200).map(x => `<tr><td><button style="background:none;border:none;font:inherit;color:var(--brand-text);cursor:pointer;text-align:left;padding:0" data-act="cust-sel-go" data-n="${esc(x.c.name)}">${esc(x.c.name)}</button><div class="sub" style="margin:0;font-size:12px">${esc(x.c.area || '')}</div></td><td class="num" style="text-align:right">${fm(x.s)}</td><td style="text-align:right">${x.p ? sc(x.s, x.p) : '<span class="sub">new</span>'}</td></tr>`).join('')}</table>
+    ${rows.length > 200 ? '<p class="sub" style="margin:0">Showing the top 200.</p>' : ''}</section>`;
+}
 function renderMySales() {
   if (!DLY || !REP) return needData('Salesman dashboard');
   const rows = repRows().filter(r => sumIdx(r.sales, REP.months.length - 12, REP.months.length - 1) > 0);
@@ -5860,6 +5920,9 @@ document.addEventListener('click', e => {
     case 'rep-tab': S.repTab = d.t; keep(); break;
     case 'ms-open': S.ms.rep = d.r; S.ms.area = 'All'; go('mysales'); break;
     case 'ms-rep': S.ms.rep = d.v; S.ms.area = 'All'; keep(); break;
+    case 'ss-range': S.ss.range = d.v; keep(); break;
+    case 'ss-area': S.ss.area = d.v; keep(); break;
+    case 'ss-sort': S.ss.sort = d.v; keep(); break;
     case 'ms-range': S.ms.range = d.v; keep(); break;
     case 'ms-area': S.ms.area = d.v; keep(); break;
     case 'rep-sel': S.repSel = d.r ? (S.repSel === d.r ? null : d.r) : null; keep(); break;
@@ -6012,6 +6075,7 @@ document.addEventListener('input', e => {
   }
   if (e.target.classList && e.target.classList.contains('ive-inp') && S.ivEdit) { S.ivEdit.q[e.target.dataset.k] = Math.max(0, parseInt(e.target.value, 10) || 0); return; }
   if (e.target.id === 'ive-find' && S.ivEdit) { S.ivEdit.find = e.target.value; const el = document.getElementById('ive-res'); if (el) el.innerHTML = ivFind(S.ivEdit); return; }
+  if (e.target.id === 'ss-q') { S.ss.q = e.target.value; const pos = e.target.selectionStart; render(); const q = document.getElementById('ss-q'); if (q) { q.focus(); try { q.setSelectionRange(pos, pos); } catch (x) {} } return; }
   if (e.target.id === 'sx-test') { S.sxTest = e.target.value; return; }
   if (e.target.classList && e.target.classList.contains('iv-deliv-date')) { const o = REAL.orders.list.find(x => x.n === e.target.dataset.n); if (o) { const v = e.target.value; setLmove(o.n, v && v !== dDateAuto(o) ? v : null); render(); } return; }
   if (e.target.id === 'pk-ai-t') { S.pkAiT = e.target.value; return; }
