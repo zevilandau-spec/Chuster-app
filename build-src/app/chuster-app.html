@@ -858,6 +858,13 @@ main { padding-block: 14px 32px; }
 .dlv-tsel { font-size: 12px; color: var(--muted); border: 1px solid var(--line); border-radius: 8px; padding: 4px 6px; background: var(--surface); margin-top: 8px; }
 .dlv-tap { cursor: pointer; border-radius: 10px; margin: -4px; padding: 4px; }
 .dlv-tap:hover { background: var(--surface-2); }
+/* driver check-off */
+.ds-bar { display: flex; align-items: center; gap: 10px; }
+.ds-bar > span:first-child { width: 58px; flex: none; font-size: 13px; font-weight: 700; }
+.ds-track { flex: 1; height: 12px; background: var(--surface-2); border-radius: 6px; overflow: hidden; }
+.ds-track > span { display: block; height: 100%; background: var(--good); border-radius: 6px; transition: width .2s; }
+.ds-bar > b { width: 64px; text-align: right; font-variant-numeric: tabular-nums; font-size: 13px; }
+.ds-finishbar { position: sticky; bottom: 0; z-index: 8; background: var(--surface); padding: 10px 0; margin-top: 4px; }
 .dlv-addr { font-size: 13px; color: var(--muted); margin-top: 2px; line-height: 1.3; }
 .dlv-chip.pallet { background: var(--ct-blue-bg); color: var(--ct-blue); }
 .dlv-btn.ph { color: var(--brand, #22409A); }
@@ -5139,7 +5146,7 @@ function renderMySales() {
 // An invoice goes on the first day ON or AFTER its date when its area has the truck.
 const DSCHED_DEFAULT = { v: 3, n: 1, start: '65 Steuben St, Brooklyn, NY 11205', 0: { Monsey: 0, Monroe: 0 }, 1: { Williamsburg: 0 }, 2: { 'Boro Park': 0 }, 3: { Country: 0, 'Boro Park': 0 }, 4: { Lakewood: 0, 'Boro Park': 0 }, 5: {}, season: { Country: [7, 8] } };
 const dsFix = v => (v && v.v === 3) ? Object.assign(v, v.season ? {} : { season: { Country: [7, 8] } }, /4706 10th/.test(v.start || '') ? { start: '65 Steuben St, Brooklyn, NY 11205' } : {}) : JSON.parse(JSON.stringify(DSCHED_DEFAULT));
-Object.assign(S, { dsched: dsFix(loadLS('chuster-dsched-v1', null)), gc: loadLS('chuster-gc-v1', {}), routeBusy: '', dstat: loadLS('chuster-dstat-v1', {}), dorder: loadLS('chuster-dorder-v1', {}), dDate: null, dTruck: 0, dStop: null, dShort: {}, dSigOpen: false, dPhotos: [] });
+Object.assign(S, { dsched: dsFix(loadLS('chuster-dsched-v1', null)), gc: loadLS('chuster-gc-v1', {}), routeBusy: '', dstat: loadLS('chuster-dstat-v1', {}), dorder: loadLS('chuster-dorder-v1', {}), dDate: null, dTruck: 0, dStop: null, dShort: {}, dDrop: {}, dStopQ: '', dSigOpen: false, dPhotos: [] });
 (function prune() { const cut = isoOf(TODAY - 21); let ch = false; Object.keys(S.dstat).forEach(k => { if (k.slice(0, 10) < cut) { delete S.dstat[k]; ch = true; } }); if (ch) saveLS('chuster-dstat-v1', S.dstat); })();
 const saveDstat = () => { try { localStorage.setItem('chuster-dstat-v1', JSON.stringify(S.dstat)); } catch (e) { toast('This device is full. Old photos were not saved.'); } };
 const DTRUCKS = () => { const n = Math.max(1, Math.min(4, +S.dsched.n || 1)); const T = (S.trucks.length ? S.trucks : []).slice(0, n); while (T.length < n) T.push({ name: 'Truck ' + (T.length + 1) }); return T; };
@@ -5326,26 +5333,57 @@ function renderDriver() {
     <span style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-left:auto">${stTag(x.st)}${!x.st.st && smsHref(x.c.phone, '') ? `<a class="btn ghost sm" href="${esc(smsHref(x.c.phone, onWayTxt()))}" aria-label="Text ${esc(x.o.c)} that the truck is on the way">💬</a>` : ''}${x.c.address ? `<a class="btn ghost sm" href="${esc(mapsHref(fixAddr(x.c.address)))}" target="_blank" rel="noopener">Maps</a><a class="btn ghost sm" href="${esc(wazeHref(fixAddr(x.c.address)))}" target="_blank" rel="noopener">Waze</a>` : ''}</span></div>`).join('') || '<p class="sub">No stops for this truck today.</p>'}</section>`;
 }
 function driverStop(x, list) {
-  const st = x.st; const lines = x.o.l.filter(([ref, q]) => q > 0);
+  const st = x.st;
+  const lines = x.o.l.map((l, n) => ({ l, n })).filter(o => o.l[1] > 0);
   const k = list.findIndex(y => y.k === x.k);
-  const short = S.dShort; const shortN = Object.values(short).reduce((s, v) => s + (+v || 0), 0);
-  return `<div class="page-head"><div style="display:flex;align-items:center;gap:8px"><button class="icon-btn" data-act="d-back" aria-label="Back to stops" style="color:var(--fg)"><svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg></button><div><h1>${esc(x.o.c)}</h1><p class="sub">Stop ${k + 1} of ${list.length} · invoice${(x.o.nums || []).length > 1 ? 's' : ''} #${esc(x.o.label || x.o.n)} · ${fm(x.o.a)}</p></div></div>
+  const drop = S.dDrop || (S.dDrop = {});
+  const qOf = o => Math.round(Math.abs(o.l[1]));
+  const dOf = o => Math.min(qOf(o), Math.max(0, drop[o.n] || 0));
+  const isLoose = o => { const c = typeof o.l[0] === 'number' ? REAL.catalog[o.l[0]] : null; return !!(c && /loose/i.test(c.group || '')); };
+  const totBox = lines.reduce((s, o) => s + qOf(o), 0), gotBox = lines.reduce((s, o) => s + dOf(o), 0);
+  const palletT = lines.filter(isLoose).reduce((s, o) => s + qOf(o), 0), palletG = lines.filter(isLoose).reduce((s, o) => s + dOf(o), 0);
+  const caseT = lines.filter(o => !isLoose(o)).reduce((s, o) => s + qOf(o), 0), caseG = lines.filter(o => !isLoose(o)).reduce((s, o) => s + dOf(o), 0);
+  const itemsGot = lines.filter(o => dOf(o) >= qOf(o)).length;
+  const missN = totBox - gotBox;
+  const qq = (S.dStopQ || '').trim().toLowerCase();
+  const nameOf = o => { const c = typeof o.l[0] === 'number' ? REAL.catalog[o.l[0]] : null; return c ? (c.name + ' ' + (c.code || '')) : String(o.l[0]); };
+  const bar = (label, g, t) => t ? `<div class="ds-bar"><span>${label}</span><div class="ds-track"><span style="width:${Math.round(g / t * 100)}%"></span></div><b>${fn(g)}/${fn(t)}</b></div>` : '';
+  const allKeys = lines.map(o => o.n).join(',');
+  // group the lines
+  const groups = {}; lines.forEach(o => { const c = typeof o.l[0] === 'number' ? REAL.catalog[o.l[0]] : null; const g = c ? c.group : 'Other'; (groups[g] || (groups[g] = [])).push(o); });
+  const rank = ['Chuster', 'Landaus', 'Chuster Snacks', 'Chuster Loose', 'Landaus Loose'];
+  const gkeys = Object.keys(groups).sort((a, b) => { const ia = rank.indexOf(a), ib = rank.indexOf(b); return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib); });
+  const row = o => { const c = typeof o.l[0] === 'number' ? REAL.catalog[o.l[0]] : null; const qty = qOf(o); const dv = dOf(o); const full = dv >= qty; const miss = qty - dv;
+    if (qq && !nameOf(o).toLowerCase().includes(qq)) return '';
+    return `<div class="irow ${c ? gcls(c.group) : 'gc gc-6'}${full ? ' on' : ''}" style="margin-top:0">
+      <span class="icode">${c ? esc(c.code || '·') : '·'}</span>
+      <div class="main"><div class="name" style="font-size:14px">${c ? esc(c.name) : esc(String(o.l[0]))}</div><div class="meta">${c ? esc(c.pack || '') + ' · ' : ''}${qty} BX${miss > 0 ? ` · <b style="color:var(--gold-text)">${miss} missing</b>` : ' · <b style="color:var(--good-text)">all</b>'}</div></div>
+      <div class="step"><button data-act="d-drop" data-n="${o.n}" data-d="-1" aria-label="One less"${dv ? '' : ' disabled'}>−</button><output class="num">${dv}</output><button data-act="d-drop" data-n="${o.n}" data-d="1" data-max="${qty}" aria-label="One more"${dv >= qty ? ' disabled' : ''}>+</button></div>
+      <button class="lx-ok${full ? ' on' : ''}" data-act="d-drop-all" data-n="${o.n}" data-q="${qty}" aria-label="${full ? 'Uncheck' : 'Delivered all'} ${c ? esc(c.name) : ''}">✓</button>
+    </div>`; };
+  const hasLines = lines.length > 0;
+  return `<div class="page-head"><div style="display:flex;align-items:center;gap:8px"><button class="icon-btn" data-act="d-back" aria-label="Back to stops" style="color:var(--fg)"><svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg></button><div><h1 style="display:block;font-size:22px">${esc(x.o.c)}</h1><p class="sub">Stop ${k + 1} of ${list.length} · invoice${(x.o.nums || []).length > 1 ? 's' : ''} #${esc(x.o.label || x.o.n)} · ${fm(x.o.a)}</p></div></div>
     <div class="actions">${x.c.address ? `<a class="btn primary" href="${esc(mapsHref(fixAddr(x.c.address)))}" target="_blank" rel="noopener">Google Maps</a><a class="btn ghost" href="${esc(wazeHref(fixAddr(x.c.address)))}" target="_blank" rel="noopener">Waze</a>` : ''}${x.c.phone ? `<a class="btn ghost" href="${telHref(x.c.phone)}">${ic('phone')} Call</a>` : ''}</div></div>
   <div class="note"><b>${esc(fixAddr(x.c.address) || 'No address in QuickBooks')}</b>${x.c.phone ? ' · ' + esc(x.c.phone) : ''}</div>
   ${st.st ? `<div class="card stack" style="border:2px solid var(--good)"><b>${stTag(st)}</b>${st.note ? `<span>${esc(st.note)}</span>` : ''}${st.sig ? `<img src="${st.sig}" alt="Signature" style="height:80px;background:#fff;border-radius:8px;align-self:flex-start">` : ''}<button class="btn ghost sm" data-act="d-undo" data-k="${esc(x.k)}" style="align-self:flex-start">Undo, mark again</button></div>` : ''}
-  <div class="split">
-    <section class="card stack" style="gap:6px"><h2>What's on the invoice</h2><p class="sub" style="margin:0">${lines.length ? 'Everything is delivered unless you type how many are missing.' : `The products on this invoice aren't in the app yet (the product detail goes to ${fmtShort(isoRd(DLY ? DLY.casesTo : REAL.asOf))}). Check the paper invoice.`}</p>
-      ${lines.map(([ref, q], n) => { const c = typeof ref === 'number' ? REAL.catalog[ref] : null; const sv = short[n] || 0;
-        return `<div class="irow ${c ? gcls(c.group) : 'gc gc-6'}${sv ? ' on' : ''}" style="margin-top:0"><span class="icode">${c ? esc(c.code || '·') : '·'}</span><div class="main"><div class="name" style="font-size:14px">${c ? itName(c) : esc(ref)}</div><div class="meta">${c ? casesTxt(c, q) : fnu(q)}${sv ? ` · <b style="color:var(--bad-text)">${sv} missing</b>` : ''}</div></div>
-          <div class="step"><button data-act="d-sh" data-n="${n}" data-d="-1" aria-label="One less missing"${sv ? '' : ' disabled'}>−</button><output class="num" title="missing">${sv}</output><button data-act="d-sh" data-n="${n}" data-d="1" data-max="${q}" aria-label="One more missing">+</button></div></div>`; }).join('')}
-    </section>
-    <aside class="card stack" style="position:sticky;top:calc(80px + env(safe-area-inset-top, 0px))"><h2>Finish this stop</h2>
-      <div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn ghost" data-act="d-sig">${S.proof.sig ? 'Signed ✓' : 'Signature'}</button><label class="btn ghost" style="cursor:pointer">${ic('camera')} Photo${S.proof.photos.length ? ' · ' + S.proof.photos.length : ''}<input type="file" accept="image/*" capture="environment" id="stop-photo" hidden></label></div>
-      ${proofHtml()}
-      <label class="lbl" for="d-note">Note (optional)</label><input class="inp" id="d-note" placeholder="e.g. left at back door, 2 cases returned">
-      <button class="btn primary big full" data-act="d-finish" data-k="${esc(x.k)}">${shortN ? `Delivered, ${shortN} missing` : 'Delivered, all cases'}</button>
-      <button class="btn danger full" data-act="d-skip" data-k="${esc(x.k)}">Could not deliver</button>
-    </aside></div>`;
+  ${!hasLines ? `<section class="card stack"><h2>Check off what you drop</h2><p class="sub" style="margin:0">The products on this invoice aren't in the app yet (the detail goes to ${fmtShort(isoRd(DLY ? DLY.casesTo : REAL.asOf))}). Check the paper invoice, then mark the stop delivered below.</p>
+    <button class="btn primary big full" data-act="d-finish" data-k="${esc(x.k)}">Delivered</button><button class="btn danger full" data-act="d-skip" data-k="${esc(x.k)}">Could not deliver</button></section>` : `
+  <section class="card stack" style="gap:10px">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"><div><b style="font-size:22px">${fn(gotBox)}</b> <span class="sub">of ${fn(totBox)} boxes · ${itemsGot}/${lines.length} items</span></div><div style="display:flex;gap:6px"><button class="btn ${gotBox >= totBox ? 'good' : 'gold'} sm" data-act="d-drop-grp" data-ns="${allKeys}" data-on="${gotBox >= totBox ? '0' : '1'}">✓ All</button><button class="btn ghost sm" data-act="d-drop-reset" aria-label="Reset">↺</button></div></div>
+    ${bar('Pallet', palletG, palletT)}${bar('Cases', caseG, caseT)}
+  </section>
+  <section class="card stack" style="gap:6px">
+    <div class="field">${ic('search')}<label class="sr" for="d-stopq">Find an item</label><input id="d-stopq" value="${esc(S.dStopQ || '')}" placeholder="Find an item" autocomplete="off"></div>
+    ${gkeys.map(g => { const gl = groups[g]; const gt = gl.reduce((s, o) => s + qOf(o), 0); const gg = gl.reduce((s, o) => s + dOf(o), 0); const ns = gl.map(o => o.n).join(','); const rows = gl.map(row).join(''); if (!rows) return '';
+      return `<div class="ghead ${gcls(g)}" style="margin-top:8px"><span>${esc(((LX_GROUP_SHORT[g] || [null, g])[1] || g).toUpperCase())}</span><span style="display:flex;gap:8px;align-items:center">${fn(gt)} box${gt === 1 ? '' : 'es'} <button class="btn ${gg >= gt ? 'good' : 'ghost'} sm" data-act="d-drop-grp" data-ns="${ns}" data-on="${gg >= gt ? '0' : '1'}">✓ All</button></span></div>${rows}`; }).join('')}
+  </section>
+  <section class="card stack" style="gap:8px">
+    <div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn ghost" data-act="d-sig">${S.proof.sig ? 'Signed ✓' : 'Signature'}</button><label class="btn ghost" style="cursor:pointer">${ic('camera')} Photo${S.proof.photos.length ? ' · ' + S.proof.photos.length : ''}<input type="file" accept="image/*" capture="environment" id="stop-photo" hidden></label></div>
+    ${proofHtml()}
+    <label class="lbl" for="d-note">Note (optional)</label><input class="inp" id="d-note" placeholder="e.g. left at back door, 2 cases returned">
+    <button class="btn danger" data-act="d-skip" data-k="${esc(x.k)}">Could not deliver at all</button>
+  </section>
+  <div class="ds-finishbar"><button class="btn primary big full" data-act="d-finish" data-k="${esc(x.k)}">${missN > 0 ? `Finish delivery — ${fn(missN)} missing` : 'Finish delivery — all delivered'}</button></div>`}`;
 }
 function driverDayText() {
   const date = S.dDate; const T = DTRUCKS(); const t = Math.min(S.dTruck, T.length - 1); const list = dayStops(date)[t] || [];
@@ -6810,22 +6848,29 @@ document.addEventListener('click', e => {
     case 'd-show': S.dShow = d.v; keep(); break;
     case 'd-done-quick': { const x = Object.values(dayStops(S.dDate)).flat().find(y => y.k === d.k); if (!x) break; const now = new Date(); const at = isoOf(TODAY) + 'T' + String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0'); S.dstat[d.k] = Object.assign({}, S.dstat[d.k] || {}, { st: 'done', at, shortN: 0, shortTxt: '', shorts: [], note: '' }); saveDstat(); dsShare(d.k); toast(x.o.c + ' marked delivered.'); keep(); break; }
     case 'd-move': { const t = +d.t; const L = (dayStops(S.dDate)[t] || []).map(x => x.o.n); const k = L.indexOf(d.k.split('|')[1]); const j = k + (+d.dir); if (k < 0 || j < 0 || j >= L.length) break; [L[k], L[j]] = [L[j], L[k]]; S.dorder[`${S.dDate}|${t}`] = L; saveLS('chuster-dorder-v1', S.dorder); SYNC.put('do', `${S.dDate}|${t}`, L); keep(); break; }
-    case 'd-open': { S.dStop = d.k; S.dShort = {}; S.proof = { photos: [], sig: null }; const dd = d.k.split('|')[0]; S.dDate = dd; const bt = dayStops(dd); Object.keys(bt).forEach(t => { if (bt[t].some(x => x.k === d.k) && +t >= 0) S.dTruck = +t; }); go('stop'); break; }
+    case 'd-open': { S.dStop = d.k; S.dShort = {}; S.dDrop = {}; S.dStopQ = ''; S.proof = { photos: [], sig: null }; const dd = d.k.split('|')[0]; S.dDate = dd; const bt = dayStops(dd); Object.keys(bt).forEach(t => { if (bt[t].some(x => x.k === d.k) && +t >= 0) S.dTruck = +t; }); go('stop'); break; }
+    case 'd-drop': { const n = d.n; const x = Object.values(dayStops(S.dDate)).flat().find(y => y.k === S.dStop); const q = x ? Math.round(Math.abs((x.o.l[+n] || [])[1] || 0)) : 0; const v = Math.max(0, Math.min(q || +d.max || 0, (S.dDrop[n] || 0) + +d.d)); if (v) S.dDrop[n] = v; else delete S.dDrop[n]; keep(); break; }
+    case 'd-drop-all': { const n = d.n; const q = +d.q || 0; if ((S.dDrop[n] || 0) >= q) delete S.dDrop[n]; else S.dDrop[n] = q; keep(); break; }
+    case 'd-drop-grp': { const x = Object.values(dayStops(S.dDate)).flat().find(y => y.k === S.dStop); if (!x) break; const on = d.on === '1'; (d.ns || '').split(',').filter(s => s !== '').forEach(s => { const n = +s; const q = Math.round(Math.abs((x.o.l[n] || [])[1] || 0)); if (on && q) S.dDrop[n] = q; else delete S.dDrop[n]; }); keep(); break; }
+    case 'd-drop-reset': S.dDrop = {}; keep(); break;
     case 'd-back': S.dStop = null; keep(); break;
     case 'd-truck': S.dTruck = +d.t; S.dStop = null; keep(); break;
     case 'd-sh': { const n = d.n; const v = Math.max(0, Math.min(+d.max || 1e9, (S.dShort[n] || 0) + +d.d)); if (v) S.dShort[n] = v; else delete S.dShort[n]; keep(); break; }
     case 'd-sig': S.sigOpen = true; keep(); break;
     case 'd-finish': case 'd-skip': {
       const all = Object.values(dayStops(S.dDate)).flat(); const x = all.find(y => y.k === d.k); if (!x) break;
-      const lines = x.o.l.filter(([ref, q]) => q > 0); const shortTxt = Object.keys(S.dShort).map(n => { const ref = lines[+n][0]; const c = typeof ref === 'number' ? REAL.catalog[ref] : null; return `${S.dShort[n]} ${c ? c.name : ref}`; }).join(', ');
-      const shortN = Object.values(S.dShort).reduce((t, v) => t + v, 0); const note = (document.getElementById('d-note') || {}).value || '';
-      const shorts = Object.keys(S.dShort).map(n => { const [ref, q, amt, full] = lines[+n]; const c = typeof ref === 'number' ? REAL.catalog[ref] : null; return [c ? c.full : (full || String(ref)), S.dShort[n], q ? Math.round(amt / q * 100) / 100 : 0, c ? c.name : String(ref)]; });
+      const miss = [];
+      x.o.l.forEach((ln, n) => { const q = Math.round(Math.abs(ln[1] || 0)); if (q <= 0) return; const got = Math.min(q, Math.max(0, (S.dDrop || {})[n] || 0)); const m = q - got; if (m > 0) { const ref = ln[0]; const c = typeof ref === 'number' ? REAL.catalog[ref] : null; miss.push({ n, m, name: c ? c.name : String(ref), full: c ? c.full : (ln[3] || String(ref)), price: q ? Math.round((ln[2] || 0) / q * 100) / 100 : 0 }); } });
+      const shortN = miss.reduce((t, o) => t + o.m, 0);
+      const shortTxt = miss.map(o => `${o.m} ${o.name}`).join(', ');
+      const shorts = miss.map(o => [o.full, o.m, o.price, o.name]);
+      const note = (document.getElementById('d-note') || {}).value || '';
       const now = new Date(); const at = isoOf(TODAY) + 'T' + String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
       S.dstat[d.k] = Object.assign({}, S.dstat[d.k] || {}, { st: a === 'd-skip' ? 'skip' : shortN ? 'partial' : 'done', at, shortN, shortTxt, shorts: a === 'd-skip' ? [] : shorts, note, sig: S.proof.sig || null, photos: S.proof.photos.length });
       saveDstat(); dsShare(d.k); if (S.proof.sig || S.proof.photos.length) SYNC.put('p', d.k, { sig: S.proof.sig || null, photos: S.proof.photos.slice(0, 3) });
-      toast(a === 'd-skip' ? 'Marked: not delivered.' : 'Stop delivered.');
+      toast(a === 'd-skip' ? 'Marked: not delivered.' : shortN ? `Delivered, ${shortN} missing.` : 'Stop delivered.');
       const list = dayStops(S.dDate)[S.dTruck] || []; const nxt = list.find(y => !y.st.st);
-      S.dShort = {}; S.proof = { photos: [], sig: null }; S.dStop = nxt ? nxt.k : null; keep(); window.scrollTo(0, 0); break; }
+      S.dShort = {}; S.dDrop = {}; S.proof = { photos: [], sig: null }; S.dStop = nxt ? nxt.k : null; keep(); window.scrollTo(0, 0); break; }
     case 'd-undo': { const o = S.dstat[d.k] || {}; S.dstat[d.k] = o.truck != null ? { truck: o.truck } : {}; saveDstat(); dsShare(d.k); keep(); break; }
     case 'r-best': { S.routeBusy = 'Working…'; render(); routeBest(S.dDate, +d.t); break; }
     case 'd-send': { const t = driverDayText(); window.open('https://wa.me/?text=' + encodeURIComponent(t), '_blank'); break; }
@@ -6916,7 +6961,7 @@ document.addEventListener('input', e => {
   if (e.target.id === 'sc-q') { S.scQ = e.target.value; const pos = e.target.selectionStart; render(); const q = document.getElementById('sc-q'); if (q) { q.focus(); try { q.setSelectionRange(pos, pos); } catch (x) {} } return; }
   if (e.target.id === 'mg-q') { S.mgQ = e.target.value; const pos = e.target.selectionStart; render(); const q = document.getElementById('mg-q'); if (q) { q.focus(); try { q.setSelectionRange(pos, pos); } catch (x) {} } return; }
   if (e.target.id === 'hb-q') { S.hbQ = e.target.value; const pos = e.target.selectionStart; render(); const q = document.getElementById('hb-q'); if (q) { q.focus(); try { q.setSelectionRange(pos, pos); } catch (x) {} } return; }
-  { const m = { 'pr-q': () => S.pr.q = e.target.value, 'sco-q': () => S.scoQ = e.target.value, 'xs-q': () => S.xsQ = e.target.value, 'fc-q': () => S.fcQ = e.target.value, 'd-q': () => S.dQ = e.target.value }[e.target.id];
+  { const m = { 'pr-q': () => S.pr.q = e.target.value, 'sco-q': () => S.scoQ = e.target.value, 'xs-q': () => S.xsQ = e.target.value, 'fc-q': () => S.fcQ = e.target.value, 'd-q': () => S.dQ = e.target.value, 'd-stopq': () => S.dStopQ = e.target.value }[e.target.id];
     if (m) { m(); const id = e.target.id; const pos = e.target.selectionStart; render(); const q = document.getElementById(id); if (q) { q.focus(); try { q.setSelectionRange(pos, pos); } catch (x) {} } return; } }
   if (e.target.id === 'nl-q') { S.nlQ = e.target.value; const pos = e.target.selectionStart; render(); const q = document.getElementById('nl-q'); if (q) { q.focus(); try { q.setSelectionRange(pos, pos); } catch (x) {} } return; }
   if (e.target.id === 'ss-q') { S.ss.q = e.target.value; const pos = e.target.selectionStart; render(); const q = document.getElementById('ss-q'); if (q) { q.focus(); try { q.setSelectionRange(pos, pos); } catch (x) {} } return; }
