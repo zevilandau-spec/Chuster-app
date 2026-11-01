@@ -509,6 +509,8 @@ body:has(#ai-fab:not([hidden])) #view { padding-bottom: 72px; }
 .stmt .st-foot { display: flex; gap: 60px; margin-top: 30px; }
 .stmt .st-foot .lab { font-weight: 700; color: #6f5a42; border-bottom: 1px solid #6f5a42; padding-bottom: 2px; min-width: 120px; }
 .stmt .st-foot .val { margin-top: 4px; font-size: 13px; }
+.stmt-prev { border: 1px solid var(--line); border-radius: 12px; overflow: auto; max-height: 72vh; background: #fff; -webkit-overflow-scrolling: touch; }
+.stmt-prev .ps { max-width: 100%; box-shadow: none; border-radius: 0; padding: 18px 16px; margin: 0; }
 #print-sheet { display: none; }
 @media print {
   @page { margin: 12mm; }
@@ -2894,17 +2896,19 @@ function stmtPanel(c) {
   return `<div class="card stack" style="border:2px solid var(--brand-text);padding:14px">
     <h3 style="font-size:15px">Statement for ${esc(c.name)}</h3>
     <div class="stack" style="gap:4px;font-size:14px">${emails ? `<div style="overflow-wrap:anywhere">Email: <span class="contact">${esc(emails.replace(/,/g, ', '))}</span></div>` : '<div class="sub" style="margin:0">No email saved for this store.</div>'}${digits ? `<div>Phone / WhatsApp: <span class="contact">${esc(c.phone)}</span></div>` : ''}</div>
-    <label class="lbl" for="stmt-text">Statement (you can change it before sending)</label>
-    <textarea id="stmt-text" data-n="${esc(c.name)}" rows="12" style="width:100%;border-radius:10px;border:1px solid var(--line-strong);padding:10px;font:500 13px/1.5 ui-monospace, Menlo, Consolas, monospace;background:var(--surface);color:var(--fg);resize:vertical">${esc(txt)}</textarea>
+    <div class="stmt-prev">${statementDoc(c)}</div>
     <div class="actions">
       <button class="btn primary" data-act="stmt-pdf" data-n="${esc(c.name)}">📄 Send statement PDF</button>
       <button class="btn gold" data-act="stmt-print" data-n="${esc(c.name)}">Print PDF</button>
-      <button class="btn ghost" data-act="stmt-copy">Copy text</button>
-      ${emails ? `<a class="btn ghost" id="stmt-mail" data-to="${esc(emails)}" href="${esc(mailHref(emails, txt))}">Open in email</a>` : ''}
-      ${wa ? `<a class="btn good" id="stmt-wa" data-to="${esc(wa)}" href="${esc(waHref(wa, txt))}" target="_blank" rel="noopener">Open in WhatsApp</a>` : ''}
       <button class="btn ghost" data-act="stmt-sent" data-n="${esc(c.name)}">Mark as sent</button>
     </div>
-    <p class="sample" style="margin:0">The app doesn't send it by itself yet. Copy it, or open it in email or WhatsApp and press send there. If a button doesn't open anything on your device, use Copy statement.</p>
+    <details class="stmt-txt"><summary style="cursor:pointer;font-weight:700;font-size:14px;color:var(--brand-text)">Send as a plain text message instead</summary>
+      <div class="stack" style="gap:8px;margin-top:10px">
+        <textarea id="stmt-text" data-n="${esc(c.name)}" rows="8" style="width:100%;border-radius:10px;border:1px solid var(--line-strong);padding:10px;font:500 13px/1.5 ui-monospace, Menlo, Consolas, monospace;background:var(--surface);color:var(--fg);resize:vertical">${esc(txt)}</textarea>
+        <div class="actions"><button class="btn ghost" data-act="stmt-copy">Copy text</button>${emails ? `<a class="btn ghost" id="stmt-mail" data-to="${esc(emails)}" href="${esc(mailHref(emails, txt))}">Text by email</a>` : ''}${wa ? `<a class="btn good" id="stmt-wa" data-to="${esc(wa)}" href="${esc(waHref(wa, txt))}" target="_blank" rel="noopener">Text by WhatsApp</a>` : ''}</div>
+      </div>
+    </details>
+    <p class="sample" style="margin:0">Tap <b>Send statement PDF</b> to send the statement above as a PDF through WhatsApp or email. The plain-text version is for a quick message.</p>
   </div>`;
 }
 function renderCustomers() {
