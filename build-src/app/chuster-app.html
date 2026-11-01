@@ -1177,6 +1177,7 @@ const VIEWS = {
   lost: { title: 'Lost items', r: renderLost },
   custprofit: { title: 'Profit by store', r: renderCustProfit },
   pricecheck: { title: 'Price check', r: renderPriceCheck },
+  pricespread: { title: 'Price spread', r: renderPriceSpread },
   packnext: { title: 'What to pack', r: renderPackNext },
   stockcover: { title: 'Stock cover', r: renderStockCover },
   reorder: { title: 'Reorder alerts', r: renderReorder },
@@ -1197,7 +1198,7 @@ const NAV = [
   { h: 'ORDERS', items: [['order', 'New order', 'order'], ['orders', 'Orders', 'order'], ['inbox', 'Incoming orders', 'chat', 'inbox'], ['toqb', 'To QuickBooks', 'check', 'toqb']] },
   { h: 'CUSTOMERS', items: [['customers', 'Customers', 'people', 'late'], ['payments', 'Payments', 'card', 'pay'], ['collect', 'Collections', 'card'], ['aging', 'Collections dashboard', 'chart'], ['stmts', 'Statements by email', 'mail'], ['custprofit', 'Profit by store', 'chart'], ['lost', 'Lost items', 'alert'], ['yomtov', 'Yom Tov list', 'cal'], ['ytplan', 'Yom Tov planner', 'chart']] },
   { h: 'SALES & MONEY', items: [['mysales', 'Salesman dashboard', 'chart'], ['storesales', 'Store sales', 'chart'], ['newlost', 'New & lost stores', 'people'], ['habits', 'Order habits', 'clock'], ['seasonality', 'Seasonality', 'chart'], ['reps', 'Sales by rep & commission', 'people'], ['finance', 'Finance', 'chart']] },
-  { h: 'PRODUCTS', items: [['items', 'Products & profit', 'chart'], ['margin', 'Margins', 'chart'], ['pricelist', 'Price list', 'order'], ['pricecheck', 'Price check', 'card']] },
+  { h: 'PRODUCTS', items: [['items', 'Products & profit', 'chart'], ['margin', 'Margins', 'chart'], ['pricelist', 'Price list', 'order'], ['pricecheck', 'Price check', 'card'], ['pricespread', 'Price spread', 'chart']] },
   { h: 'DELIVERIES', items: [['route', 'Deliveries', 'box'], ['stop', 'Driver', 'wheel'], ['live', 'Live trucks', 'pin'], ['loading', 'Loading', 'truck'], ['dsched', 'Delivery days', 'cal'], ['delivstats', 'Delivery stats', 'chart']] },
   { h: 'WAREHOUSE', items: [['packnext', 'What to pack', 'clip'], ['packing', 'Packing plan', 'clip'], ['stockcover', 'Stock cover', 'box'], ['packlog', 'Pack log', 'clip'], ['packrep', 'Packing report', 'chart'], ['yield', 'Yield', 'chart']] },
   { h: 'STOCK & BUYING', items: [['inventory', 'Inventory', 'box', 'inv'], ['reorder', 'Reorder alerts', 'alert'], ['buying', 'Buying & suppliers', 'card'], ['polist', 'All purchase orders', 'clip'], ['stockmoves', 'Stock moves', 'box']] },
@@ -3934,6 +3935,33 @@ function priceCheck() {
   }); });
   return Object.values(by).sort((x, y) => y.less - x.less);
 }
+function renderPriceSpread() {
+  if (!REAL) return needData('Price spread');
+  const listOf = ref => { if (IT && IT.list[ref]) { const o = IT.list[ref]; if (o.common || o.list) return o.common || o.list; } const c = REAL.catalog[ref]; const pr = c && parseFloat(c.price); return pr || 0; };
+  const stat = {};
+  REAL.orders.list.forEach(o => { if (o.t !== 'inv') return; rowsOf(o.l).forEach(([ref, q, a]) => { if (typeof ref !== 'number' || !(q > 0) || !(a > 0)) return; const c = REAL.catalog[ref]; if (!c || bulkOf(c.full)) return; const pr = a / q; const list = listOf(ref); const sdef = stat[ref] || (stat[ref] = { ref, c, min: 1e9, max: 0, qty: 0, amt: 0, stores: new Set(), under: 0, list }); sdef.min = Math.min(sdef.min, pr); sdef.max = Math.max(sdef.max, pr); sdef.qty += q; sdef.amt += a; sdef.stores.add(o.c); if (list > 0 && pr < list * 0.995) sdef.under += (list - pr) * q; }); });
+  let rows = Object.values(stat).filter(x => x.qty > 0 && x.stores.size > 0).map(x => ({ ...x, avg: x.amt / x.qty, spread: x.max - x.min }));
+  const leftTot = rows.reduce((s, x) => s + x.under, 0);
+  const wide = rows.filter(x => x.list > 0 && x.spread > x.list * 0.08);
+  const tab = S.psTab || 'left';
+  const q = S.psQ.trim().toLowerCase();
+  let list = tab === 'left' ? rows.slice().sort((a, b) => b.under - a.under) : tab === 'spread' ? rows.slice().sort((a, b) => b.spread - a.spread) : rows.slice().sort((a, b) => b.amt - a.amt);
+  if (q) list = list.filter(x => (x.c.name + ' ' + (x.c.code || '')).toLowerCase().includes(q));
+  const row = x => `<tr><td><b>${esc(x.c.name)}</b><div class="sub" style="margin:0;font-size:12px">${x.c.code ? '#' + esc(x.c.code) : ''} · ${x.stores.size} stores${x.list > 0 ? ' · list ' + unitPrice(x.list) : ''}</div></td><td style="text-align:right"><span class="num">${unitPrice(x.min)}</span><span class="sub"> – </span><span class="num">${unitPrice(x.max)}</span><div class="sub" style="margin:0;font-size:12px">avg ${unitPrice(x.avg)}</div></td><td class="num" style="text-align:right;color:${x.under > 0 ? 'var(--bad-text)' : 'inherit'}">${x.under > 0 ? '−' + fm(x.under) : '—'}</td></tr>`;
+  const chip = (k, l) => `<button class="chip" data-act="ps-tab" data-v="${k}" aria-pressed="${tab === k}">${l}</button>`;
+  return `${head('Price spread', 'what different stores pay for each product — spot prices that drifted apart')}
+  <div class="tiles">
+    <div class="tile ct ct-red"><div class="k">Below list</div><div class="v">${fm(leftTot)}</div><div class="s">vs your QuickBooks price, over the data</div></div>
+    <div class="tile ct ct-gold"><div class="k">Wide price range</div><div class="v">${wide.length}</div><div class="s">products varying more than 8%</div></div>
+    <div class="tile ct ct-blue"><div class="k">Products sold</div><div class="v">${rows.length}</div><div class="s">with a price on record</div></div>
+  </div>
+  <section class="card stack" style="gap:6px">
+    <div class="chips">${chip('left', 'Most below list')}${chip('spread', 'Widest range')}${chip('sales', 'Most sold')}</div>
+    <div class="field">${ic('search')}<label class="sr" for="ps-q">Search</label><input id="ps-q" value="${esc(S.psQ)}" placeholder="Search product" autocomplete="off"></div>
+    <table class="mini-table"><tr><td><b>Product</b></td><td style="text-align:right"><b>Price range</b></td><td style="text-align:right"><b>Below list</b></td></tr>
+    ${list.slice(0, 200).map(row).join('') || '<tr><td colspan="3" class="sub">No data.</td></tr>'}</table>
+    <p class="sub" style="margin:0">Some lower prices are on purpose (deals, wholesale). For who pays less on which product, use <a href="#pricecheck" data-go="pricecheck">Price check</a>.</p></section>`;
+}
 function renderPriceCheck() {
   if (!REAL || !IT) return needData('Price check');
   const L = priceCheck(); const tot = L.reduce((s, x) => s + x.less, 0);
@@ -4378,7 +4406,7 @@ function openPOSection() {
 /* ================= Salesman dashboard (e.g. "Dudi's sales") ================= */
 const DLY = REAL && REAL.daily ? REAL.daily : null;
 Object.assign(S, { ms: { rep: S.user === 'Motty' ? 'All' : 'Dudi', range: 'days', area: 'All', end: null } });
-Object.assign(S, { ss: { range: 'month', end: null, sort: 'sales', q: '', area: 'All' }, nlTab: 'new', nlQ: '', hbTab: 'overdue', hbQ: '', mgTab: 'best', mgQ: '', dvWeeks: 8, agTab: 'worst', scTab: 'urgent', scQ: '' });
+Object.assign(S, { ss: { range: 'month', end: null, sort: 'sales', q: '', area: 'All' }, nlTab: 'new', nlQ: '', hbTab: 'overdue', hbQ: '', mgTab: 'best', mgQ: '', dvWeeks: 8, agTab: 'worst', scTab: 'urgent', scQ: '', psTab: 'left', psQ: '' });
 const addDays = (iso, n) => isoOf(isoRd(iso) + n);
 function msRange() {
   const end = S.ms.end || DLY.to; const e = isoRd(end); const R = S.ms.range;
@@ -6191,6 +6219,7 @@ document.addEventListener('click', e => {
     case 'dv-weeks': S.dvWeeks = +d.v; keep(); break;
     case 'ag-tab': S.agTab = d.v; keep(); break;
     case 'sc-tab': S.scTab = d.v; keep(); break;
+    case 'ps-tab': S.psTab = d.v; keep(); break;
     case 'go-item': go('items'); break;
     case 'ms-range': S.ms.range = d.v; keep(); break;
     case 'ms-area': S.ms.area = d.v; keep(); break;
@@ -6344,6 +6373,7 @@ document.addEventListener('input', e => {
   }
   if (e.target.classList && e.target.classList.contains('ive-inp') && S.ivEdit) { S.ivEdit.q[e.target.dataset.k] = Math.max(0, parseInt(e.target.value, 10) || 0); return; }
   if (e.target.id === 'ive-find' && S.ivEdit) { S.ivEdit.find = e.target.value; const el = document.getElementById('ive-res'); if (el) el.innerHTML = ivFind(S.ivEdit); return; }
+  if (e.target.id === 'ps-q') { S.psQ = e.target.value; const pos = e.target.selectionStart; render(); const q = document.getElementById('ps-q'); if (q) { q.focus(); try { q.setSelectionRange(pos, pos); } catch (x) {} } return; }
   if (e.target.id === 'sc-q') { S.scQ = e.target.value; const pos = e.target.selectionStart; render(); const q = document.getElementById('sc-q'); if (q) { q.focus(); try { q.setSelectionRange(pos, pos); } catch (x) {} } return; }
   if (e.target.id === 'mg-q') { S.mgQ = e.target.value; const pos = e.target.selectionStart; render(); const q = document.getElementById('mg-q'); if (q) { q.focus(); try { q.setSelectionRange(pos, pos); } catch (x) {} } return; }
   if (e.target.id === 'hb-q') { S.hbQ = e.target.value; const pos = e.target.selectionStart; render(); const q = document.getElementById('hb-q'); if (q) { q.focus(); try { q.setSelectionRange(pos, pos); } catch (x) {} } return; }
