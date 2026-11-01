@@ -5485,11 +5485,17 @@ function renderExpenses() {
   const rec = E.recent.filter(r => (!S.bkAcct || r[6].some(l => l[0] === S.bkAcct)) && bkHit(r[3], r[2], ...r[6].map(l => l[0] + ' ' + (l[2] || ''))));
   return `${head('Expenses', 'Checks, bills and card charges by account, from QuickBooks')}
   ${bkTabs('bkPer', [['m', 'This month'], ['lm', 'Last month'], ['ytd', 'This year'], ['12', '12 months']])}
-  <section class="card" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:10px 14px"><span class="sub" style="margin:0">Pick any range${E.months.length ? ' (back to ' + MSHORT(E.months[0]) + ')' : ''}:</span>
-    <label class="sr" for="bk-from">From month</label><input type="month" id="bk-from" class="inp" style="width:auto" min="${E.months[0] || ''}" max="${E.months[E.months.length - 1] || ''}" value="${esc(S.bkPer === 'range' ? (S.bkFrom || E.months[0] || '') : '')}">
-    <span class="sub" style="margin:0">to</span>
-    <label class="sr" for="bk-to">To month</label><input type="month" id="bk-to" class="inp" style="width:auto" min="${E.months[0] || ''}" max="${E.months[E.months.length - 1] || ''}" value="${esc(S.bkPer === 'range' ? (S.bkTo || E.months[E.months.length - 1] || '') : '')}">
-    ${S.bkPer === 'range' ? '<button class="btn ghost sm" data-act="bk-set" data-k="bkPer" data-v="ytd">Clear</button>' : ''}</section>
+  ${(() => {
+    const yrs = [...new Set(E.months.map(m => m.slice(0, 4)))].sort();
+    const rf = S.bkPer === 'range' ? (S.bkFrom || E.months[0]) : '';
+    const rt = S.bkPer === 'range' ? (S.bkTo || E.months[E.months.length - 1]) : '';
+    const activeYear = (S.bkPer === 'range' && rf.slice(5) === '01' && rf.slice(0, 4) === rt.slice(0, 4) && (rt.slice(5) === '12' || rt === E.months[E.months.length - 1])) ? rf.slice(0, 4) : '';
+    const opts = (sel) => E.months.map(m => `<option value="${m}"${m === sel ? ' selected' : ''}>${esc(MSHORT(m))}</option>`).join('');
+    return `<section class="card stack" style="gap:10px;padding:12px 14px">
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span class="sub" style="margin:0;min-width:62px">A year:</span><div class="chips" style="flex-wrap:wrap">${yrs.map(y => `<button class="chip" data-act="bk-year" data-y="${y}" aria-pressed="${activeYear === y}">${y}</button>`).join('')}</div></div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span class="sub" style="margin:0;min-width:62px">Or range:</span><label class="sr" for="bk-from">From</label><select class="sel" id="bk-from" style="width:auto">${opts(rf || E.months[0])}</select><span class="sub" style="margin:0">to</span><label class="sr" for="bk-to">To</label><select class="sel" id="bk-to" style="width:auto">${opts(rt || E.months[E.months.length - 1])}</select>${S.bkPer === 'range' ? '<button class="btn ghost sm" data-act="bk-set" data-k="bkPer" data-v="ytd">Clear</button>' : ''}</div>
+    </section>`;
+  })()}
   <div class="tiles"><div class="tile"><div class="k">Expenses · ${esc(P.label)}</div><div class="v">${fm(tot)}</div><div class="s">${totP ? `${sgn(pct(tot, totP))} vs a year before (${fm(totP)})` : ''}</div></div>
     <div class="tile"><div class="k">Biggest</div><div class="v" style="font-size:18px">${esc(rows[0] ? rows[0].a : '—')}</div><div class="s">${rows[0] ? fm(rows[0].s) : ''}</div></div></div>
   <section class="card stack"><h2>Every month, all accounts</h2><p class="sub" style="margin:0">${E.months.length ? MSHORT(E.months[0]) + ' to ' + MSHORT(E.months[E.months.length - 1]) : ''}</p>${bkBars(monthly, E.months.map(MSHORT))}</section>
@@ -5586,6 +5592,7 @@ function bkAction(a, d) {
     case 'bk-acct': S.bkAcct = d.a || null; break;
     case 'bk-ven': S.bkVen = d.v || null; window.scrollTo(0, 0); break;
     case 'bk-ven-go': S.bkVen = d.v || null; window.scrollTo(0, 0); go('vendors'); return;
+    case 'bk-year': { const B = BK(); const ms = (B && B.expenses && B.expenses.months) || []; const last = ms[ms.length - 1] || (d.y + '-12'); S.bkFrom = d.y + '-01'; S.bkTo = (d.y + '-12' <= last ? d.y + '-12' : last); S.bkPer = 'range'; break; }
     case 'bk-toorder': {
       const B = BK(); const list = d.t === 'so' ? B.orders.so : B.orders.est; const r = list.find(x => x[1] === d.n); if (!r) return;
       S.orderStore = r[2]; S.storeOpen = false; S.catalog.forEach(p => { delete S.oq[keyOf(p)]; });
