@@ -5450,7 +5450,7 @@ document.addEventListener('click', e => { const el = e.target.closest('[data-act
   document.addEventListener('visibilitychange', () => { if (!document.hidden) check(); });
 })();
 /* ================= Books: expenses, bank & deposits, vendors & bills, sales orders & estimates, stock moves, all POs, journal, accounts ================= */
-Object.assign(S, { bkPer: 'ytd', bkAcct: null, bkQ: '', bkVSort: 'owe', bkVen: null, bkSoTab: 'so', bkStTab: 'build', bkPoSt: 'open', bkVenTab: 'list' });
+Object.assign(S, { bkPer: 'ytd', bkFrom: null, bkTo: null, bkAcct: null, bkQ: '', bkVSort: 'owe', bkVen: null, bkSoTab: 'so', bkStTab: 'build', bkPoSt: 'open', bkVenTab: 'list' });
 const BK = () => (REAL && REAL.books) || null;
 const bkDay = d => d ? fmtShort(isoRd(d)) : '';
 function bkEmpty(title, sub) {
@@ -5467,9 +5467,10 @@ function bkBars(vals, labels, h = 120) {
 const MSHORT = ym => { const [y, m] = ym.split('-'); return MONS[+m - 1] + ' ' + y.slice(2); };
 function bkPeriod(months) {
   const n = months.length, cur = REAL.asOf.slice(0, 7), ci = months.indexOf(cur), y = REAL.asOf.slice(0, 4);
-  const idx = { ytd: months.map((m, i) => m.startsWith(y) ? i : -1).filter(i => i >= 0), m: ci >= 0 ? [ci] : [n - 1], lm: ci > 0 ? [ci - 1] : [], '12': months.map((m, i) => i).slice(-12) }[S.bkPer] || [];
+  const rf = S.bkFrom || months[0], rt = S.bkTo || months[n - 1];
+  const idx = { ytd: months.map((m, i) => m.startsWith(y) ? i : -1).filter(i => i >= 0), m: ci >= 0 ? [ci] : [n - 1], lm: ci > 0 ? [ci - 1] : [], '12': months.map((m, i) => i).slice(-12), range: months.map((m, i) => (m >= rf && m <= rt) ? i : -1).filter(i => i >= 0) }[S.bkPer] || [];
   const prev = idx.map(i => i - 12).filter(i => i >= 0);
-  return { idx, prev, label: { ytd: `${y} so far`, m: 'this month', lm: 'last month', '12': 'last 12 months' }[S.bkPer] };
+  return { idx, prev, label: { ytd: `${y} so far`, m: 'this month', lm: 'last month', '12': 'last 12 months', range: `${MSHORT(rf)} to ${MSHORT(rt)}` }[S.bkPer] };
 }
 const bkSum = (arr, idx) => idx.reduce((s, i) => s + (arr[i] || 0), 0);
 
@@ -5484,13 +5485,18 @@ function renderExpenses() {
   const rec = E.recent.filter(r => (!S.bkAcct || r[6].some(l => l[0] === S.bkAcct)) && bkHit(r[3], r[2], ...r[6].map(l => l[0] + ' ' + (l[2] || ''))));
   return `${head('Expenses', 'Checks, bills and card charges by account, from QuickBooks')}
   ${bkTabs('bkPer', [['m', 'This month'], ['lm', 'Last month'], ['ytd', 'This year'], ['12', '12 months']])}
+  <section class="card" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:10px 14px"><span class="sub" style="margin:0">Pick any range${E.months.length ? ' (back to ' + MSHORT(E.months[0]) + ')' : ''}:</span>
+    <label class="sr" for="bk-from">From month</label><input type="month" id="bk-from" class="inp" style="width:auto" min="${E.months[0] || ''}" max="${E.months[E.months.length - 1] || ''}" value="${esc(S.bkPer === 'range' ? (S.bkFrom || E.months[0] || '') : '')}">
+    <span class="sub" style="margin:0">to</span>
+    <label class="sr" for="bk-to">To month</label><input type="month" id="bk-to" class="inp" style="width:auto" min="${E.months[0] || ''}" max="${E.months[E.months.length - 1] || ''}" value="${esc(S.bkPer === 'range' ? (S.bkTo || E.months[E.months.length - 1] || '') : '')}">
+    ${S.bkPer === 'range' ? '<button class="btn ghost sm" data-act="bk-set" data-k="bkPer" data-v="ytd">Clear</button>' : ''}</section>
   <div class="tiles"><div class="tile"><div class="k">Expenses · ${esc(P.label)}</div><div class="v">${fm(tot)}</div><div class="s">${totP ? `${sgn(pct(tot, totP))} vs a year before (${fm(totP)})` : ''}</div></div>
     <div class="tile"><div class="k">Biggest</div><div class="v" style="font-size:18px">${esc(rows[0] ? rows[0].a : '—')}</div><div class="s">${rows[0] ? fm(rows[0].s) : ''}</div></div></div>
   <section class="card stack"><h2>Every month, all accounts</h2><p class="sub" style="margin:0">${E.months.length ? MSHORT(E.months[0]) + ' to ' + MSHORT(E.months[E.months.length - 1]) : ''}</p>${bkBars(monthly, E.months.map(MSHORT))}</section>
   <div class="split"><section class="card stack" style="gap:6px"><div class="card-head" style="margin:0"><h2>By account · ${esc(P.label)}</h2>${S.bkAcct ? '<button class="btn ghost sm" data-act="bk-acct" data-a="">Show all</button>' : ''}</div>
     ${rows.map(x => `<button class="bk-row${S.bkAcct === x.a ? ' on' : ''}" data-act="bk-acct" data-a="${esc(x.a)}"><span class="bk-name">${esc(x.a)}</span><span class="bk-bar"><i style="width:${(x.s / max * 100).toFixed(1)}%"></i></span><b class="num">${fm(x.s)}</b><small class="num">${x.p ? sgn(pct(x.s, x.p)) : ''}</small></button>`).join('') || '<p class="sub">No expenses in this period.</p>'}
     ${sel ? `<div class="stack" style="gap:4px;margin-top:8px"><b>${esc(sel[0])} · every month</b>${bkBars(sel[1], E.months.map(MSHORT), 90)}</div>` : ''}</section>
-  <aside class="card stack" style="gap:6px"><h2>By vendor · last 12 months</h2>${E.vendors.slice(0, 20).map(([v, a12, ay]) => `<div class="bk-line"><span>${esc(v)}</span><b class="num">${fm(a12)}</b></div>`).join('')}</aside></div>
+  <aside class="card stack" style="gap:6px"><h2>By vendor · last 12 months</h2><p class="sub" style="margin:0">Tap a vendor to see their details</p>${E.vendors.slice(0, 20).map(([v, a12, ay]) => `<button class="bk-row" data-act="bk-ven-go" data-v="${esc(v)}"><span class="bk-name">${esc(v)}</span><b class="num">${fm(a12)}</b></button>`).join('')}</aside></div>
   <section class="card stack" style="gap:6px"><div class="card-head" style="margin:0"><h2>Recent${S.bkAcct ? ' · ' + esc(S.bkAcct) : ''}</h2><span class="sub" style="margin:0">${rec.length}</span></div>${bkSearch('Search vendor, check # or account')}
     ${rec.slice(0, 120).map(r => `<div class="bk-line"><span style="min-width:0"><b>${esc(r[3] || '—')}</b><br><small class="sub" style="margin:0">${bkDay(r[0])} · ${esc(r[1])}${r[2] ? ' #' + esc(r[2]) : ''}${r[4] ? ' · ' + esc(r[4]) : ''} · ${r[6].map(l => esc(l[0])).join(', ')}</small></span><b class="num">${money(r[5])}</b></div>`).join('') || '<p class="sub">Nothing found.</p>'}</section>`;
 }
@@ -5579,6 +5585,7 @@ function bkAction(a, d) {
     case 'bk-set': S[d.k] = d.v; break;
     case 'bk-acct': S.bkAcct = d.a || null; break;
     case 'bk-ven': S.bkVen = d.v || null; window.scrollTo(0, 0); break;
+    case 'bk-ven-go': S.bkVen = d.v || null; window.scrollTo(0, 0); go('vendors'); return;
     case 'bk-toorder': {
       const B = BK(); const list = d.t === 'so' ? B.orders.so : B.orders.est; const r = list.find(x => x[1] === d.n); if (!r) return;
       S.orderStore = r[2]; S.storeOpen = false; S.catalog.forEach(p => { delete S.oq[keyOf(p)]; });
@@ -5590,7 +5597,8 @@ function bkAction(a, d) {
   render();
 }
 document.addEventListener('click', e => { const el = e.target.closest('[data-act^="bk-"]'); if (!el) return; bkAction(el.dataset.act, el.dataset); });
-document.addEventListener('input', e => { if (e.target.id === 'bk-q') { S.bkQ = e.target.value; const pos = e.target.selectionStart; render(); const q = document.getElementById('bk-q'); if (q) { q.focus(); try { q.setSelectionRange(pos, pos); } catch (x) { /* ignore */ } } } });
+document.addEventListener('input', e => { if (e.target.id === 'bk-from' || e.target.id === 'bk-to') { if (e.target.id === 'bk-from') S.bkFrom = e.target.value || null; else S.bkTo = e.target.value || null; S.bkPer = 'range'; render(); return; }
+  if (e.target.id === 'bk-q') { S.bkQ = e.target.value; const pos = e.target.selectionStart; render(); const q = document.getElementById('bk-q'); if (q) { q.focus(); try { q.setSelectionRange(pos, pos); } catch (x) { /* ignore */ } } } });
 
 document.addEventListener('click', e => {
   const goEl = e.target.closest('[data-go]');
