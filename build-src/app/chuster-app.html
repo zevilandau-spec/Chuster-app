@@ -1185,6 +1185,7 @@ const VIEWS = {
   mysales: { title: 'Salesman dashboard', r: renderMySales },
   storesales: { title: 'Store sales', r: renderStoreSales },
   newlost: { title: 'New & lost stores', r: renderNewLost },
+  seasonality: { title: 'Seasonality', r: renderSeasonality },
   habits: { title: 'Order habits', r: renderHabits },
   orders: { title: 'Orders', r: renderOrders },
   customers: { title: 'Customers', r: renderCustomers }
@@ -1193,7 +1194,7 @@ const NAV = [
   { items: [['home', 'Dashboard', 'home'], ['ask', 'Ask AI ✨', 'chat'], ['calendar', 'Calendar', 'cal']] },
   { h: 'ORDERS', items: [['order', 'New order', 'order'], ['orders', 'Orders', 'order'], ['inbox', 'Incoming orders', 'chat', 'inbox'], ['toqb', 'To QuickBooks', 'check', 'toqb']] },
   { h: 'CUSTOMERS', items: [['customers', 'Customers', 'people', 'late'], ['payments', 'Payments', 'card', 'pay'], ['collect', 'Collections', 'card'], ['aging', 'Collections dashboard', 'chart'], ['stmts', 'Statements by email', 'mail'], ['custprofit', 'Profit by store', 'chart'], ['lost', 'Lost items', 'alert'], ['yomtov', 'Yom Tov list', 'cal']] },
-  { h: 'SALES & MONEY', items: [['mysales', 'Salesman dashboard', 'chart'], ['storesales', 'Store sales', 'chart'], ['newlost', 'New & lost stores', 'people'], ['habits', 'Order habits', 'clock'], ['reps', 'Sales by rep & commission', 'people'], ['finance', 'Finance', 'chart']] },
+  { h: 'SALES & MONEY', items: [['mysales', 'Salesman dashboard', 'chart'], ['storesales', 'Store sales', 'chart'], ['newlost', 'New & lost stores', 'people'], ['habits', 'Order habits', 'clock'], ['seasonality', 'Seasonality', 'chart'], ['reps', 'Sales by rep & commission', 'people'], ['finance', 'Finance', 'chart']] },
   { h: 'PRODUCTS', items: [['items', 'Products & profit', 'chart'], ['margin', 'Margins', 'chart'], ['pricelist', 'Price list', 'order'], ['pricecheck', 'Price check', 'card']] },
   { h: 'DELIVERIES', items: [['route', 'Deliveries', 'box'], ['stop', 'Driver', 'wheel'], ['live', 'Live trucks', 'pin'], ['loading', 'Loading', 'truck'], ['dsched', 'Delivery days', 'cal'], ['delivstats', 'Delivery stats', 'chart']] },
   { h: 'WAREHOUSE', items: [['packnext', 'What to pack', 'clip'], ['packing', 'Packing plan', 'clip'], ['packlog', 'Pack log', 'clip'], ['packrep', 'Packing report', 'chart'], ['yield', 'Yield', 'chart']] },
@@ -4381,6 +4382,35 @@ function renderHabits() {
     <div class="field">${ic('search')}<label class="sr" for="hb-q">Search</label><input id="hb-q" value="${esc(S.hbQ)}" placeholder="Search store or area" autocomplete="off"></div>
     <p class="sub" style="margin:0">The number on the right is how many orders in the last 12 months.</p>
     ${list.slice(0, 200).map(row).join('') || '<p class="sub" style="margin:0">None.</p>'}</section>`;
+}
+function renderSeasonality() {
+  if (!REAL || !REAL.monthly || !REAL.monthly.length) return needData('Seasonality');
+  const by = {}; REAL.monthly.forEach(([ym, v]) => { const y = +ym.slice(0, 4), m = +ym.slice(5, 7) - 1; (by[y] || (by[y] = Array(12).fill(null)))[m] = v; });
+  const years = Object.keys(by).map(Number).sort();
+  const CY = +REAL.asOf.slice(0, 4), CM = +REAL.asOf.slice(5, 7) - 1;
+  const COLORS = ['#B9C2DB', '#9AA7CC', '#6E82B8', '#C98A1B', '#2E8B74', '#C7402F', '#22409A'];
+  const colorFor = y => y === CY ? '#22409A' : COLORS[(years.indexOf(y)) % COLORS.length];
+  let mx = 0; years.forEach(y => by[y].forEach(v => { if (v != null && v > mx) mx = v; })); mx = mx || 1;
+  const W = 680, H = 300, L = 46, R = 10, T = 14, B = 34; const pw = W - L - R, ph = H - T - B;
+  const X = m => L + (pw * m) / 11, Y = v => T + ph - (v / mx) * ph;
+  const MONL = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const grid = [0, 0.25, 0.5, 0.75, 1].map(f => { const y = T + ph - f * ph; return `<line x1="${L}" y1="${y}" x2="${W - R}" y2="${y}" stroke="var(--chart-grid, #e3dccb)" stroke-dasharray="3 4"/><text x="${L - 6}" y="${y + 3}" text-anchor="end" style="font-size:10px;fill:var(--muted)">${fm(mx * f)}</text>`; }).join('');
+  const xlab = MONL.map((m, i) => `<text x="${X(i)}" y="${H - 14}" text-anchor="middle" style="font-size:11px;fill:var(--muted)">${m}</text>`).join('');
+  const lines = years.map(y => { const pts = by[y].map((v, m) => (v == null || (y === CY && m > CM)) ? null : `${X(m).toFixed(1)},${Y(v).toFixed(1)}`).filter(Boolean).join(' '); return `<polyline points="${pts}" fill="none" stroke="${colorFor(y)}" stroke-width="${y === CY ? 3 : 2}" stroke-linejoin="round" stroke-linecap="round" opacity="${y === CY ? 1 : 0.85}"/>`; }).join('');
+  const legend = years.map(y => `<span style="display:inline-flex;align-items:center;gap:5px;margin:0 8px 4px 0;font-size:13px"><i style="width:14px;height:3px;background:${colorFor(y)};display:inline-block;border-radius:2px"></i>${y}${y === CY ? ' (so far)' : ''}</span>`).join('');
+  // monthly averages across full years
+  const monAvg = MONL.map((_, m) => { const vals = years.filter(y => y !== CY).map(y => by[y][m]).filter(v => v != null && v > 0); return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : 0; });
+  const best = monAvg.indexOf(Math.max(...monAvg)), worst = monAvg.map((v, i) => [v, i]).filter(x => x[0] > 0).sort((a, b) => a[0] - b[0])[0];
+  const avgMonth = monAvg.filter(v => v > 0).reduce((a, b, _, arr) => a + b / arr.length, 0);
+  return `${head('Seasonality', 'company sales by month, one line per year — see the shape of your year')}
+  <div class="tiles">
+    <div class="tile ct ct-blue"><div class="k">Busiest month</div><div class="v" style="font-size:20px">${MONL[best]}</div><div class="s">avg ${fm(monAvg[best])}</div></div>
+    <div class="tile ct ct-gold"><div class="k">Quietest month</div><div class="v" style="font-size:20px">${worst ? MONL[worst[1]] : '—'}</div><div class="s">${worst ? 'avg ' + fm(worst[0]) : ''}</div></div>
+    <div class="tile ct ct-green"><div class="k">Average month</div><div class="v">${fm(avgMonth)}</div><div class="s">full years only</div></div>
+  </div>
+  <section class="card"><div style="margin-bottom:6px">${legend}</div>
+    <div style="overflow-x:auto"><svg viewBox="0 0 ${W} ${H}" style="width:100%;min-width:560px;height:auto;display:block" role="img" aria-label="Sales by month, each year a line">${grid}${xlab}${lines}</svg></div>
+    <p class="sub" style="margin:6px 0 0">The dark blue line is ${CY} so far. Big months usually line up with Pesach (spring) and the fall Yomim Tovim.</p></section>`;
 }
 function renderNewLost() {
   if (!REAL) return needData('New & lost stores');
