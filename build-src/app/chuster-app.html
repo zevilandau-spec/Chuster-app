@@ -5478,7 +5478,7 @@ function renderExpenses() {
   const E = B.expenses; const P = bkPeriod(E.months);
   const rows = E.accounts.map(([a, v]) => ({ a, v, s: bkSum(v, P.idx), p: bkSum(v, P.prev) })).filter(x => Math.abs(x.s) >= 0.01).sort((x, y) => y.s - x.s);
   const tot = rows.reduce((s, x) => s + x.s, 0), totP = E.accounts.reduce((s, [a, v]) => s + bkSum(v, P.prev), 0);
-  const monthly = E.months.map((m, i) => E.accounts.reduce((s, [a, v]) => s + (v[i] || 0), 0)).slice(-24);
+  const monthly = E.months.map((m, i) => E.accounts.reduce((s, [a, v]) => s + (v[i] || 0), 0));
   const max = Math.max(1, ...rows.map(x => x.s));
   const sel = S.bkAcct && E.accounts.find(x => x[0] === S.bkAcct);
   const rec = E.recent.filter(r => (!S.bkAcct || r[6].some(l => l[0] === S.bkAcct)) && bkHit(r[3], r[2], ...r[6].map(l => l[0] + ' ' + (l[2] || ''))));
@@ -5486,10 +5486,10 @@ function renderExpenses() {
   ${bkTabs('bkPer', [['m', 'This month'], ['lm', 'Last month'], ['ytd', 'This year'], ['12', '12 months']])}
   <div class="tiles"><div class="tile"><div class="k">Expenses · ${esc(P.label)}</div><div class="v">${fm(tot)}</div><div class="s">${totP ? `${sgn(pct(tot, totP))} vs a year before (${fm(totP)})` : ''}</div></div>
     <div class="tile"><div class="k">Biggest</div><div class="v" style="font-size:18px">${esc(rows[0] ? rows[0].a : '—')}</div><div class="s">${rows[0] ? fm(rows[0].s) : ''}</div></div></div>
-  <section class="card stack"><h2>Every month, all accounts</h2>${bkBars(monthly, E.months.slice(-24).map(MSHORT))}</section>
+  <section class="card stack"><h2>Every month, all accounts</h2><p class="sub" style="margin:0">${E.months.length ? MSHORT(E.months[0]) + ' to ' + MSHORT(E.months[E.months.length - 1]) : ''}</p>${bkBars(monthly, E.months.map(MSHORT))}</section>
   <div class="split"><section class="card stack" style="gap:6px"><div class="card-head" style="margin:0"><h2>By account · ${esc(P.label)}</h2>${S.bkAcct ? '<button class="btn ghost sm" data-act="bk-acct" data-a="">Show all</button>' : ''}</div>
     ${rows.map(x => `<button class="bk-row${S.bkAcct === x.a ? ' on' : ''}" data-act="bk-acct" data-a="${esc(x.a)}"><span class="bk-name">${esc(x.a)}</span><span class="bk-bar"><i style="width:${(x.s / max * 100).toFixed(1)}%"></i></span><b class="num">${fm(x.s)}</b><small class="num">${x.p ? sgn(pct(x.s, x.p)) : ''}</small></button>`).join('') || '<p class="sub">No expenses in this period.</p>'}
-    ${sel ? `<div class="stack" style="gap:4px;margin-top:8px"><b>${esc(sel[0])} · every month</b>${bkBars(sel[1].slice(-24), E.months.slice(-24).map(MSHORT), 90)}</div>` : ''}</section>
+    ${sel ? `<div class="stack" style="gap:4px;margin-top:8px"><b>${esc(sel[0])} · every month</b>${bkBars(sel[1], E.months.map(MSHORT), 90)}</div>` : ''}</section>
   <aside class="card stack" style="gap:6px"><h2>By vendor · last 12 months</h2>${E.vendors.slice(0, 20).map(([v, a12, ay]) => `<div class="bk-line"><span>${esc(v)}</span><b class="num">${fm(a12)}</b></div>`).join('')}</aside></div>
   <section class="card stack" style="gap:6px"><div class="card-head" style="margin:0"><h2>Recent${S.bkAcct ? ' · ' + esc(S.bkAcct) : ''}</h2><span class="sub" style="margin:0">${rec.length}</span></div>${bkSearch('Search vendor, check # or account')}
     ${rec.slice(0, 120).map(r => `<div class="bk-line"><span style="min-width:0"><b>${esc(r[3] || '—')}</b><br><small class="sub" style="margin:0">${bkDay(r[0])} · ${esc(r[1])}${r[2] ? ' #' + esc(r[2]) : ''}${r[4] ? ' · ' + esc(r[4]) : ''} · ${r[6].map(l => esc(l[0])).join(', ')}</small></span><b class="num">${money(r[5])}</b></div>`).join('') || '<p class="sub">Nothing found.</p>'}</section>`;
