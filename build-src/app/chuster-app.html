@@ -1660,7 +1660,7 @@ const TABS = [['home', 'Home', 'home'], ['orders', 'Orders', 'order'], ['route',
 
 
 /* ================= users (each passcode has a role) + Yiddish ================= */
-(function () { const r = String(window.CHUSTER_ROLE || 'Owner').split(':'); S.baseRole = r[0]; S.user = r[1] || ({ Owner: 'Zevi' }[r[0]] || r[0]); })();
+(function () { const r = String(window.CHUSTER_ROLE || 'Owner').split(':'); S.baseRole = r[0]; S.user = r[1] || ({ Owner: 'Zevi' }[r[0]] || r[0]); S.realUser = S.user; })();
 if (S.baseRole !== 'Owner') S.role = S.baseRole;
 const byName = () => S.user || S.baseRole;
 try { S.lang = localStorage.getItem('chuster-lang') || 'en'; } catch (e) { S.lang = 'en'; }
@@ -6995,7 +6995,10 @@ document.addEventListener('change', e => {
   const t = e.target; const cl = t.classList;
   if (t.id === 'due-date') { S.dueDate = t.value; render(); }
   if (t.id === 'due-net') { S.dueNet = +t.value; render(); }
-  if (t.id === 'role') { S.role = t.value; save(); if (!allowed(S.view) || (S.role !== 'Owner' && S.view === 'tools')) go(roleHome()); else render(); toast(`Showing the app as ${S.role}.`); }
+  if (t.id === 'role') { S.role = t.value;
+    if (t.value === 'Sales' || t.value === 'SalesDriver') { const people = (S.repCfg && S.repCfg.people) || {}; const names = Object.keys(people); S.user = names[0] || 'Dudi'; }
+    else { S.user = S.realUser || 'Zevi'; }
+    save(); if (!allowed(S.view) || (S.role !== 'Owner' && S.view === 'tools')) go(roleHome()); else render(); toast(`Showing the app as ${S.role === 'Sales' || S.role === 'SalesDriver' ? S.user + ' (salesman)' : S.role}.`); }
   if (cl.contains('dash-on')) { S.dash[+t.dataset.i].on = t.checked; save(); render(); }
   if (cl.contains('price-inp')) { S.catalog[+t.dataset.i].price = t.value.trim(); save(); toast('Price saved.'); }
   if (cl.contains('ib-pick')) { const x = S.inbox[+t.dataset.i].items[+t.dataset.x]; x.idx = t.value === '' ? null : +t.value; render(); }
