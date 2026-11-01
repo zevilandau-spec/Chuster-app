@@ -1163,6 +1163,7 @@ const VIEWS = {
   packrep: { title: 'Packing report', r: renderPackReport },
   buying: { title: 'Buying & suppliers', r: renderBuying },
   items: { title: 'Products', r: renderItems },
+  margin: { title: 'Margins', r: renderMargin },
   pricelist: { title: 'Price list', r: renderPriceList },
   po: { title: 'Purchase order', r: renderPO },
   reps: { title: 'Sales by rep', r: renderReps },
@@ -1191,7 +1192,7 @@ const NAV = [
   { h: 'ORDERS', items: [['order', 'New order', 'order'], ['orders', 'Orders', 'order'], ['inbox', 'Incoming orders', 'chat', 'inbox'], ['toqb', 'To QuickBooks', 'check', 'toqb']] },
   { h: 'CUSTOMERS', items: [['customers', 'Customers', 'people', 'late'], ['payments', 'Payments', 'card', 'pay'], ['collect', 'Collections', 'card'], ['stmts', 'Statements by email', 'mail'], ['custprofit', 'Profit by store', 'chart'], ['lost', 'Lost items', 'alert'], ['yomtov', 'Yom Tov list', 'cal']] },
   { h: 'SALES & MONEY', items: [['mysales', 'Salesman dashboard', 'chart'], ['storesales', 'Store sales', 'chart'], ['newlost', 'New & lost stores', 'people'], ['habits', 'Order habits', 'clock'], ['reps', 'Sales by rep & commission', 'people'], ['finance', 'Finance', 'chart']] },
-  { h: 'PRODUCTS', items: [['items', 'Products & profit', 'chart'], ['pricelist', 'Price list', 'order'], ['pricecheck', 'Price check', 'card']] },
+  { h: 'PRODUCTS', items: [['items', 'Products & profit', 'chart'], ['margin', 'Margins', 'chart'], ['pricelist', 'Price list', 'order'], ['pricecheck', 'Price check', 'card']] },
   { h: 'DELIVERIES', items: [['route', 'Deliveries', 'box'], ['stop', 'Driver', 'wheel'], ['live', 'Live trucks', 'pin'], ['loading', 'Loading', 'truck'], ['dsched', 'Delivery days', 'cal']] },
   { h: 'WAREHOUSE', items: [['packnext', 'What to pack', 'clip'], ['packing', 'Packing plan', 'clip'], ['packlog', 'Pack log', 'clip'], ['packrep', 'Packing report', 'chart'], ['yield', 'Yield', 'chart']] },
   { h: 'STOCK & BUYING', items: [['inventory', 'Inventory', 'box', 'inv'], ['reorder', 'Reorder alerts', 'alert'], ['buying', 'Buying & suppliers', 'card'], ['polist', 'All purchase orders', 'clip'], ['stockmoves', 'Stock moves', 'box']] },
@@ -1217,7 +1218,7 @@ function myRepCodes() { const p = (S.repCfg && S.repCfg.people || {})[S.user]; r
 const salesLocked = () => isSales() && !!myRepCodes();
 const custMine = c => !salesLocked() || (!!c && myRepCodes().includes(c.rep || '—'));
 const custMineName = n => !salesLocked() || custMine(custByName(n));
-const allowed = v => S.role === 'Owner' ? true : S.role === 'Office' ? !['tools', 'custprofit', 'finance', 'expenses', 'bank', 'journal', 'accounts'].includes(v) : (ROLE_VIEWS[S.role] || []).includes(v);
+const allowed = v => S.role === 'Owner' ? true : S.role === 'Office' ? !['tools', 'custprofit', 'finance', 'expenses', 'bank', 'journal', 'accounts', 'margin'].includes(v) : (ROLE_VIEWS[S.role] || []).includes(v);
 const roleHome = () => S.role === 'Warehouse' ? 'packnext' : S.role === 'Driver' ? 'route' : isSales() ? 'mysales' : 'home';
 const YI = { 'Dashboard': 'הויפט בלאט', 'Ask the portal': 'פרעג די אפּ', 'Ask AI': 'פרעג AI', 'Ask AI ✨': 'פרעג AI ✨', 'Ask': 'פרעג', 'Orders': 'ארדערס', 'New order': 'נייע ארדער', '+ New order': '+ נייע ארדער', 'Incoming orders': 'אריינקומענדיגע ארדערס', 'Payments': 'באצאלונגען',
   'Customers': 'קאסטומערס', 'Collections': 'איינמאנען געלט', 'Products & profit': 'פראדוקטן און פראפיט', 'Sales by rep & commission': 'סעילס לויט רעפּ', 'Sales by rep': 'סעילס לויט רעפּ', 'Yom Tov list': 'יום טוב ליסטע', 'Chanuka': 'חנוכה', 'Purim': 'פורים', 'Pesach': 'פסח', 'After Pesach': 'נאך פסח', 'Shavuos': 'שבועות', 'Rosh Hashana': 'ראש השנה', 'Yom Tov reorder list': 'יום טוב ליסטע',
@@ -2927,6 +2928,41 @@ try { S.prContact = localStorage.getItem('chuster-pl-contact') || ''; } catch (e
 function saveCosts() { try { localStorage.setItem('chuster-costs-v1', JSON.stringify(S.myCost)); } catch (e) { /* storage blocked */ } }
 const KIND_NAME = { r: 'Retail', w: 'Wholesale' };
 const KIND_SUB = { r: 'packs for stores', w: 'loose bulk cases' };
+function renderMargin() {
+  if (!REAL || !IT) return needData('Margins');
+  if (S.role !== 'Owner') return head('Margins', '') + '<section class="card"><p class="sub" style="margin:0">Only the owner can see margins.</p></section>';
+  const kind = S.itKind || 'r';
+  const all = itRows().filter(r => r.o.kind === kind && r.amt > 0 && r.cost != null);
+  const totSales = all.reduce((s, r) => s + r.amt, 0), totProfit = all.reduce((s, r) => s + r.profit, 0);
+  const avgM = totSales ? totProfit / totSales : 0;
+  const losing = all.filter(r => r.margin != null && r.margin < 0);
+  const thin = all.filter(r => r.margin != null && r.margin >= 0 && r.margin < 0.15);
+  const tab = S.mgTab || 'best';
+  const q = S.mgQ.trim().toLowerCase();
+  let rows = tab === 'losing' ? losing.slice().sort((a, b) => a.profit - b.profit) : tab === 'thin' ? thin.slice().sort((a, b) => b.amt - a.amt) : all.slice().sort((a, b) => b.profit - a.profit);
+  if (q) rows = rows.filter(r => (r.c.name + ' ' + (r.c.code || '')).toLowerCase().includes(q));
+  const mcls = m => m == null ? 'grey' : m < 0 ? 'red' : m < 0.15 ? 'red' : m < 0.35 ? 'gold' : 'green';
+  const pctTxt = m => m == null ? '—' : Math.round(m * 100) + '%';
+  const row = r => `<tr><td><button style="background:none;border:none;font:inherit;text-align:left;cursor:pointer;color:inherit;padding:0" data-act="go-item" data-f="${esc(r.c.full)}"><b>${esc(r.c.name)}</b><div class="sub" style="margin:0;font-size:12px">${r.c.code ? '#' + esc(r.c.code) : ''}${r.c.pack ? ' · ' + esc(r.c.pack) : ''}</div></button></td><td class="num" style="text-align:right">${fm(r.amt)}</td><td style="text-align:right"><span class="tag ${mcls(r.margin)}">${pctTxt(r.margin)}</span></td><td class="num" style="text-align:right;color:${r.profit < 0 ? 'var(--bad-text)' : 'inherit'}">${fm(r.profit)}</td></tr>`;
+  const chip = (k, l, n) => `<button class="chip" data-act="mg-tab" data-v="${k}" aria-pressed="${tab === k}">${l}${n != null ? ' · ' + n : ''}</button>`;
+  const kchip = (k, l) => `<button class="chip" data-act="it-kind" data-k="${k}" aria-pressed="${kind === k}">${l}</button>`;
+  const perchip = (k, l) => `<button class="chip" data-act="it-per" data-p="${k}" aria-pressed="${S.itPer === k}">${l}</button>`;
+  return `${head('Margins', 'profit and margin per product, from your costs and prices')}
+  <section class="card" style="display:flex;gap:8px 16px;align-items:center;flex-wrap:wrap;padding:12px 16px">
+    <div class="chips">${kchip('r', 'Retail (packs)')}${kchip('w', 'Wholesale (loose)')}</div>
+    <div class="chips">${perchip('12', '12 months')}${perchip('ytd', 'This year')}</div></section>
+  <div class="tiles">
+    <div class="tile ct ct-green"><div class="k">Profit</div><div class="v">${fm(totProfit)}</div><div class="s">on ${fm(totSales)} of sales</div></div>
+    <div class="tile ct ct-blue"><div class="k">Average margin</div><div class="v">${Math.round(avgM * 100)}%</div><div class="s">across ${all.length} products</div></div>
+    <div class="tile ct ct-red"><div class="k">Losing money</div><div class="v">${losing.length}</div><div class="s">${thin.length} more under 15%</div></div>
+  </div>
+  <section class="card stack" style="gap:6px">
+    <div class="chips">${chip('best', 'Best earners', null)}${chip('thin', 'Thin margin', thin.length)}${chip('losing', 'Losing money', losing.length)}</div>
+    <div class="field">${ic('search')}<label class="sr" for="mg-q">Search</label><input id="mg-q" value="${esc(S.mgQ)}" placeholder="Search product" autocomplete="off"></div>
+    <table class="mini-table"><tr><td><b>Product</b></td><td style="text-align:right"><b>Sales</b></td><td style="text-align:right"><b>Margin</b></td><td style="text-align:right"><b>Profit</b></td></tr>
+    ${rows.slice(0, 200).map(row).join('') || '<tr><td colspan="4" class="sub">None.</td></tr>'}</table>
+    <p class="sub" style="margin:0">Tap a product to set its cost in Products &amp; profit. Margin is profit ÷ sales.</p></section>`;
+}
 function itRows() {
   if (!IT) return [];
   return REAL.catalog.map((c, i) => {
@@ -4239,7 +4275,7 @@ function openPOSection() {
 /* ================= Salesman dashboard (e.g. "Dudi's sales") ================= */
 const DLY = REAL && REAL.daily ? REAL.daily : null;
 Object.assign(S, { ms: { rep: S.user === 'Motty' ? 'All' : 'Dudi', range: 'days', area: 'All', end: null } });
-Object.assign(S, { ss: { range: 'month', end: null, sort: 'sales', q: '', area: 'All' }, nlTab: 'new', nlQ: '', hbTab: 'overdue', hbQ: '' });
+Object.assign(S, { ss: { range: 'month', end: null, sort: 'sales', q: '', area: 'All' }, nlTab: 'new', nlQ: '', hbTab: 'overdue', hbQ: '', mgTab: 'best', mgQ: '' });
 const addDays = (iso, n) => isoOf(isoRd(iso) + n);
 function msRange() {
   const end = S.ms.end || DLY.to; const e = isoRd(end); const R = S.ms.range;
@@ -5985,6 +6021,8 @@ document.addEventListener('click', e => {
     case 'ss-sort': S.ss.sort = d.v; keep(); break;
     case 'nl-tab': S.nlTab = d.v; keep(); break;
     case 'hb-tab': S.hbTab = d.v; keep(); break;
+    case 'mg-tab': S.mgTab = d.v; keep(); break;
+    case 'go-item': go('items'); break;
     case 'ms-range': S.ms.range = d.v; keep(); break;
     case 'ms-area': S.ms.area = d.v; keep(); break;
     case 'rep-sel': S.repSel = d.r ? (S.repSel === d.r ? null : d.r) : null; keep(); break;
@@ -6137,6 +6175,7 @@ document.addEventListener('input', e => {
   }
   if (e.target.classList && e.target.classList.contains('ive-inp') && S.ivEdit) { S.ivEdit.q[e.target.dataset.k] = Math.max(0, parseInt(e.target.value, 10) || 0); return; }
   if (e.target.id === 'ive-find' && S.ivEdit) { S.ivEdit.find = e.target.value; const el = document.getElementById('ive-res'); if (el) el.innerHTML = ivFind(S.ivEdit); return; }
+  if (e.target.id === 'mg-q') { S.mgQ = e.target.value; const pos = e.target.selectionStart; render(); const q = document.getElementById('mg-q'); if (q) { q.focus(); try { q.setSelectionRange(pos, pos); } catch (x) {} } return; }
   if (e.target.id === 'hb-q') { S.hbQ = e.target.value; const pos = e.target.selectionStart; render(); const q = document.getElementById('hb-q'); if (q) { q.focus(); try { q.setSelectionRange(pos, pos); } catch (x) {} } return; }
   if (e.target.id === 'nl-q') { S.nlQ = e.target.value; const pos = e.target.selectionStart; render(); const q = document.getElementById('nl-q'); if (q) { q.focus(); try { q.setSelectionRange(pos, pos); } catch (x) {} } return; }
   if (e.target.id === 'ss-q') { S.ss.q = e.target.value; const pos = e.target.selectionStart; render(); const q = document.getElementById('ss-q'); if (q) { q.focus(); try { q.setSelectionRange(pos, pos); } catch (x) {} } return; }
