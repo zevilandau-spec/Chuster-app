@@ -760,6 +760,9 @@ body:has(#ai-fab:not([hidden])) #view { padding-bottom: 72px; }
 .pk-tubes { display: flex; gap: 4px; flex: none; } .pk-tubes .chip { min-width: 34px; padding: 0 8px; }
 .o3-dlv { color: var(--good-text); font-weight: 800; } .o3-dlv.gold { color: var(--gold-text, #8a5a00); } .iv-deliv { padding: 0 8px; }
 .tile.tap { cursor: pointer; position: relative; } .tile.tap::after { content: '\203A'; position: absolute; top: 8px; right: 12px; color: var(--muted); font-size: 18px; line-height: 1; } .tile.tap:active { transform: scale(.985); }
+#ptr-bar { position: fixed; top: 0; left: 50%; transform: translate(-50%, -56px); z-index: 90; display: flex; align-items: center; gap: 8px; background: var(--brand); color: #fff; padding: 8px 16px; border-radius: 999px; box-shadow: 0 4px 14px rgba(10,14,25,.25); font-size: 14px; font-weight: 700; pointer-events: none; }
+#ptr-bar.ready { background: var(--gold); color: var(--brand-text, #16204A); }
+#ptr-bar .ptr-i { font-size: 16px; }
 .sheet-wrap { position: fixed; inset: 0; z-index: 70; background: rgba(10,14,25,.55); display: flex; align-items: flex-end; justify-content: center; } @media (min-width: 560px) { .sheet-wrap { align-items: center; padding: 16px; } }
 .sheet { background: var(--surface); width: 100%; max-width: 520px; border-radius: 18px 18px 0 0; padding: 16px; display: flex; flex-direction: column; gap: 12px; max-height: 85vh; overflow-y: auto; } @media (min-width: 560px) { .sheet { border-radius: 18px; } }
 .iv-ordloc { padding: 6px 14px; } .iv-ordloc a { color: var(--brand-text); font-weight: 700; }
@@ -5467,6 +5470,32 @@ document.addEventListener('click', e => { const el = e.target.closest('[data-act
   }
   setTimeout(check, 4000); setInterval(check, 5 * 60000);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) check(); });
+})();
+/* ---- pull down from the top of any page to refresh (reloads the newest app and data) ---- */
+(function () {
+  const sc = () => document.scrollingElement || document.documentElement;
+  let y0 = 0, dy = 0, active = false, bar = null, refreshing = false;
+  const TRIG = 72;
+  function makeBar() { if (bar) return; bar = document.createElement('div'); bar.id = 'ptr-bar'; bar.innerHTML = '<span class="ptr-i">↓</span><span class="ptr-t">Pull to refresh</span>'; document.body.appendChild(bar); }
+  function clear() { if (bar) { bar.remove(); bar = null; } active = false; dy = 0; }
+  addEventListener('touchstart', e => { if (!refreshing && e.touches.length === 1 && sc().scrollTop <= 0) { y0 = e.touches[0].clientY; active = true; dy = 0; } else active = false; }, { passive: true });
+  addEventListener('touchmove', e => {
+    if (!active) return;
+    dy = e.touches[0].clientY - y0;
+    if (dy <= 0 || sc().scrollTop > 0) { clear(); return; }
+    makeBar();
+    const pull = Math.min(dy * 0.5, 80);
+    bar.style.transform = 'translate(-50%,' + (pull - 56) + 'px)';
+    bar.style.opacity = Math.min(1, dy / TRIG);
+    const ready = dy > TRIG;
+    bar.classList.toggle('ready', ready);
+    bar.querySelector('.ptr-i').textContent = ready ? '↑' : '↓';
+    bar.querySelector('.ptr-t').textContent = ready ? 'Release to refresh' : 'Pull to refresh';
+  }, { passive: true });
+  addEventListener('touchend', () => {
+    if (active && bar && dy > TRIG) { refreshing = true; bar.classList.add('ready'); bar.style.transform = 'translate(-50%,24px)'; bar.querySelector('.ptr-i').textContent = '⟳'; bar.querySelector('.ptr-t').textContent = 'Refreshing…'; setTimeout(() => location.reload(), 150); }
+    else clear();
+  }, { passive: true });
 })();
 /* ================= Books: expenses, bank & deposits, vendors & bills, sales orders & estimates, stock moves, all POs, journal, accounts ================= */
 Object.assign(S, { bkPer: 'ytd', bkFrom: null, bkTo: null, bkAcct: null, bkQ: '', bkVSort: 'owe', bkVen: null, bkSoTab: 'so', bkStTab: 'build', bkPoSt: 'open', bkVenTab: 'list' });
