@@ -2897,8 +2897,9 @@ function stmtPanel(c) {
     <label class="lbl" for="stmt-text">Statement (you can change it before sending)</label>
     <textarea id="stmt-text" data-n="${esc(c.name)}" rows="12" style="width:100%;border-radius:10px;border:1px solid var(--line-strong);padding:10px;font:500 13px/1.5 ui-monospace, Menlo, Consolas, monospace;background:var(--surface);color:var(--fg);resize:vertical">${esc(txt)}</textarea>
     <div class="actions">
-      <button class="btn gold" data-act="stmt-print" data-n="${esc(c.name)}">Statement PDF with logo</button>
-      <button class="btn primary" data-act="stmt-copy">Copy statement</button>
+      <button class="btn primary" data-act="stmt-pdf" data-n="${esc(c.name)}">📄 Send statement PDF</button>
+      <button class="btn gold" data-act="stmt-print" data-n="${esc(c.name)}">Print PDF</button>
+      <button class="btn ghost" data-act="stmt-copy">Copy text</button>
       ${emails ? `<a class="btn ghost" id="stmt-mail" data-to="${esc(emails)}" href="${esc(mailHref(emails, txt))}">Open in email</a>` : ''}
       ${wa ? `<a class="btn good" id="stmt-wa" data-to="${esc(wa)}" href="${esc(waHref(wa, txt))}" target="_blank" rel="noopener">Open in WhatsApp</a>` : ''}
       <button class="btn ghost" data-act="stmt-sent" data-n="${esc(c.name)}">Mark as sent</button>
@@ -3656,6 +3657,29 @@ function statementDoc(c) {
       <tbody><tr>${ag.slice(0, 5).map(v => `<td>${f2(v || 0)}</td>`).join('')}<td><b>${d2(c.balance || 0)}</b></td></tr></tbody></table>
     <div class="st-foot"><div><div class="lab">Phone #</div><div class="val">${esc(CO.phone)}</div></div><div><div class="lab">E-mail</div><div class="val">${esc(CO.email)}</div></div></div>
   </div>`;
+}
+// build the statement as a real PDF (same template) and share it (WhatsApp / email attachment) or download it
+let _h2pLoad;
+function loadH2P() { if (window.html2pdf) return Promise.resolve(); if (_h2pLoad) return _h2pLoad; _h2pLoad = new Promise((res, rej) => { const s = document.createElement('script'); s.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js'; s.onload = res; s.onerror = rej; document.head.appendChild(s); }); return _h2pLoad; }
+async function sendStatementPdf(c) {
+  if (!c) return;
+  toast('Building the statement PDF…');
+  try { await loadH2P(); } catch (e) { toast('Could not load the PDF tool (no internet?). Use "Print PDF" instead.'); return; }
+  const fname = ('Chuster statement - ' + c.name + '.pdf').replace(/[\\/:*?"<>|]/g, '-');
+  const wrap = document.createElement('div'); wrap.style.cssText = 'position:fixed;left:-9999px;top:0;width:820px;background:#fff'; wrap.innerHTML = statementDoc(c); document.body.appendChild(wrap);
+  const el = wrap.querySelector('.ps');
+  try {
+    const blob = await window.html2pdf().set({ margin: [10, 10, 10, 10], image: { type: 'jpeg', quality: 0.95 }, html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff' }, jsPDF: { unit: 'mm', format: 'letter', orientation: 'portrait' }, pagebreak: { mode: ['css', 'legacy'] } }).from(el).outputPdf('blob');
+    wrap.remove();
+    const file = new File([blob], fname, { type: 'application/pdf' });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      try { await navigator.share({ files: [file], title: 'Chuster statement - ' + c.name, text: 'Statement for ' + c.name + ' from Chuster Noodle.' }); toast('Pick WhatsApp or Mail to send the PDF.'); }
+      catch (e) { if (e && e.name !== 'AbortError') toast('Could not open sharing: ' + (e.message || e)); }
+    } else {
+      const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = fname; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+      toast('PDF saved. Attach it to your email or WhatsApp.');
+    }
+  } catch (e) { wrap.remove(); toast('Could not make the PDF: ' + (e.message || e)); }
 }
 /* ---- purchase orders ---- */
 Object.assign(S, { poV: null, poQ: {}, poNo: '', poNote: '' });
@@ -6840,6 +6864,7 @@ document.addEventListener('click', e => {
     case 'dash-csv': dashCsv(d.name); break;
     case 'inv-print': { const o = REAL.orders.list.find(x => x.n === d.n); if (o) printDoc(invoiceDoc(o), `Chuster ${o.t === 'cm' ? 'credit memo' : 'invoice'} ${o.n} - ${o.c}`); break; }
     case 'stmt-print': { const c = custByName(d.n); if (c) printDoc(statementDoc(c), `Chuster statement - ${c.name}`); break; }
+    case 'stmt-pdf': sendStatementPdf(custByName(d.n)); break;
     case 'po-new': { S.poV = +d.v; S.poQ = {}; S.poNote = ''; const t = dateOf(TODAY); S.poNo = 'PO-' + String(t.getFullYear()).slice(2) + String(t.getMonth() + 1).padStart(2, '0') + String(t.getDate()).padStart(2, '0') + '-' + String(S.poV + 1).padStart(2, '0'); go('po'); break; }
     case 'po-print': { if (!poItems(S.poV).some(x => S.poQ[x.i] > 0)) { toast('Type a quantity for at least one item.'); break; } printDoc(poDoc(), `Chuster ${S.poNo} - ${BUY.vendors[S.poV]}`); break; }
     case 'rep-per': S.repPer = d.p; keep(); break;
