@@ -48,19 +48,22 @@ mi = {k: i for i, k in enumerate(months)}
 # ---- expenses: per account per month, per vendor, recent list
 by_acct = collections.defaultdict(lambda: [0.0] * len(months))
 by_vendor = collections.defaultdict(lambda: [0.0, 0.0])  # last 12 months, this year
+by_vendor_m = collections.defaultdict(lambda: [0.0] * len(months))  # per vendor per month, so any date range works
 recent = []
 for t in exp:
     k = mi.get(t['d'][:7]); tot = sum(float(l[2] or 0) for l in t['l'])
     for l in t['l']:
         if k is not None:
             by_acct[l[0] or 'No account'][k] += float(l[2] or 0)
+    if k is not None: by_vendor_m[t.get('v') or '—'][k] += tot
     if days_ago(t['d']) < 365: by_vendor[t.get('v') or '—'][0] += tot
     if t['d'][:4] == str(as_of.year): by_vendor[t.get('v') or '—'][1] += tot
     if days_ago(t['d']) < 180:
         recent.append([t['d'], t['t'], t.get('n', ''), t.get('v', ''), t.get('acct', ''), r2(tot), [[l[0], r2(l[2]), l[1]] for l in t['l']][:6]])
 recent.sort(key=lambda x: x[0], reverse=True)
 expenses = {'months': months, 'accounts': sorted(([a, [r2(v) for v in vals]] for a, vals in by_acct.items()), key=lambda x: -sum(x[1][-12:])),
-            'vendors': sorted(([v, r2(a[0]), r2(a[1])] for v, a in by_vendor.items()), key=lambda x: -x[1])[:150], 'recent': recent[:600]}
+            'vendors': sorted(([v, r2(a[0]), r2(a[1])] for v, a in by_vendor.items()), key=lambda x: -x[1])[:150],
+            'venMonths': sorted(([v, [r2(x) for x in vals]] for v, vals in by_vendor_m.items()), key=lambda x: -sum(x[1][-12:]))[:200], 'recent': recent[:600]}
 
 # ---- bank: deposits per account per month, recent deposits, bank and card balances
 dep_m = collections.defaultdict(lambda: [0.0] * len(months)); drecent = []
