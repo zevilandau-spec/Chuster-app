@@ -1653,6 +1653,7 @@ const VIEWS = {
   mysales: { title: 'Salesman dashboard', r: renderMySales },
   visits: { title: "Today's visits", r: renderVisits },
   mycomm: { title: 'My commission & goal', r: renderMyComm },
+  pitch: { title: 'New to pitch', r: renderPitch },
   storesales: { title: 'Store sales', r: renderStoreSales },
   newlost: { title: 'New & lost stores', r: renderNewLost },
   seasonality: { title: 'Seasonality', r: renderSeasonality },
@@ -1672,7 +1673,7 @@ const VIEWS = {
 const NAV = [
   { items: [['home', 'Dashboard', 'home'], ['ask', 'Ask AI ✨', 'chat'], ['calendar', 'Calendar', 'cal']] },
   { h: 'ORDERS', items: [['order', 'New order', 'order'], ['orders', 'Orders', 'order'], ['inbox', 'Incoming orders', 'chat', 'inbox'], ['toqb', 'To QuickBooks', 'check', 'toqb']] },
-  { h: 'CUSTOMERS', items: [['visits', "Today's visits", 'clock'], ['customers', 'Customers', 'people', 'late'], ['payments', 'Payments', 'card', 'pay'], ['collect', 'Collections', 'card'], ['aging', 'Collections dashboard', 'chart'], ['stmts', 'Statements by email', 'mail'], ['custprofit', 'Profit by store', 'chart'], ['lost', 'Lost items', 'alert'], ['yomtov', 'Yom Tov list', 'cal'], ['ytplan', 'Yom Tov planner', 'chart']] },
+  { h: 'CUSTOMERS', items: [['visits', "Today's visits", 'clock'], ['pitch', 'New to pitch', 'chart'], ['customers', 'Customers', 'people', 'late'], ['payments', 'Payments', 'card', 'pay'], ['collect', 'Collections', 'card'], ['aging', 'Collections dashboard', 'chart'], ['stmts', 'Statements by email', 'mail'], ['custprofit', 'Profit by store', 'chart'], ['lost', 'Lost items', 'alert'], ['yomtov', 'Yom Tov list', 'cal'], ['ytplan', 'Yom Tov planner', 'chart']] },
   { h: 'SALES & MONEY', items: [['mysales', 'Salesman dashboard', 'chart'], ['storesales', 'Store sales', 'chart'], ['scorecard', 'Store scorecard', 'people'], ['atrisk', 'At-risk board', 'alert'], ['crosssell', 'Cross-sell', 'chart'], ['newlost', 'New & lost stores', 'people'], ['habits', 'Order habits', 'clock'], ['seasonality', 'Seasonality', 'chart'], ['repscore', 'Salesman scorecard', 'people'], ['reps', 'Sales by rep & commission', 'people'], ['returns', 'Returns & credits', 'card'], ['finance', 'Finance', 'chart']] },
   { h: 'PRODUCTS', items: [['prodsales', 'Product sales', 'chart'], ['winners', 'Winners & losers', 'chart'], ['items', 'Products & profit', 'chart'], ['margin', 'Margins', 'chart'], ['pricelist', 'Price list', 'order'], ['pricecheck', 'Price check', 'card'], ['pricespread', 'Price spread', 'chart']] },
   { h: 'DELIVERIES', items: [['route', 'Deliveries', 'box'], ['stop', 'Driver', 'wheel'], ['live', 'Live trucks', 'pin'], ['loading', 'Loading', 'truck'], ['dsched', 'Delivery days', 'cal'], ['delivstats', 'Delivery stats', 'chart'], ['routeprofit', 'Route profit', 'chart']] },
@@ -1691,8 +1692,8 @@ try { S.lang = localStorage.getItem('chuster-lang') || 'en'; } catch (e) { S.lan
 const ROLE_VIEWS = {
   Warehouse: ['ask', 'packnext', 'packing', 'stockcover', 'packlog', 'packrep', 'yield', 'inventory', 'reorder', 'loading', 'loadlist', 'calendar', 'stockmoves', 'polist'],
   Driver: ['route', 'stop', 'loading', 'loadlist', 'calendar'],
-  Sales: ['ask', 'mysales', 'visits', 'mycomm', 'customers', 'collect', 'orders', 'order', 'inbox', 'toqb', 'payments', 'yomtov', 'lost', 'pricelist', 'pricecheck', 'calendar', 'salesorders', 'prodsales', 'scorecard', 'crosssell', 'atrisk', 'returns'],
-  SalesDriver: ['ask', 'mysales', 'visits', 'mycomm', 'customers', 'collect', 'orders', 'order', 'inbox', 'toqb', 'payments', 'yomtov', 'lost', 'pricelist', 'pricecheck', 'calendar', 'route', 'stop', 'loading', 'loadlist', 'salesorders', 'prodsales', 'scorecard', 'crosssell', 'atrisk', 'returns']
+  Sales: ['ask', 'mysales', 'visits', 'mycomm', 'pitch', 'customers', 'collect', 'orders', 'order', 'inbox', 'toqb', 'payments', 'yomtov', 'lost', 'pricelist', 'pricecheck', 'calendar', 'salesorders', 'prodsales', 'scorecard', 'crosssell', 'atrisk', 'returns'],
+  SalesDriver: ['ask', 'mysales', 'visits', 'mycomm', 'pitch', 'customers', 'collect', 'orders', 'order', 'inbox', 'toqb', 'payments', 'yomtov', 'lost', 'pricelist', 'pricecheck', 'calendar', 'route', 'stop', 'loading', 'loadlist', 'salesorders', 'prodsales', 'scorecard', 'crosssell', 'atrisk', 'returns']
 };
 const isSales = () => S.role === 'Sales' || S.role === 'SalesDriver';
 // a salesman is locked to his own customers (the rep codes set for his name); owners/office see everyone
@@ -1725,7 +1726,7 @@ function drawChrome() {
     ['home', 'Dashboard'],
     ['finance', 'Finance'],
     { label: 'Orders', items: [['orders', 'Orders', 'order'], ['order', 'New order', 'order'], ['inbox', 'Incoming orders', 'chat', 'inbox'], ['payments', 'Payments', 'card', 'pay']] },
-    { label: 'Customers', items: [['mysales', 'Salesman dashboard', 'chart'], ['visits', "Today's visits", 'clock'], ['mycomm', 'My commission', 'chart'], ['customers', 'Customers', 'people', 'late'], ['collect', 'Collections', 'card'], ['stmts', 'Statements by email', 'mail'], ['yomtov', 'Yom Tov list', 'cal'], ['lost', 'Lost items', 'alert'], ['custprofit', 'Profit by store', 'chart'], ['pricecheck', 'Price check', 'card'], ['reps', 'Sales by rep & commission', 'people']] },
+    { label: 'Customers', items: [['mysales', 'Salesman dashboard', 'chart'], ['visits', "Today's visits", 'clock'], ['mycomm', 'My commission', 'chart'], ['pitch', 'New to pitch', 'chart'], ['customers', 'Customers', 'people', 'late'], ['collect', 'Collections', 'card'], ['stmts', 'Statements by email', 'mail'], ['yomtov', 'Yom Tov list', 'cal'], ['lost', 'Lost items', 'alert'], ['custprofit', 'Profit by store', 'chart'], ['pricecheck', 'Price check', 'card'], ['reps', 'Sales by rep & commission', 'people']] },
     { label: 'Products', items: [['items', 'Products & profit', 'chart'], ['pricelist', 'Price list', 'order'], ['inventory', 'Inventory', 'box', 'inv'], ['reorder', 'Reorder alerts', 'alert'], ['buying', 'Buying & suppliers', 'card']] },
     { label: 'Packing', items: [['packnext', 'What to pack', 'clip'], ['packing', 'Packing plan', 'clip'], ['packlog', 'Pack log', 'clip'], ['packrep', 'Packing report', 'chart'], ['yield', 'Yield', 'chart']] },
     { label: 'Deliveries', items: [['route', 'Deliveries', 'box'], ['stop', 'Driver', 'wheel'], ['loading', 'Loading', 'truck'], ['dsched', 'Delivery days', 'cal'], ['live', 'Live trucks', 'pin']] },
@@ -4265,7 +4266,8 @@ function loadLS(k, d) { try { const v = JSON.parse(localStorage.getItem(k) || 'n
 function saveLS(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* storage blocked */ } }
 Object.assign(S, { col: loadLS('chuster-collect-v1', {}), colF: 'all', colOpen: null, ytName: null, ytOpen: null, ytDone: loadLS('chuster-yt-v1', {}), lostOpen: null, cpSort: 'profit', pcOpen: null,
   supplies: loadLS('chuster-supplies-v1', {}), llDate: null, llTruck: 0, llDone: {}, areaTruck: loadLS('chuster-areatruck-v1', {}), sumOpen: false, proof: { photos: [], sig: null }, sigOpen: false,
-  visit: loadLS('chuster-visit-v1', {}), vsArea: 'All', vsQ: '' });
+  visit: loadLS('chuster-visit-v1', {}), vsArea: 'All', vsQ: '',
+  pitch: loadLS('chuster-pitch-v1', {}), pitchSetup: false, pitchQ: '', pitchOpen: null });
 const needData = t => head(t, '') + `<section class="card stack"><h2>Needs your QuickBooks numbers</h2><p class="sub" style="margin:0">This screen uses your real numbers, so it only works in your private link.</p></section>`;
 const todayIso = () => isoOf(TODAY);
 const telHref = ph => 'tel:' + (ph || '').replace(/[^0-9+]/g, '');
@@ -5239,6 +5241,31 @@ function renderVisits() {
     </section>
     ${todo.length ? `<div class="stack" style="gap:10px">${todo.map(card).join('')}</div>` : '<section class="card"><p class="sub" style="margin:0">Nobody is due for a visit right now. 👍</p></section>'}
     ${done.length ? `<h2 style="margin:18px 0 0;font-size:15px">Visited today (${done.length})</h2><div class="stack" style="gap:10px">${done.map(card).join('')}</div>` : ''}`;
+}
+function renderPitch() {
+  if (!REAL || !HIST) return needData('New to pitch');
+  const canEdit = S.role === 'Owner' || S.role === 'Office';
+  const flagged = REAL.catalog.map((c, i) => ({ c, i })).filter(x => S.pitch[x.c.full] && !x.c.off);
+  if (S.pitchSetup && canEdit) {
+    const q = S.pitchQ.trim().toLowerCase();
+    const items = REAL.catalog.filter(c => c.full && !c.off && (!q || (c.name + ' ' + (c.code || '')).toLowerCase().includes(q))).sort((a, b) => grank(a.group) - grank(b.group) || String(a.code).localeCompare(String(b.code)));
+    return `${head('New to pitch · choose products', `${flagged.length} flagged`, `<button class="btn primary" data-act="pitch-setup">Done</button>`)}
+      <section class="card stack" style="gap:6px"><p class="sub" style="margin:0">Tap the products your salesmen should push to stores (like the new 60 / 120). Each salesman then sees their own stores that don’t carry it yet.</p>
+        <div class="field" style="margin:0">${ic('search')}<label class="sr" for="pitch-q">Find a product</label><input id="pitch-q" value="${esc(S.pitchQ)}" placeholder="Find a product" autocomplete="off"></div>
+        <div>${items.map(c => `<div class="irow or-row ${gcls(c.group)}"><div class="main"><div class="name">${esc(c.name)}</div><div class="meta">${c.code ? '#' + esc(c.code) : ''}${c.pack ? ' · ' + esc(c.pack) : ''}</div></div><button class="chip" data-act="pitch-flag" data-f="${esc(c.full)}" aria-pressed="${!!S.pitch[c.full]}">${S.pitch[c.full] ? '📣 Pitching' : 'Pitch this'}</button></div>`).join('')}</div></section>`;
+  }
+  const mine = REAL.customers.map((c, ci) => ({ c, ci })).filter(x => x.c.active && custMine(x.c));
+  const per = flagged.map(p => {
+    const notCarry = mine.filter(x => { const h = histOf(x.ci); return !(h[p.i] && Object.values(h[p.i]).some(q => q > 0)); }).sort((a, b) => (b.c.sales12 || 0) - (a.c.sales12 || 0));
+    return { p, notCarry };
+  }).sort((a, b) => b.notCarry.length - a.notCarry.length);
+  return `${head('New to pitch', 'new products your stores don’t carry yet', canEdit ? `<button class="btn ghost" data-act="pitch-setup">Choose products</button>` : '')}
+    ${!flagged.length ? `<section class="card"><p class="sub" style="margin:0">${canEdit ? 'No products flagged yet. Tap <b>Choose products</b> to pick the ones to pitch (like the new 60 / 120).' : 'Nothing to pitch right now — ask Zevi to mark the new products.'}</p></section>`
+    : per.map(({ p, notCarry }) => { const open = S.pitchOpen === p.c.full; const show = open ? notCarry : notCarry.slice(0, 8);
+      return `<section class="card stack" style="gap:6px"><div style="display:flex;justify-content:space-between;gap:8px;align-items:baseline"><h2 style="margin:0;font-size:16px">${esc(p.c.name)}${p.c.pack ? ` <span class="sub" style="font-weight:600">${esc(p.c.pack)}</span>` : ''}</h2><span class="tag gold">${notCarry.length} don’t carry</span></div>
+        ${notCarry.length ? show.map(x => `<div style="display:flex;gap:8px;align-items:center;border-top:1px solid var(--line);padding:6px 0"><button style="flex:1;min-width:0;background:none;border:none;text-align:left;cursor:pointer;color:inherit;font:inherit" data-act="cust-sel-go" data-n="${esc(x.c.name)}"><b>${esc(x.c.name)}</b><span class="sub" style="display:block;margin:0;font-size:12px">${esc(x.c.area || '')} · ${fm(x.c.sales12 || 0)}/yr</span></button>${x.c.phone ? `<a class="btn good sm" href="${esc(waHref(waNum(x.c.phone), `Hi, it's Chuster. We have ${p.c.name}${p.c.pack ? ' (' + p.c.pack + ')' : ''} now — want to try it on your next order?`))}" target="_blank" rel="noopener">WhatsApp</a>` : ''}<button class="btn primary sm" data-act="cust-order" data-n="${esc(x.c.name)}">+ Order</button></div>`).join('') : '<p class="sub" style="margin:0">Every one of your stores already carries this. 👍</p>'}
+        ${notCarry.length > 8 ? `<button class="btn ghost sm" data-act="pitch-open" data-f="${esc(p.c.full)}">${open ? 'Show less' : `See all ${notCarry.length} ›`}</button>` : ''}</section>`;
+    }).join('')}`;
 }
 function renderMyComm() {
   if (!REAL || !REP) return needData('My commission');
@@ -6426,6 +6453,7 @@ SYNC.on('sx', (k, v) => { if (v == null) delete S.sx[k]; else S.sx[k] = v; saveL
 SYNC.on('sl', (k, v) => { if (v == null) delete S.sl[k]; else S.sl[k] = v; saveLS('chuster-sl-v1', S.sl); });
 SYNC.on('ps', (k, v) => { if (v == null) delete S.pkSet[k]; else S.pkSet[k] = v; saveLS('chuster-pkset-v1', S.pkSet); });
 SYNC.on('vn', (k, v) => { if (v == null) delete S.visit[k]; else S.visit[k] = v; saveLS('chuster-visit-v1', S.visit); });
+SYNC.on('pt', (k, v) => { if (v == null) delete S.pitch[k]; else S.pitch[k] = v; saveLS('chuster-pitch-v1', S.pitch); });
 SYNC.on('pp', (k, v) => { if (v == null) delete S.pkProg[k]; else S.pkProg[k] = v; saveLS('chuster-pkprog-v1', S.pkProg); });
 SYNC.on('pn', (k, v) => { if (v == null) delete S.pkNote[k]; else S.pkNote[k] = v; saveLS('chuster-pknote-v1', S.pkNote); });
 SYNC.on('pq', (k, v) => { if (v == null) delete S.pkOrder[k]; else S.pkOrder[k] = v; saveLS('chuster-pkorder-v1', S.pkOrder); });
@@ -7107,6 +7135,9 @@ document.addEventListener('click', e => {
     case 'ret-all': S.ret.from = null; S.ret.to = null; keep(); break;
     case 'ms-movers': S.msMovers = !S.msMovers; keep(); break;
     case 'vs-area': S.vsArea = d.v; keep(); break;
+    case 'pitch-setup': S.pitchSetup = !S.pitchSetup; S.pitchQ = ''; keep(); break;
+    case 'pitch-flag': { const f = d.f; if (S.pitch[f]) delete S.pitch[f]; else S.pitch[f] = 1; saveLS('chuster-pitch-v1', S.pitch); SYNC.put('pt', f, S.pitch[f] || null); keep(); break; }
+    case 'pitch-open': S.pitchOpen = S.pitchOpen === d.f ? null : d.f; keep(); break;
     case 'vs-done': { const n = S.visit[d.n] || (S.visit[d.n] = {}); const today = isoOf(TODAY); n.visited = n.visited === today ? null : today; saveLS('chuster-visit-v1', S.visit); SYNC.put('vn', d.n, n); keep(); toast(n.visited ? 'Marked visited today.' : 'Visit undone.'); break; }
     case 'ms-area': S.ms.area = d.v; keep(); break;
     case 'rep-sel': S.repSel = d.r ? (S.repSel === d.r ? null : d.r) : null; keep(); break;
@@ -7310,6 +7341,7 @@ document.addEventListener('input', e => {
   if (e.target.id === 'ord-q') { S.ordQ = e.target.value; const ol = document.getElementById('ord-list'); if (ol) ol.innerHTML = ordList(); return; }
   if (e.target.id === 'cust-q') { S.custQ = e.target.value; const box = document.getElementById('cust-list'); if (box) box.innerHTML = custRows(); return; }
   if (e.target.id === 'vs-q') { S.vsQ = e.target.value; const pos = e.target.selectionStart; render(); const q = document.getElementById('vs-q'); if (q) { q.focus(); try { q.setSelectionRange(pos, pos); } catch (x) { /* ignore */ } } return; }
+  if (e.target.id === 'pitch-q') { S.pitchQ = e.target.value; const pos = e.target.selectionStart; render(); const q = document.getElementById('pitch-q'); if (q) { q.focus(); try { q.setSelectionRange(pos, pos); } catch (x) { /* ignore */ } } return; }
   if (e.target.id === 'store-q') { S.storeQ = e.target.value; const sl = document.getElementById('store-list'); if (sl) sl.innerHTML = storeRows(); return; }
   if (e.target.id !== 'add') return;
   S.orderQ = e.target.value;
