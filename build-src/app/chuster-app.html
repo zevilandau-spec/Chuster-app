@@ -1497,7 +1497,10 @@ function renderAtRisk() {
 /* ---------- 6. Returns & credits ---------- */
 function renderReturns() {
   if (!REAL) return needData('Returns & credits');
-  const cms = REAL.orders.list.filter(o => o.t === 'cm' && (!salesLocked() || custMineName(o.c)));
+  const lo = REAL.orders.from, hi = REAL.orders.to;
+  let from = S.ret.from || lo, to = S.ret.to || hi;
+  if (from < lo) from = lo; if (to > hi) to = hi; if (from > to) from = to;
+  const cms = REAL.orders.list.filter(o => o.t === 'cm' && o.d >= from && o.d <= to && (!salesLocked() || custMineName(o.c)));
   const tot = cms.reduce((s, o) => s + Math.abs(o.a || 0), 0);
   const byStore = {}, byProd = {}, byMonth = {};
   cms.forEach(o => { byStore[o.c] = (byStore[o.c] || 0) + Math.abs(o.a || 0); const ym = o.d.slice(0, 7); byMonth[ym] = (byMonth[ym] || 0) + Math.abs(o.a || 0);
@@ -1505,7 +1508,14 @@ function renderReturns() {
   const stores = Object.entries(byStore).sort((a, b) => b[1] - a[1]);
   const prods = Object.values(byProd).sort((a, b) => b.amt - a.amt);
   const mkeys = Object.keys(byMonth).sort();
-  return `${head('Returns & credits', `credit memos from your invoices · ${fmtShort(isoRd(REAL.orders.from))} – ${fmtShort(isoRd(REAL.orders.to))}`, dashTools('Returns & credits'))}
+  const custom = !!(S.ret.from || S.ret.to);
+  return `${head('Returns & credits', `credit memos from your invoices · ${fmtShort(isoRd(from))} – ${fmtShort(isoRd(to))}`, dashTools('Returns & credits'))}
+  <section class="card" style="display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;padding:12px 16px">
+    <span class="eyebrow" style="color:var(--muted)">DATES</span>
+    <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--muted)">From<input class="inp" type="date" id="ret-from" value="${from}" min="${lo}" max="${hi}" style="width:auto"></label>
+    <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--muted)">To<input class="inp" type="date" id="ret-to" value="${to}" min="${lo}" max="${hi}" style="width:auto"></label>
+    ${custom ? `<button class="chip" data-act="ret-all">Show all (${fmtShort(isoRd(lo))} – ${fmtShort(isoRd(hi))})</button>` : ''}
+  </section>
   <div class="tiles"><div class="tile ct ct-red"><div class="k">Credits given</div><div class="v">${fm(tot)}</div><div class="s">${cms.length} credit memos</div></div>
     <div class="tile ct ct-gold"><div class="k">Stores</div><div class="v">${stores.length}</div><div class="s">got a credit</div></div>
     <div class="tile ct"><div class="k">Avg credit</div><div class="v">${fm(cms.length ? tot / cms.length : 0)}</div><div class="s">per memo</div></div></div>
@@ -4969,6 +4979,7 @@ const DLY = REAL && REAL.daily ? REAL.daily : null;
 Object.assign(S, { ms: { rep: S.user === 'Motty' ? 'All' : 'Dudi', range: 'days', area: 'All', end: null, year: null } });
 Object.assign(S, { ss: { range: 'month', end: null, sort: 'sales', q: '', area: 'All' }, nlTab: 'new', nlQ: '', hbTab: 'overdue', hbQ: '', mgTab: 'best', mgQ: '', dvWeeks: 8, agTab: 'worst', scTab: 'urgent', scQ: '', psTab: 'left', psQ: '' });
 Object.assign(S, { pr: { range: '30', cat: 'All', pack: 'All', brand: 'All', metric: 'sales', q: '' }, scoSel: null, scoQ: '', xsSel: null, xsQ: '', arTab: 'all', winTab: 'up', fcQ: '' });
+Object.assign(S, { ret: { from: null, to: null } });
 const addDays = (iso, n) => isoOf(isoRd(iso) + n);
 const msYears = () => { const M = (REP && REP.months) || []; const y1 = +((M[M.length - 1] || DLY.to).slice(0, 4)); const y0 = +((M[0] || DLY.from).slice(0, 4)); const out = []; for (let y = y1; y >= y0; y--) out.push(y); return out; };
 function msRange() {
@@ -6978,6 +6989,7 @@ document.addEventListener('click', e => {
     case 'go-item': go('items'); break;
     case 'ms-range': S.ms.range = d.v; if (d.v === 'year' && !S.ms.year) S.ms.year = +DLY.to.slice(0, 4); keep(); break;
     case 'ms-year': S.ms.year = +d.v; keep(); break;
+    case 'ret-all': S.ret.from = null; S.ret.to = null; keep(); break;
     case 'ms-area': S.ms.area = d.v; keep(); break;
     case 'rep-sel': S.repSel = d.r ? (S.repSel === d.r ? null : d.r) : null; keep(); break;
     case 'rep-base': S.repCfg.base = d.b; saveReps(); keep(); break;
@@ -7120,6 +7132,8 @@ document.addEventListener('change', e => {
   if (t.id === 'rep-mon') { S.repMon = +t.value; render(); }
   if (t.id === 'rep-goal') { const v = parseFloat(t.value.replace(/[$,]/g, '')); if (v > 0) S.repCfg.goals[t.dataset.r] = v; else delete S.repCfg.goals[t.dataset.r]; saveReps(); render(); toast('Monthly goal saved on this device.'); }
   if (t.id === 'ms-end' && t.value) { S.ms.end = t.value; render(); }
+  if (t.id === 'ret-from' && t.value) { S.ret.from = t.value; render(); }
+  if (t.id === 'ret-to' && t.value) { S.ret.to = t.value; render(); }
   if (t.id === 'rep-name') { const v = t.value.trim(); if (v) S.repCfg.names[t.dataset.r] = v; else delete S.repCfg.names[t.dataset.r]; saveReps(); render(); }
   if (t.id === 'rep-rate') { const v = parseFloat(t.value); if (v >= 0) S.repCfg.rates[t.dataset.r] = v; else delete S.repCfg.rates[t.dataset.r]; saveReps(); render(); toast('Commission % saved on this device.'); }
   if (cl.contains('it-cost')) { const v = parseFloat(t.value.replace(/[$,]/g, '')); if (v > 0) { S.myCost[t.dataset.f] = v; toast('Cost saved on this device.'); } else delete S.myCost[t.dataset.f]; saveCosts(); render(); }
