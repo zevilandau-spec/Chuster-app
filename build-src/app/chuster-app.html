@@ -1651,6 +1651,7 @@ const VIEWS = {
   live: { title: 'Live trucks', r: renderLive },
   finance: { title: 'Finance', r: renderFinance },
   mysales: { title: 'Salesman dashboard', r: renderMySales },
+  visits: { title: "Today's visits", r: renderVisits },
   storesales: { title: 'Store sales', r: renderStoreSales },
   newlost: { title: 'New & lost stores', r: renderNewLost },
   seasonality: { title: 'Seasonality', r: renderSeasonality },
@@ -1670,7 +1671,7 @@ const VIEWS = {
 const NAV = [
   { items: [['home', 'Dashboard', 'home'], ['ask', 'Ask AI ✨', 'chat'], ['calendar', 'Calendar', 'cal']] },
   { h: 'ORDERS', items: [['order', 'New order', 'order'], ['orders', 'Orders', 'order'], ['inbox', 'Incoming orders', 'chat', 'inbox'], ['toqb', 'To QuickBooks', 'check', 'toqb']] },
-  { h: 'CUSTOMERS', items: [['customers', 'Customers', 'people', 'late'], ['payments', 'Payments', 'card', 'pay'], ['collect', 'Collections', 'card'], ['aging', 'Collections dashboard', 'chart'], ['stmts', 'Statements by email', 'mail'], ['custprofit', 'Profit by store', 'chart'], ['lost', 'Lost items', 'alert'], ['yomtov', 'Yom Tov list', 'cal'], ['ytplan', 'Yom Tov planner', 'chart']] },
+  { h: 'CUSTOMERS', items: [['visits', "Today's visits", 'clock'], ['customers', 'Customers', 'people', 'late'], ['payments', 'Payments', 'card', 'pay'], ['collect', 'Collections', 'card'], ['aging', 'Collections dashboard', 'chart'], ['stmts', 'Statements by email', 'mail'], ['custprofit', 'Profit by store', 'chart'], ['lost', 'Lost items', 'alert'], ['yomtov', 'Yom Tov list', 'cal'], ['ytplan', 'Yom Tov planner', 'chart']] },
   { h: 'SALES & MONEY', items: [['mysales', 'Salesman dashboard', 'chart'], ['storesales', 'Store sales', 'chart'], ['scorecard', 'Store scorecard', 'people'], ['atrisk', 'At-risk board', 'alert'], ['crosssell', 'Cross-sell', 'chart'], ['newlost', 'New & lost stores', 'people'], ['habits', 'Order habits', 'clock'], ['seasonality', 'Seasonality', 'chart'], ['repscore', 'Salesman scorecard', 'people'], ['reps', 'Sales by rep & commission', 'people'], ['returns', 'Returns & credits', 'card'], ['finance', 'Finance', 'chart']] },
   { h: 'PRODUCTS', items: [['prodsales', 'Product sales', 'chart'], ['winners', 'Winners & losers', 'chart'], ['items', 'Products & profit', 'chart'], ['margin', 'Margins', 'chart'], ['pricelist', 'Price list', 'order'], ['pricecheck', 'Price check', 'card'], ['pricespread', 'Price spread', 'chart']] },
   { h: 'DELIVERIES', items: [['route', 'Deliveries', 'box'], ['stop', 'Driver', 'wheel'], ['live', 'Live trucks', 'pin'], ['loading', 'Loading', 'truck'], ['dsched', 'Delivery days', 'cal'], ['delivstats', 'Delivery stats', 'chart'], ['routeprofit', 'Route profit', 'chart']] },
@@ -1689,8 +1690,8 @@ try { S.lang = localStorage.getItem('chuster-lang') || 'en'; } catch (e) { S.lan
 const ROLE_VIEWS = {
   Warehouse: ['ask', 'packnext', 'packing', 'stockcover', 'packlog', 'packrep', 'yield', 'inventory', 'reorder', 'loading', 'loadlist', 'calendar', 'stockmoves', 'polist'],
   Driver: ['route', 'stop', 'loading', 'loadlist', 'calendar'],
-  Sales: ['ask', 'mysales', 'customers', 'collect', 'orders', 'order', 'inbox', 'toqb', 'payments', 'yomtov', 'lost', 'pricelist', 'pricecheck', 'calendar', 'salesorders', 'prodsales', 'scorecard', 'crosssell', 'atrisk', 'returns'],
-  SalesDriver: ['ask', 'mysales', 'customers', 'collect', 'orders', 'order', 'inbox', 'toqb', 'payments', 'yomtov', 'lost', 'pricelist', 'pricecheck', 'calendar', 'route', 'stop', 'loading', 'loadlist', 'salesorders', 'prodsales', 'scorecard', 'crosssell', 'atrisk', 'returns']
+  Sales: ['ask', 'mysales', 'visits', 'customers', 'collect', 'orders', 'order', 'inbox', 'toqb', 'payments', 'yomtov', 'lost', 'pricelist', 'pricecheck', 'calendar', 'salesorders', 'prodsales', 'scorecard', 'crosssell', 'atrisk', 'returns'],
+  SalesDriver: ['ask', 'mysales', 'visits', 'customers', 'collect', 'orders', 'order', 'inbox', 'toqb', 'payments', 'yomtov', 'lost', 'pricelist', 'pricecheck', 'calendar', 'route', 'stop', 'loading', 'loadlist', 'salesorders', 'prodsales', 'scorecard', 'crosssell', 'atrisk', 'returns']
 };
 const isSales = () => S.role === 'Sales' || S.role === 'SalesDriver';
 // a salesman is locked to his own customers (the rep codes set for his name); owners/office see everyone
@@ -1723,7 +1724,7 @@ function drawChrome() {
     ['home', 'Dashboard'],
     ['finance', 'Finance'],
     { label: 'Orders', items: [['orders', 'Orders', 'order'], ['order', 'New order', 'order'], ['inbox', 'Incoming orders', 'chat', 'inbox'], ['payments', 'Payments', 'card', 'pay']] },
-    { label: 'Customers', items: [['mysales', 'Salesman dashboard', 'chart'], ['customers', 'Customers', 'people', 'late'], ['collect', 'Collections', 'card'], ['stmts', 'Statements by email', 'mail'], ['yomtov', 'Yom Tov list', 'cal'], ['lost', 'Lost items', 'alert'], ['custprofit', 'Profit by store', 'chart'], ['pricecheck', 'Price check', 'card'], ['reps', 'Sales by rep & commission', 'people']] },
+    { label: 'Customers', items: [['mysales', 'Salesman dashboard', 'chart'], ['visits', "Today's visits", 'clock'], ['customers', 'Customers', 'people', 'late'], ['collect', 'Collections', 'card'], ['stmts', 'Statements by email', 'mail'], ['yomtov', 'Yom Tov list', 'cal'], ['lost', 'Lost items', 'alert'], ['custprofit', 'Profit by store', 'chart'], ['pricecheck', 'Price check', 'card'], ['reps', 'Sales by rep & commission', 'people']] },
     { label: 'Products', items: [['items', 'Products & profit', 'chart'], ['pricelist', 'Price list', 'order'], ['inventory', 'Inventory', 'box', 'inv'], ['reorder', 'Reorder alerts', 'alert'], ['buying', 'Buying & suppliers', 'card']] },
     { label: 'Packing', items: [['packnext', 'What to pack', 'clip'], ['packing', 'Packing plan', 'clip'], ['packlog', 'Pack log', 'clip'], ['packrep', 'Packing report', 'chart'], ['yield', 'Yield', 'chart']] },
     { label: 'Deliveries', items: [['route', 'Deliveries', 'box'], ['stop', 'Driver', 'wheel'], ['loading', 'Loading', 'truck'], ['dsched', 'Delivery days', 'cal'], ['live', 'Live trucks', 'pin']] },
@@ -4260,7 +4261,8 @@ function aiEntryInner(x) {
 function loadLS(k, d) { try { const v = JSON.parse(localStorage.getItem(k) || 'null'); return v && typeof v === 'object' ? v : d; } catch (e) { return d; } }
 function saveLS(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* storage blocked */ } }
 Object.assign(S, { col: loadLS('chuster-collect-v1', {}), colF: 'all', colOpen: null, ytName: null, ytOpen: null, ytDone: loadLS('chuster-yt-v1', {}), lostOpen: null, cpSort: 'profit', pcOpen: null,
-  supplies: loadLS('chuster-supplies-v1', {}), llDate: null, llTruck: 0, llDone: {}, areaTruck: loadLS('chuster-areatruck-v1', {}), sumOpen: false, proof: { photos: [], sig: null }, sigOpen: false });
+  supplies: loadLS('chuster-supplies-v1', {}), llDate: null, llTruck: 0, llDone: {}, areaTruck: loadLS('chuster-areatruck-v1', {}), sumOpen: false, proof: { photos: [], sig: null }, sigOpen: false,
+  visit: loadLS('chuster-visit-v1', {}), vsArea: 'All', vsQ: '' });
 const needData = t => head(t, '') + `<section class="card stack"><h2>Needs your QuickBooks numbers</h2><p class="sub" style="margin:0">This screen uses your real numbers, so it only works in your private link.</p></section>`;
 const todayIso = () => isoOf(TODAY);
 const telHref = ph => 'tel:' + (ph || '').replace(/[^0-9+]/g, '');
@@ -5184,6 +5186,56 @@ function renderStoreSales() {
     <table class="mini-table"><tr><td><b>Store</b></td><td style="text-align:right"><b>Sales</b></td><td style="text-align:right"><b>vs last yr</b></td></tr>
     ${rows.slice(0, 200).map(x => `<tr><td><button style="background:none;border:none;font:inherit;color:var(--brand-text);cursor:pointer;text-align:left;padding:0" data-act="cust-sel-go" data-n="${esc(x.c.name)}">${esc(x.c.name)}</button><div class="sub" style="margin:0;font-size:12px">${esc(x.c.area || '')}</div></td><td class="num" style="text-align:right">${fm(x.s)}</td><td style="text-align:right">${x.p ? sc(x.s, x.p) : '<span class="sub">new</span>'}</td></tr>`).join('')}</table>
     ${rows.length > 200 ? '<p class="sub" style="margin:0">Showing the top 200.</p>' : ''}</section>`;
+}
+function visitRows() {
+  const todayN = TODAY, todayIsoStr = isoOf(TODAY);
+  const rows = [];
+  REAL.customers.forEach(c => {
+    if (!c.active || !custMine(c) || c.offSeason) return;
+    if (!c.late) return;                          // "late" = later than they usually order
+    const v = S.visit[c.name] || {};
+    const days = c.last ? todayN - isoRd(c.last) : 9999;
+    const per = c.orders12 ? (c.sales12 || 0) / c.orders12 : 0;
+    const over = c.gap ? days - c.gap : 0;
+    rows.push({ c, v, days, per, over, done: v.visited === todayIsoStr });
+  });
+  rows.sort((a, b) => (a.done - b.done) || (b.over - a.over) || ((b.c.sales12 || 0) - (a.c.sales12 || 0)));
+  return rows;
+}
+function renderVisits() {
+  if (!REAL) return needData("Today's visits");
+  let rows = visitRows();
+  const areas = ['All', ...[...new Set(rows.map(r => r.c.area || 'Other'))].sort((x, y) => (AREA_ORDER.indexOf(x) + 1 || 99) - (AREA_ORDER.indexOf(y) + 1 || 99))];
+  if (!areas.includes(S.vsArea)) S.vsArea = 'All';
+  if (S.vsArea !== 'All') rows = rows.filter(r => (r.c.area || 'Other') === S.vsArea);
+  const q = S.vsQ.trim().toLowerCase();
+  if (q) rows = rows.filter(r => r.c.name.toLowerCase().includes(q));
+  const todo = rows.filter(r => !r.done), done = rows.filter(r => r.done);
+  const chip = v => `<button class="chip" data-act="vs-area" data-v="${esc(v)}" aria-pressed="${S.vsArea === v}">${esc(v)}</button>`;
+  const card = r => { const c = r.c; const msg = `Hi, it's Chuster. Do you need anything this week?`;
+    return `<div class="card" style="padding:12px 14px;display:flex;flex-direction:column;gap:8px${r.done ? ';opacity:.6' : ''}">
+      <div style="display:flex;gap:10px;align-items:flex-start">
+        <button style="flex:1;min-width:0;background:none;border:none;text-align:left;cursor:pointer;color:inherit;font:inherit" data-act="cust-sel-go" data-n="${esc(c.name)}">
+          <b style="font-size:15px">${esc(c.name)}</b>
+          <div class="sub" style="margin:0;font-size:12.5px">${r.days < 9999 ? r.days + ' days' : 'no recent order'} · usually every ${c.gap || '?'} · ~${fm(r.per)}/order · ${esc(c.area || '')}${(c.balance || 0) > 1 ? ` · <span style="color:var(--bad-text)">owes ${fm(c.balance)}</span>` : ''}</div>
+        </button>
+        ${r.done ? '<span class="tag green">visited ✓</span>' : `<span class="tag gold">${r.over > 0 ? r.over + ' days late' : 'due'}</span>`}
+      </div>
+      ${r.v.note ? `<div style="font-size:12.5px;background:var(--surface-2);border-radius:8px;padding:6px 8px">📝 ${esc(r.v.note)}${r.v.visited ? ` <span class="sub">· last visit ${fmtShort(isoRd(r.v.visited))}</span>` : ''}</div>` : r.v.visited ? `<div class="sub" style="margin:0;font-size:12px">last visit ${fmtShort(isoRd(r.v.visited))}</div>` : ''}
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        ${c.phone ? `<a class="btn good sm" href="${esc(waHref(waNum(c.phone), msg))}" target="_blank" rel="noopener">WhatsApp</a><a class="btn ghost sm" href="${telHref(c.phone)}">${ic('phone')} Call</a>` : ''}
+        <button class="btn primary sm" data-act="cust-order" data-n="${esc(c.name)}">+ Order</button>
+        <button class="btn ${r.done ? 'ghost' : 'gold'} sm" data-act="vs-done" data-n="${esc(c.name)}">${r.done ? 'Undo' : 'Visited ✓'}</button>
+      </div>
+      <input class="inp vs-note" data-n="${esc(c.name)}" placeholder="Add a note (e.g. wants to try ziti)" value="${esc(r.v.note || '')}" style="font-size:13px">
+    </div>`; };
+  return `${head("Today's visits", `${todo.length} store${todo.length === 1 ? '' : 's'} to see · later than they usually order`)}
+    <section class="card" style="display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;padding:10px 14px">
+      <div class="field" style="margin:0;flex:1;min-width:150px">${ic('search')}<label class="sr" for="vs-q">Search</label><input id="vs-q" value="${esc(S.vsQ)}" placeholder="Find a store" autocomplete="off"></div>
+      <div class="chips" style="flex-wrap:wrap">${areas.map(chip).join('')}</div>
+    </section>
+    ${todo.length ? `<div class="stack" style="gap:10px">${todo.map(card).join('')}</div>` : '<section class="card"><p class="sub" style="margin:0">Nobody is due for a visit right now. 👍</p></section>'}
+    ${done.length ? `<h2 style="margin:18px 0 0;font-size:15px">Visited today (${done.length})</h2><div class="stack" style="gap:10px">${done.map(card).join('')}</div>` : ''}`;
 }
 function renderMySales() {
   if (!DLY || !REP) return needData('Salesman dashboard');
@@ -6337,6 +6389,7 @@ Object.assign(S, { qw: loadLS('chuster-qw-v1', {}), qr: loadLS('chuster-qr-v1', 
 SYNC.on('sx', (k, v) => { if (v == null) delete S.sx[k]; else S.sx[k] = v; saveLS('chuster-sx-v1', S.sx); });
 SYNC.on('sl', (k, v) => { if (v == null) delete S.sl[k]; else S.sl[k] = v; saveLS('chuster-sl-v1', S.sl); });
 SYNC.on('ps', (k, v) => { if (v == null) delete S.pkSet[k]; else S.pkSet[k] = v; saveLS('chuster-pkset-v1', S.pkSet); });
+SYNC.on('vn', (k, v) => { if (v == null) delete S.visit[k]; else S.visit[k] = v; saveLS('chuster-visit-v1', S.visit); });
 SYNC.on('pp', (k, v) => { if (v == null) delete S.pkProg[k]; else S.pkProg[k] = v; saveLS('chuster-pkprog-v1', S.pkProg); });
 SYNC.on('pn', (k, v) => { if (v == null) delete S.pkNote[k]; else S.pkNote[k] = v; saveLS('chuster-pknote-v1', S.pkNote); });
 SYNC.on('pq', (k, v) => { if (v == null) delete S.pkOrder[k]; else S.pkOrder[k] = v; saveLS('chuster-pkorder-v1', S.pkOrder); });
@@ -7017,6 +7070,8 @@ document.addEventListener('click', e => {
     case 'ms-year': S.ms.year = +d.v; keep(); break;
     case 'ret-all': S.ret.from = null; S.ret.to = null; keep(); break;
     case 'ms-movers': S.msMovers = !S.msMovers; keep(); break;
+    case 'vs-area': S.vsArea = d.v; keep(); break;
+    case 'vs-done': { const n = S.visit[d.n] || (S.visit[d.n] = {}); const today = isoOf(TODAY); n.visited = n.visited === today ? null : today; saveLS('chuster-visit-v1', S.visit); SYNC.put('vn', d.n, n); keep(); toast(n.visited ? 'Marked visited today.' : 'Visit undone.'); break; }
     case 'ms-area': S.ms.area = d.v; keep(); break;
     case 'rep-sel': S.repSel = d.r ? (S.repSel === d.r ? null : d.r) : null; keep(); break;
     case 'rep-base': S.repCfg.base = d.b; saveReps(); keep(); break;
@@ -7148,6 +7203,7 @@ document.addEventListener('change', e => {
   if (t.id === 'it-sort') { S.itSort = t.value; render(); }
   if (cl.contains('col-promise')) { const n = S.col[t.dataset.n] || (S.col[t.dataset.n] = {}); n.promise = t.value; saveLS('chuster-collect-v1', S.col); render(); toast('Promise saved.'); }
   if (cl.contains('col-note')) { const n = S.col[t.dataset.n] || (S.col[t.dataset.n] = {}); n.note = t.value; saveLS('chuster-collect-v1', S.col); toast('Note saved.'); }
+  if (cl.contains('vs-note')) { const n = S.visit[t.dataset.n] || (S.visit[t.dataset.n] = {}); n.note = t.value.trim(); if (!n.note) delete n.note; saveLS('chuster-visit-v1', S.visit); SYNC.put('vn', t.dataset.n, n); toast('Note saved.'); }
   if (t.id === 'pa10-on') { const v = parseInt(t.value.replace(/\D/g, ''), 10); if (v >= 0) S.supplies.pa10 = v; else delete S.supplies.pa10; saveLS('chuster-supplies-v1', S.supplies); render(); }
   if (t.id === 'fin-mon') { S.finMon = +t.value; render(); }
   if (cl.contains('d-truck')) { const k = t.dataset.k; S.dstat[k] = Object.assign({}, S.dstat[k] || {}, { truck: +t.value }); saveDstat(); dsShare(k); render(); }
@@ -7216,6 +7272,7 @@ document.addEventListener('input', e => {
   if (e.target.id === 'inv-num') { S.orderRef = e.target.value; return; }
   if (e.target.id === 'ord-q') { S.ordQ = e.target.value; const ol = document.getElementById('ord-list'); if (ol) ol.innerHTML = ordList(); return; }
   if (e.target.id === 'cust-q') { S.custQ = e.target.value; const box = document.getElementById('cust-list'); if (box) box.innerHTML = custRows(); return; }
+  if (e.target.id === 'vs-q') { S.vsQ = e.target.value; const pos = e.target.selectionStart; render(); const q = document.getElementById('vs-q'); if (q) { q.focus(); try { q.setSelectionRange(pos, pos); } catch (x) { /* ignore */ } } return; }
   if (e.target.id === 'store-q') { S.storeQ = e.target.value; const sl = document.getElementById('store-list'); if (sl) sl.innerHTML = storeRows(); return; }
   if (e.target.id !== 'add') return;
   S.orderQ = e.target.value;
