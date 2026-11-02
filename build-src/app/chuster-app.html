@@ -4998,7 +4998,7 @@ function openPOSection() {
 
 /* ================= Salesman dashboard (e.g. "Dudi's sales") ================= */
 const DLY = REAL && REAL.daily ? REAL.daily : null;
-Object.assign(S, { ms: { rep: S.user === 'Motty' ? 'All' : 'Dudi', range: 'days', area: 'All', end: null, year: null } });
+Object.assign(S, { ms: { rep: S.user === 'Motty' ? 'All' : 'Dudi', range: 'days', area: 'All', end: null, year: null }, msMovers: false });
 Object.assign(S, { ss: { range: 'month', end: null, sort: 'sales', q: '', area: 'All' }, nlTab: 'new', nlQ: '', hbTab: 'overdue', hbQ: '', mgTab: 'best', mgQ: '', dvWeeks: 8, agTab: 'worst', scTab: 'urgent', scQ: '', psTab: 'left', psQ: '' });
 Object.assign(S, { pr: { range: '30', cat: 'All', pack: 'All', brand: 'All', metric: 'sales', q: '', from: null, to: null }, scoSel: null, scoQ: '', xsSel: null, xsQ: '', arTab: 'all', winTab: 'up', fcQ: '' });
 Object.assign(S, { ret: { from: null, to: null } });
@@ -5252,7 +5252,10 @@ function renderMySales() {
   // movers: last 4 weeks vs same 4 weeks last year
   const ma = addDays(DLY.to, -27); const MN = msAgg(ma, DLY.to, set, S.ms.area), MP = msAgg(addDays(ma, -364), addDays(DLY.to, -364), set, S.ms.area);
   const mv = [...new Set([...Object.keys(MN.byCust), ...Object.keys(MP.byCust)])].map(i => ({ c: REAL.customers[+i], d: (MN.byCust[i] || 0) - (MP.byCust[i] || 0) }));
-  const grow = mv.filter(x => x.d > 0).sort((x, y) => y.d - x.d).slice(0, 6), drop = mv.filter(x => x.d < 0 && x.c.active).sort((x, y) => x.d - y.d).slice(0, 6);
+  const nMov = S.msMovers ? 50 : 6;
+  const growAll = mv.filter(x => x.d > 0).sort((x, y) => y.d - x.d), dropAll = mv.filter(x => x.d < 0 && x.c.active).sort((x, y) => x.d - y.d);
+  const grow = growAll.slice(0, nMov), drop = dropAll.slice(0, nMov);
+  const moreMovers = growAll.length > 6 || dropAll.length > 6;
   const mvList = (L, good) => L.map(x => `<div style="display:flex;justify-content:space-between;gap:8px;padding:6px 0;border-top:1px solid var(--line)"><a href="#customers" data-act="cust-sel-go" data-n="${esc(x.c.name)}" style="color:var(--fg);text-decoration:none">${esc(x.c.name)}</a><b style="color:${good ? 'var(--good-text)' : 'var(--bad-text)'};white-space:nowrap">${good ? '+' : '−'}$${fn(Math.abs(x.d))}</b></div>`).join('') || '<p class="sub" style="margin:6px 0 0">—</p>';
   const chip = (act, val, cur, label) => `<button class="chip" data-act="${act}" data-v="${esc(val)}" aria-pressed="${cur === val}">${esc(label)}</button>`;
   const monthName = MON[md.getMonth()].toUpperCase();
@@ -5296,7 +5299,7 @@ function renderMySales() {
   </div>
   <div class="split even">
     <section class="card"><div class="card-head"><h2>Needs a visit <span class="sub" style="font-weight:600">later than they usually order · ${late.length}</span></h2></div>${visit}</section>
-    <section class="card"><div class="card-head"><h2>Movers <span class="sub" style="font-weight:600">last 4 weeks vs last year</span></h2><a class="btn ghost sm" href="#reps" data-go="reps">See more ›</a></div>
+    <section class="card"><div class="card-head"><h2>Movers <span class="sub" style="font-weight:600">last 4 weeks vs last year</span></h2>${moreMovers ? `<button class="btn ghost sm" data-act="ms-movers">${S.msMovers ? 'Show less' : 'See more ›'}</button>` : ''}</div>
       <div class="split even" style="gap:14px"><div><div class="eyebrow" style="color:var(--good-text)">▲ GROWING</div>${mvList(grow, true)}</div><div><div class="eyebrow" style="color:var(--bad-text)">▼ DROPPING</div>${mvList(drop, false)}</div></div></section>
   </div>`}`;
 }
@@ -7013,6 +7016,7 @@ document.addEventListener('click', e => {
     case 'ms-range': S.ms.range = d.v; if (d.v === 'year' && !S.ms.year) S.ms.year = +DLY.to.slice(0, 4); keep(); break;
     case 'ms-year': S.ms.year = +d.v; keep(); break;
     case 'ret-all': S.ret.from = null; S.ret.to = null; keep(); break;
+    case 'ms-movers': S.msMovers = !S.msMovers; keep(); break;
     case 'ms-area': S.ms.area = d.v; keep(); break;
     case 'rep-sel': S.repSel = d.r ? (S.repSel === d.r ? null : d.r) : null; keep(); break;
     case 'rep-base': S.repCfg.base = d.b; saveReps(); keep(); break;
