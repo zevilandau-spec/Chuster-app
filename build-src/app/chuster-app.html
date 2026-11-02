@@ -1652,6 +1652,7 @@ const VIEWS = {
   finance: { title: 'Finance', r: renderFinance },
   mysales: { title: 'Salesman dashboard', r: renderMySales },
   visits: { title: "Today's visits", r: renderVisits },
+  coverage: { title: 'Coverage plan', r: renderCoverage },
   mycomm: { title: 'My commission & goal', r: renderMyComm },
   pitch: { title: 'New to pitch', r: renderPitch },
   storesales: { title: 'Store sales', r: renderStoreSales },
@@ -1673,7 +1674,7 @@ const VIEWS = {
 const NAV = [
   { items: [['home', 'Dashboard', 'home'], ['ask', 'Ask AI ✨', 'chat'], ['calendar', 'Calendar', 'cal']] },
   { h: 'ORDERS', items: [['order', 'New order', 'order'], ['orders', 'Orders', 'order'], ['inbox', 'Incoming orders', 'chat', 'inbox'], ['toqb', 'To QuickBooks', 'check', 'toqb']] },
-  { h: 'CUSTOMERS', items: [['visits', "Today's visits", 'clock'], ['pitch', 'New to pitch', 'chart'], ['customers', 'Customers', 'people', 'late'], ['payments', 'Payments', 'card', 'pay'], ['collect', 'Collections', 'card'], ['aging', 'Collections dashboard', 'chart'], ['stmts', 'Statements by email', 'mail'], ['custprofit', 'Profit by store', 'chart'], ['lost', 'Lost items', 'alert'], ['yomtov', 'Yom Tov list', 'cal'], ['ytplan', 'Yom Tov planner', 'chart']] },
+  { h: 'CUSTOMERS', items: [['visits', "Today's visits", 'clock'], ['coverage', 'Coverage plan', 'clip'], ['pitch', 'New to pitch', 'chart'], ['customers', 'Customers', 'people', 'late'], ['payments', 'Payments', 'card', 'pay'], ['collect', 'Collections', 'card'], ['aging', 'Collections dashboard', 'chart'], ['stmts', 'Statements by email', 'mail'], ['custprofit', 'Profit by store', 'chart'], ['lost', 'Lost items', 'alert'], ['yomtov', 'Yom Tov list', 'cal'], ['ytplan', 'Yom Tov planner', 'chart']] },
   { h: 'SALES & MONEY', items: [['mysales', 'Salesman dashboard', 'chart'], ['storesales', 'Store sales', 'chart'], ['scorecard', 'Store scorecard', 'people'], ['atrisk', 'At-risk board', 'alert'], ['crosssell', 'Cross-sell', 'chart'], ['newlost', 'New & lost stores', 'people'], ['habits', 'Order habits', 'clock'], ['seasonality', 'Seasonality', 'chart'], ['repscore', 'Salesman scorecard', 'people'], ['reps', 'Sales by rep & commission', 'people'], ['returns', 'Returns & credits', 'card'], ['finance', 'Finance', 'chart']] },
   { h: 'PRODUCTS', items: [['prodsales', 'Product sales', 'chart'], ['winners', 'Winners & losers', 'chart'], ['items', 'Products & profit', 'chart'], ['margin', 'Margins', 'chart'], ['pricelist', 'Price list', 'order'], ['pricecheck', 'Price check', 'card'], ['pricespread', 'Price spread', 'chart']] },
   { h: 'DELIVERIES', items: [['route', 'Deliveries', 'box'], ['stop', 'Driver', 'wheel'], ['live', 'Live trucks', 'pin'], ['loading', 'Loading', 'truck'], ['dsched', 'Delivery days', 'cal'], ['delivstats', 'Delivery stats', 'chart'], ['routeprofit', 'Route profit', 'chart']] },
@@ -1692,8 +1693,8 @@ try { S.lang = localStorage.getItem('chuster-lang') || 'en'; } catch (e) { S.lan
 const ROLE_VIEWS = {
   Warehouse: ['ask', 'packnext', 'packing', 'stockcover', 'packlog', 'packrep', 'yield', 'inventory', 'reorder', 'loading', 'loadlist', 'calendar', 'stockmoves', 'polist'],
   Driver: ['route', 'stop', 'loading', 'loadlist', 'calendar'],
-  Sales: ['ask', 'mysales', 'visits', 'mycomm', 'pitch', 'customers', 'collect', 'orders', 'order', 'inbox', 'toqb', 'payments', 'yomtov', 'lost', 'pricelist', 'pricecheck', 'calendar', 'salesorders', 'prodsales', 'scorecard', 'crosssell', 'atrisk', 'returns'],
-  SalesDriver: ['ask', 'mysales', 'visits', 'mycomm', 'pitch', 'customers', 'collect', 'orders', 'order', 'inbox', 'toqb', 'payments', 'yomtov', 'lost', 'pricelist', 'pricecheck', 'calendar', 'route', 'stop', 'loading', 'loadlist', 'salesorders', 'prodsales', 'scorecard', 'crosssell', 'atrisk', 'returns']
+  Sales: ['ask', 'mysales', 'visits', 'coverage', 'mycomm', 'pitch', 'customers', 'collect', 'orders', 'order', 'inbox', 'toqb', 'payments', 'yomtov', 'lost', 'pricelist', 'pricecheck', 'calendar', 'salesorders', 'prodsales', 'scorecard', 'crosssell', 'atrisk', 'returns'],
+  SalesDriver: ['ask', 'mysales', 'visits', 'coverage', 'mycomm', 'pitch', 'customers', 'collect', 'orders', 'order', 'inbox', 'toqb', 'payments', 'yomtov', 'lost', 'pricelist', 'pricecheck', 'calendar', 'route', 'stop', 'loading', 'loadlist', 'salesorders', 'prodsales', 'scorecard', 'crosssell', 'atrisk', 'returns']
 };
 const isSales = () => S.role === 'Sales' || S.role === 'SalesDriver';
 // a salesman is locked to his own customers (the rep codes set for his name); owners/office see everyone
@@ -1726,7 +1727,7 @@ function drawChrome() {
     ['home', 'Dashboard'],
     ['finance', 'Finance'],
     { label: 'Orders', items: [['orders', 'Orders', 'order'], ['order', 'New order', 'order'], ['inbox', 'Incoming orders', 'chat', 'inbox'], ['payments', 'Payments', 'card', 'pay']] },
-    { label: 'Customers', items: [['mysales', 'Salesman dashboard', 'chart'], ['visits', "Today's visits", 'clock'], ['mycomm', 'My commission', 'chart'], ['pitch', 'New to pitch', 'chart'], ['customers', 'Customers', 'people', 'late'], ['collect', 'Collections', 'card'], ['stmts', 'Statements by email', 'mail'], ['yomtov', 'Yom Tov list', 'cal'], ['lost', 'Lost items', 'alert'], ['custprofit', 'Profit by store', 'chart'], ['pricecheck', 'Price check', 'card'], ['reps', 'Sales by rep & commission', 'people']] },
+    { label: 'Customers', items: [['mysales', 'Salesman dashboard', 'chart'], ['visits', "Today's visits", 'clock'], ['coverage', 'Coverage plan', 'clip'], ['mycomm', 'My commission', 'chart'], ['pitch', 'New to pitch', 'chart'], ['customers', 'Customers', 'people', 'late'], ['collect', 'Collections', 'card'], ['stmts', 'Statements by email', 'mail'], ['yomtov', 'Yom Tov list', 'cal'], ['lost', 'Lost items', 'alert'], ['custprofit', 'Profit by store', 'chart'], ['pricecheck', 'Price check', 'card'], ['reps', 'Sales by rep & commission', 'people']] },
     { label: 'Products', items: [['items', 'Products & profit', 'chart'], ['pricelist', 'Price list', 'order'], ['inventory', 'Inventory', 'box', 'inv'], ['reorder', 'Reorder alerts', 'alert'], ['buying', 'Buying & suppliers', 'card']] },
     { label: 'Packing', items: [['packnext', 'What to pack', 'clip'], ['packing', 'Packing plan', 'clip'], ['packlog', 'Pack log', 'clip'], ['packrep', 'Packing report', 'chart'], ['yield', 'Yield', 'chart']] },
     { label: 'Deliveries', items: [['route', 'Deliveries', 'box'], ['stop', 'Driver', 'wheel'], ['loading', 'Loading', 'truck'], ['dsched', 'Delivery days', 'cal'], ['live', 'Live trucks', 'pin']] },
@@ -4267,7 +4268,9 @@ function saveLS(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catc
 Object.assign(S, { col: loadLS('chuster-collect-v1', {}), colF: 'all', colOpen: null, ytName: null, ytOpen: null, ytDone: loadLS('chuster-yt-v1', {}), lostOpen: null, cpSort: 'profit', pcOpen: null,
   supplies: loadLS('chuster-supplies-v1', {}), llDate: null, llTruck: 0, llDone: {}, areaTruck: loadLS('chuster-areatruck-v1', {}), sumOpen: false, proof: { photos: [], sig: null }, sigOpen: false,
   visit: loadLS('chuster-visit-v1', {}), vsArea: 'All', vsQ: '',
-  pitch: loadLS('chuster-pitch-v1', {}), pitchSetup: false, pitchQ: '', pitchOpen: null });
+  pitch: loadLS('chuster-pitch-v1', {}), pitchSetup: false, pitchQ: '', pitchOpen: null,
+  cover: loadLS('chuster-cover-v1', { freq: { 'Boro Park': 'w', 'Williamsburg': 'w', 'Monroe': 'w', 'Monsey': 'w', 'Lakewood': '2a', 'Flatbush': '2b' } }), coverTag: loadLS('chuster-covertag-v1', {}), coverSetup: false, coverQ: '', coverShowCov: {} });
+if (!S.cover.freq) S.cover.freq = { 'Boro Park': 'w', 'Williamsburg': 'w', 'Monroe': 'w', 'Monsey': 'w', 'Lakewood': '2a', 'Flatbush': '2b' };
 const needData = t => head(t, '') + `<section class="card stack"><h2>Needs your QuickBooks numbers</h2><p class="sub" style="margin:0">This screen uses your real numbers, so it only works in your private link.</p></section>`;
 const todayIso = () => isoOf(TODAY);
 const telHref = ph => 'tel:' + (ph || '').replace(/[^0-9+]/g, '');
@@ -5261,6 +5264,62 @@ function renderVisits() {
     ${todo.length ? `<div class="stack" style="gap:10px">${todo.map(card).join('')}</div>` : `<section class="card"><p class="sub" style="margin:0">${S.vsArea === 'All' ? 'Nobody is due for a visit right now. 👍' : `No ${S.vsArea} store is overdue right now.${others.length ? ' Your other stores there are below.' : ''}`}</p></section>`}
     ${done.length ? `<h2 style="margin:18px 0 0;font-size:15px">Visited today (${done.length})</h2><div class="stack" style="gap:10px">${done.map(card).join('')}</div>` : ''}
     ${others.length ? `<h2 style="margin:18px 0 0;font-size:15px">Other ${S.vsArea} stores · ${others.length}</h2><p class="sub" style="margin:2px 0 0">Not overdue, but you can still see them while you're there.</p><div class="stack" style="gap:10px;margin-top:10px">${others.slice(0, 40).map(card).join('')}</div>${others.length > 40 ? `<p class="sub" style="margin:8px 0 0">Showing the top 40 by yearly sales.</p>` : ''}` : ''}`;
+}
+/* ---- Coverage plan: which stores to cover this week, covered ones drop off ---- */
+const covWeekStartN = () => TODAY - dow(TODAY);                 // Sunday (RD number)
+const covWeekStart = () => isoOf(covWeekStartN());             // Sunday (iso)
+const covParity = () => Math.floor(covWeekStartN() / 7) % 2;   // 0 = week A, 1 = week B
+const covEffArea = c => S.coverTag[c.name] || c.area || 'Other';
+function covDueArea(area) { const f = (S.cover.freq || {})[area]; if (!f || f === 'off') return false; if (f === 'w') return true; const p = covParity(); return (f === '2a' && p === 0) || (f === '2b' && p === 1); }
+const covFreqLabel = area => { const f = (S.cover.freq || {})[area]; return f === 'w' ? 'every week' : f === '2a' ? 'every 2 weeks' : f === '2b' ? 'every 2 weeks' : 'off'; };
+function covOrderedSet() { const ws = covWeekStart(); const set = new Set(); REAL.orders.list.forEach(o => { if (o.t === 'inv' && o.d >= ws) set.add(o.c); }); return set; }
+const covAreaSort = (x, y) => (AREA_ORDER.indexOf(x) + 1 || 98) - (AREA_ORDER.indexOf(y) + 1 || 98) || x.localeCompare(y);
+function renderCoverage() {
+  if (!REAL) return needData('Coverage plan');
+  const canEdit = S.role === 'Owner' || S.role === 'Office';
+  if (S.coverSetup && canEdit) return coverSetup();
+  const mine = REAL.customers.filter(c => c.active && custMine(c) && !c.offSeason);
+  const ordered = covOrderedSet(); const ws = covWeekStart();
+  const covStatus = c => { const v = S.visit[c.name] || {}; const vis = v.visited && v.visited >= ws; return { vis, ord: ordered.has(c.name), cov: vis || ordered.has(c.name) }; };
+  const allAreas = [...new Set(mine.map(covEffArea))];
+  const dueAreas = allAreas.filter(covDueArea).sort(covAreaSort);
+  const offAreas = allAreas.filter(a => !covDueArea(a) && (S.cover.freq || {})[a] && (S.cover.freq || {})[a] !== 'off').sort(covAreaSort);
+  const card = c => { const st = covStatus(c);
+    return `<div style="display:flex;gap:8px;align-items:center;border-top:1px solid var(--line);padding:8px 0${st.cov ? ';opacity:.55' : ''}">
+      <button style="flex:1;min-width:0;background:none;border:none;text-align:left;cursor:pointer;color:inherit;font:inherit" data-act="cust-sel-go" data-n="${esc(c.name)}"><b>${esc(c.name)}</b><span class="sub" style="display:block;margin:0;font-size:12px">${c.last ? Math.max(0, TODAY - isoRd(c.last)) + ' days · ' : ''}every ${c.gap || '?'} · ${fm(c.sales12 || 0)}/yr${st.ord ? ' · <span style="color:var(--good-text)">ordered ✓</span>' : st.vis ? ' · <span style="color:var(--good-text)">visited ✓</span>' : ''}</span></button>
+      ${c.phone ? `<a class="btn good sm" href="${esc(waHref(waNum(c.phone), `Hi, it's Chuster. Do you need anything this week?`))}" target="_blank" rel="noopener" aria-label="WhatsApp">💬</a>` : ''}
+      <button class="btn primary sm" data-act="cust-order" data-n="${esc(c.name)}" aria-label="New order">+</button>
+      <button class="btn ${st.vis ? 'ghost' : 'gold'} sm" data-act="vs-done" data-n="${esc(c.name)}">${st.vis ? '✓' : 'Cover'}</button>
+    </div>`; };
+  const sections = dueAreas.map(area => { const stores = mine.filter(c => covEffArea(c) === area);
+    const todo = stores.filter(c => !covStatus(c).cov).sort((a, b) => (b.sales12 || 0) - (a.sales12 || 0));
+    const covered = stores.filter(c => covStatus(c).cov).sort((a, b) => (b.sales12 || 0) - (a.sales12 || 0));
+    return { area, stores, todo, covered }; });
+  const totTodo = sections.reduce((s, x) => s + x.todo.length, 0), totAll = sections.reduce((s, x) => s + x.stores.length, 0);
+  return `${head('Coverage plan', `week of ${fmtShort(covWeekStartN())} · ${totAll - totTodo} of ${totAll} covered`, canEdit ? `<button class="btn ghost" data-act="cover-setup">Set rhythm</button>` : '')}
+    ${dueAreas.length ? `<p class="sub" style="margin:0">This week (${covParity() === 0 ? 'A' : 'B'}): <b>${dueAreas.map(esc).join(', ')}</b>${offAreas.length ? ` · next week adds ${offAreas.map(esc).join(', ')}` : ''}</p>` : `<section class="card"><p class="sub" style="margin:0">No areas set for this week. ${canEdit ? 'Tap <b>Set rhythm</b> to choose how often to cover each area.' : 'Ask Zevi to set the coverage rhythm.'}</p></section>`}
+    ${sections.map(s => `<section class="card stack" style="gap:6px">
+      <div style="display:flex;justify-content:space-between;gap:8px;align-items:baseline"><h2 style="margin:0;font-size:16px">${esc(s.area)} <span class="sub" style="font-weight:600">· ${covFreqLabel(s.area)}</span></h2><span class="tag ${s.todo.length ? 'gold' : 'green'}">${s.stores.length - s.todo.length}/${s.stores.length} covered</span></div>
+      <span class="bar good" style="height:8px"><i style="width:${s.stores.length ? Math.round((s.stores.length - s.todo.length) / s.stores.length * 100) : 0}%"></i></span>
+      ${s.todo.length ? s.todo.map(card).join('') : '<p class="sub" style="margin:6px 0 0">All covered this week 🎉</p>'}
+      ${s.covered.length ? `<button class="btn ghost sm" data-act="cover-show" data-a="${esc(s.area)}">${S.coverShowCov[s.area] ? 'Hide' : 'Show'} ${s.covered.length} covered ✓</button>${S.coverShowCov[s.area] ? s.covered.map(card).join('') : ''}` : ''}
+    </section>`).join('')}`;
+}
+function coverSetup() {
+  const mine = REAL.customers.filter(c => c.active && custMine(c));
+  const areas = [...new Set(mine.map(covEffArea))]; if (!areas.includes('Flatbush')) areas.push('Flatbush'); areas.sort(covAreaSort);
+  const fchip = (area, val, label) => `<button class="chip" data-act="cover-freq" data-a="${esc(area)}" data-v="${val}" aria-pressed="${((S.cover.freq || {})[area] || 'off') === val}">${label}</button>`;
+  const q = S.coverQ.trim().toLowerCase();
+  const list = q ? mine.filter(c => c.name.toLowerCase().includes(q)).slice(0, 30) : [];
+  const fb = Object.keys(S.coverTag).filter(n => S.coverTag[n] === 'Flatbush');
+  return `${head('Coverage plan · setup', 'how often Dudi covers each area', `<button class="btn primary" data-act="cover-setup">Done</button>`)}
+    <section class="card stack" style="gap:10px"><h2 style="margin:0">How often to cover each area</h2>
+      ${areas.map(a => `<div style="display:flex;flex-wrap:wrap;gap:6px 8px;align-items:center"><b style="flex:1 1 110px">${esc(a)}</b><div class="chips">${fchip(a, 'w', 'Every week')}${fchip(a, '2a', '2 wk · A')}${fchip(a, '2b', '2 wk · B')}${fchip(a, 'off', 'Off')}</div></div>`).join('')}
+      <p class="sub" style="margin:0">Weeks alternate <b>A / B</b>. Put Lakewood and Flatbush on different letters so they fall on opposite weeks. This week is <b>${covParity() === 0 ? 'A' : 'B'}</b>.</p></section>
+    <section class="card stack" style="gap:6px"><h2 style="margin:0">Flatbush stores</h2><p class="sub" style="margin:0">Flatbush isn't a QuickBooks area. Find a store and tag it so it joins the Flatbush line.</p>
+      <div class="field" style="margin:0">${ic('search')}<label class="sr" for="cover-q">Find a store</label><input id="cover-q" value="${esc(S.coverQ)}" placeholder="Find a store to tag" autocomplete="off"></div>
+      ${q ? (list.map(c => `<div class="irow or-row"><div class="main"><div class="name">${esc(c.name)}</div><div class="meta">${esc(c.area || '')}${S.coverTag[c.name] ? ' · now ' + esc(S.coverTag[c.name]) : ''}</div></div><button class="chip" data-act="cover-tagfb" data-n="${esc(c.name)}" aria-pressed="${S.coverTag[c.name] === 'Flatbush'}">${S.coverTag[c.name] === 'Flatbush' ? '✓ Flatbush' : 'Tag Flatbush'}</button></div>`).join('') || '<p class="sub" style="margin:0">No match.</p>') : '<p class="sub" style="margin:0">Type a store name above.</p>'}
+      <div class="sub" style="margin:4px 0 0">Tagged Flatbush: ${fb.length ? fb.map(esc).join(', ') : 'none yet'}</div></section>`;
 }
 function renderPitch() {
   if (!REAL || !HIST) return needData('New to pitch');
@@ -6474,6 +6533,8 @@ SYNC.on('sl', (k, v) => { if (v == null) delete S.sl[k]; else S.sl[k] = v; saveL
 SYNC.on('ps', (k, v) => { if (v == null) delete S.pkSet[k]; else S.pkSet[k] = v; saveLS('chuster-pkset-v1', S.pkSet); });
 SYNC.on('vn', (k, v) => { if (v == null) delete S.visit[k]; else S.visit[k] = v; saveLS('chuster-visit-v1', S.visit); });
 SYNC.on('pt', (k, v) => { if (v == null) delete S.pitch[k]; else S.pitch[k] = v; saveLS('chuster-pitch-v1', S.pitch); });
+SYNC.on('cv', (k, v) => { if (k === 'freq' && v) S.cover.freq = v; saveLS('chuster-cover-v1', S.cover); });
+SYNC.on('cg', (k, v) => { if (v == null) delete S.coverTag[k]; else S.coverTag[k] = v; saveLS('chuster-covertag-v1', S.coverTag); });
 SYNC.on('pp', (k, v) => { if (v == null) delete S.pkProg[k]; else S.pkProg[k] = v; saveLS('chuster-pkprog-v1', S.pkProg); });
 SYNC.on('pn', (k, v) => { if (v == null) delete S.pkNote[k]; else S.pkNote[k] = v; saveLS('chuster-pknote-v1', S.pkNote); });
 SYNC.on('pq', (k, v) => { if (v == null) delete S.pkOrder[k]; else S.pkOrder[k] = v; saveLS('chuster-pkorder-v1', S.pkOrder); });
@@ -7158,6 +7219,10 @@ document.addEventListener('click', e => {
     case 'pitch-setup': S.pitchSetup = !S.pitchSetup; S.pitchQ = ''; keep(); break;
     case 'pitch-flag': { const f = d.f; if (S.pitch[f]) delete S.pitch[f]; else S.pitch[f] = 1; saveLS('chuster-pitch-v1', S.pitch); SYNC.put('pt', f, S.pitch[f] || null); keep(); break; }
     case 'pitch-open': S.pitchOpen = S.pitchOpen === d.f ? null : d.f; keep(); break;
+    case 'cover-setup': S.coverSetup = !S.coverSetup; S.coverQ = ''; keep(); break;
+    case 'cover-freq': { if (!S.cover.freq) S.cover.freq = {}; S.cover.freq[d.a] = d.v; saveLS('chuster-cover-v1', S.cover); SYNC.put('cv', 'freq', S.cover.freq); keep(); break; }
+    case 'cover-tagfb': { const n = d.n; if (S.coverTag[n] === 'Flatbush') delete S.coverTag[n]; else S.coverTag[n] = 'Flatbush'; saveLS('chuster-covertag-v1', S.coverTag); SYNC.put('cg', n, S.coverTag[n] || null); keep(); break; }
+    case 'cover-show': S.coverShowCov[d.a] = !S.coverShowCov[d.a]; keep(); break;
     case 'vs-done': { const n = S.visit[d.n] || (S.visit[d.n] = {}); const today = isoOf(TODAY); n.visited = n.visited === today ? null : today; saveLS('chuster-visit-v1', S.visit); SYNC.put('vn', d.n, n); keep(); toast(n.visited ? 'Marked visited today.' : 'Visit undone.'); break; }
     case 'ms-area': S.ms.area = d.v; keep(); break;
     case 'rep-sel': S.repSel = d.r ? (S.repSel === d.r ? null : d.r) : null; keep(); break;
@@ -7362,6 +7427,7 @@ document.addEventListener('input', e => {
   if (e.target.id === 'cust-q') { S.custQ = e.target.value; const box = document.getElementById('cust-list'); if (box) box.innerHTML = custRows(); return; }
   if (e.target.id === 'vs-q') { S.vsQ = e.target.value; const pos = e.target.selectionStart; render(); const q = document.getElementById('vs-q'); if (q) { q.focus(); try { q.setSelectionRange(pos, pos); } catch (x) { /* ignore */ } } return; }
   if (e.target.id === 'pitch-q') { S.pitchQ = e.target.value; const pos = e.target.selectionStart; render(); const q = document.getElementById('pitch-q'); if (q) { q.focus(); try { q.setSelectionRange(pos, pos); } catch (x) { /* ignore */ } } return; }
+  if (e.target.id === 'cover-q') { S.coverQ = e.target.value; const pos = e.target.selectionStart; render(); const q = document.getElementById('cover-q'); if (q) { q.focus(); try { q.setSelectionRange(pos, pos); } catch (x) { /* ignore */ } } return; }
   if (e.target.id === 'store-q') { S.storeQ = e.target.value; const sl = document.getElementById('store-list'); if (sl) sl.innerHTML = storeRows(); return; }
   if (e.target.id !== 'add') return;
   S.orderQ = e.target.value;
