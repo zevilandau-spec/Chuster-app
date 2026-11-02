@@ -1652,6 +1652,7 @@ const VIEWS = {
   finance: { title: 'Finance', r: renderFinance },
   mysales: { title: 'Salesman dashboard', r: renderMySales },
   visits: { title: "Today's visits", r: renderVisits },
+  mycomm: { title: 'My commission & goal', r: renderMyComm },
   storesales: { title: 'Store sales', r: renderStoreSales },
   newlost: { title: 'New & lost stores', r: renderNewLost },
   seasonality: { title: 'Seasonality', r: renderSeasonality },
@@ -1690,8 +1691,8 @@ try { S.lang = localStorage.getItem('chuster-lang') || 'en'; } catch (e) { S.lan
 const ROLE_VIEWS = {
   Warehouse: ['ask', 'packnext', 'packing', 'stockcover', 'packlog', 'packrep', 'yield', 'inventory', 'reorder', 'loading', 'loadlist', 'calendar', 'stockmoves', 'polist'],
   Driver: ['route', 'stop', 'loading', 'loadlist', 'calendar'],
-  Sales: ['ask', 'mysales', 'visits', 'customers', 'collect', 'orders', 'order', 'inbox', 'toqb', 'payments', 'yomtov', 'lost', 'pricelist', 'pricecheck', 'calendar', 'salesorders', 'prodsales', 'scorecard', 'crosssell', 'atrisk', 'returns'],
-  SalesDriver: ['ask', 'mysales', 'visits', 'customers', 'collect', 'orders', 'order', 'inbox', 'toqb', 'payments', 'yomtov', 'lost', 'pricelist', 'pricecheck', 'calendar', 'route', 'stop', 'loading', 'loadlist', 'salesorders', 'prodsales', 'scorecard', 'crosssell', 'atrisk', 'returns']
+  Sales: ['ask', 'mysales', 'visits', 'mycomm', 'customers', 'collect', 'orders', 'order', 'inbox', 'toqb', 'payments', 'yomtov', 'lost', 'pricelist', 'pricecheck', 'calendar', 'salesorders', 'prodsales', 'scorecard', 'crosssell', 'atrisk', 'returns'],
+  SalesDriver: ['ask', 'mysales', 'visits', 'mycomm', 'customers', 'collect', 'orders', 'order', 'inbox', 'toqb', 'payments', 'yomtov', 'lost', 'pricelist', 'pricecheck', 'calendar', 'route', 'stop', 'loading', 'loadlist', 'salesorders', 'prodsales', 'scorecard', 'crosssell', 'atrisk', 'returns']
 };
 const isSales = () => S.role === 'Sales' || S.role === 'SalesDriver';
 // a salesman is locked to his own customers (the rep codes set for his name); owners/office see everyone
@@ -1724,7 +1725,7 @@ function drawChrome() {
     ['home', 'Dashboard'],
     ['finance', 'Finance'],
     { label: 'Orders', items: [['orders', 'Orders', 'order'], ['order', 'New order', 'order'], ['inbox', 'Incoming orders', 'chat', 'inbox'], ['payments', 'Payments', 'card', 'pay']] },
-    { label: 'Customers', items: [['mysales', 'Salesman dashboard', 'chart'], ['visits', "Today's visits", 'clock'], ['customers', 'Customers', 'people', 'late'], ['collect', 'Collections', 'card'], ['stmts', 'Statements by email', 'mail'], ['yomtov', 'Yom Tov list', 'cal'], ['lost', 'Lost items', 'alert'], ['custprofit', 'Profit by store', 'chart'], ['pricecheck', 'Price check', 'card'], ['reps', 'Sales by rep & commission', 'people']] },
+    { label: 'Customers', items: [['mysales', 'Salesman dashboard', 'chart'], ['visits', "Today's visits", 'clock'], ['mycomm', 'My commission', 'chart'], ['customers', 'Customers', 'people', 'late'], ['collect', 'Collections', 'card'], ['stmts', 'Statements by email', 'mail'], ['yomtov', 'Yom Tov list', 'cal'], ['lost', 'Lost items', 'alert'], ['custprofit', 'Profit by store', 'chart'], ['pricecheck', 'Price check', 'card'], ['reps', 'Sales by rep & commission', 'people']] },
     { label: 'Products', items: [['items', 'Products & profit', 'chart'], ['pricelist', 'Price list', 'order'], ['inventory', 'Inventory', 'box', 'inv'], ['reorder', 'Reorder alerts', 'alert'], ['buying', 'Buying & suppliers', 'card']] },
     { label: 'Packing', items: [['packnext', 'What to pack', 'clip'], ['packing', 'Packing plan', 'clip'], ['packlog', 'Pack log', 'clip'], ['packrep', 'Packing report', 'chart'], ['yield', 'Yield', 'chart']] },
     { label: 'Deliveries', items: [['route', 'Deliveries', 'box'], ['stop', 'Driver', 'wheel'], ['loading', 'Loading', 'truck'], ['dsched', 'Delivery days', 'cal'], ['live', 'Live trucks', 'pin']] },
@@ -5237,6 +5238,39 @@ function renderVisits() {
     ${todo.length ? `<div class="stack" style="gap:10px">${todo.map(card).join('')}</div>` : '<section class="card"><p class="sub" style="margin:0">Nobody is due for a visit right now. 👍</p></section>'}
     ${done.length ? `<h2 style="margin:18px 0 0;font-size:15px">Visited today (${done.length})</h2><div class="stack" style="gap:10px">${done.map(card).join('')}</div>` : ''}`;
 }
+function renderMyComm() {
+  if (!REAL || !REP) return needData('My commission');
+  const rows = repRows();
+  const me = rows.find(r => r.code === S.user) || rows.find(r => (myRepCodes() || []).some(c => r.codes.includes(c)));
+  if (!me) return head('My commission & goal', 'just your numbers') + `<section class="card"><p class="sub" style="margin:0">Your sales aren't set up yet — ask Zevi to connect your account.</p></section>`;
+  const [a, b, label] = repRange();
+  const st = repStats(me, a, b);
+  const months = b - a + 1;
+  const goal = st.goal, hasGoal = goal > 0, hasRate = st.rate > 0;
+  const gpct = hasGoal ? st.sales / goal : 0, ring = Math.round(Math.min(1, gpct) * 226);
+  const ch = st.prev != null && st.prev > 0 ? (st.sales / st.prev - 1) * 100 : null;
+  const M = REP.months, last = M.length - 1;
+  const monOpts = M.map((m, i) => `<option value="${i}"${S.repMon === i ? ' selected' : ''}>${monTxt(m)}</option>`).reverse().join('');
+  return `${head('My commission & goal', 'just your numbers — nobody else’s')}
+  <section class="card" style="display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;padding:12px 16px">
+    <span class="eyebrow" style="color:var(--muted)">PERIOD</span>
+    <div class="chips"><button class="chip" data-act="rep-per" data-p="m" aria-pressed="${S.repPer === 'm'}">One month</button><button class="chip" data-act="rep-per" data-p="ytd" aria-pressed="${S.repPer === 'ytd'}">This year</button><button class="chip" data-act="rep-per" data-p="12" aria-pressed="${S.repPer === '12'}">Last 12 months</button></div>
+    ${S.repPer === 'm' ? `<select class="sel" id="rep-mon" style="width:auto;flex:0 1 200px" aria-label="Month">${monOpts}</select>` : ''}
+  </section>
+  <div class="hero ms-gold">
+    <div class="who"><span><b>Hi ${esc(me.name)} 👋</b><small style="color:#5A3D10">${esc(label)}</small></span></div>
+    <div class="goal"><svg width="84" height="84" viewBox="0 0 84 84" role="img" aria-label="${hasGoal ? Math.round(gpct * 100) + '% of goal' : 'no goal set'}"><circle cx="42" cy="42" r="36" fill="none" stroke-width="8" style="stroke:rgba(22,32,74,0.14)"/><circle cx="42" cy="42" r="36" fill="none" stroke-width="8" stroke-linecap="round" stroke-dasharray="${ring} 226" transform="rotate(-90 42 42)" style="stroke:#21409A"/><text x="42" y="47" text-anchor="middle" style="fill:#16204A" font-weight="800" font-size="16">${hasGoal ? Math.round(gpct * 100) + '%' : '—'}</text></svg>
+      <div><div class="lbl2" style="color:#753A27">${hasGoal ? 'TO YOUR GOAL' : 'SALES'}</div><div class="amt">${fm(st.sales)} ${hasGoal ? `<span style="font-size:14px;font-weight:600;color:#5A3D10">of ${fm(goal)}</span>` : ''}</div><div style="font-size:13px;color:#5A3D10">${hasGoal ? (st.sales >= goal ? 'Goal reached! 🎉' : `${fm(goal - st.sales)} to go`) : ch != null ? `${ch >= 0 ? '+' : ''}${Math.round(ch)}% vs last year` : ''}</div></div></div>
+  </div>
+  <div class="tiles">
+    <div class="tile ct ct-green"><div class="k">Your commission</div><div class="v">${hasRate ? fm(st.comm) : '—'}</div><div class="s">${hasRate ? `${st.rate}% of ${S.repCfg.base === 'paid' ? 'payments collected' : 'sales'}` : 'ask Zevi to set your %'}</div></div>
+    <div class="tile ct ct-blue"><div class="k">Sales</div><div class="v">${fm(st.sales)}</div><div class="s">${ch != null ? `${ch >= 0 ? '▲' : '▼'} ${Math.abs(Math.round(ch))}% vs last year` : 'in this period'}</div></div>
+    <div class="tile ct ct-gold"><div class="k">Payments collected</div><div class="v">${fm(st.paid)}</div><div class="s">came in</div></div>
+    <div class="tile ct"><div class="k">Active stores</div><div class="v">${st.active}</div><div class="s">${st.fresh.length ? st.fresh.length + ' new this period' : 'you sell to'}</div></div>
+  </div>
+  ${hasRate ? `<button class="btn gold" data-act="mycomm-print">📄 My commission statement (PDF)</button>` : ''}
+  <p class="sub" style="margin:0">${st.late.length ? `${st.late.length} of your stores are later than usual to reorder — see <a href="#visits" data-go="visits">Today’s visits</a>. ` : ''}Your % and goal are set by the office. This page shows only your own numbers.</p>`;
+}
 function renderMySales() {
   if (!DLY || !REP) return needData('Salesman dashboard');
   const rows = repRows().filter(r => sumIdx(r.sales, REP.months.length - 12, REP.months.length - 1) > 0);
@@ -5326,7 +5360,7 @@ function renderMySales() {
     <div class="who"><span><b>${who === 'All' ? 'Hi Zevi 👋' : gold ? 'Hi ' + esc(who) + ' 👋' : esc(who)}</b><small style="color:${sub}">${yearMode && yv ? yv.yr + (yrCur ? ' · so far' : '') : active + ' stores · ' + fmtLong(isoRd(b))}</small></span></div>
     <div class="goal"><svg width="84" height="84" viewBox="0 0 84 84" role="img" aria-label="${Math.round(uGpFull * 100)}% of ${yearMode ? 'last year' : goal ? 'the month goal' : 'last year'}"><circle cx="42" cy="42" r="36" fill="none" stroke-width="8" style="stroke:${track}"/><circle cx="42" cy="42" r="36" fill="none" stroke-width="8" stroke-linecap="round" stroke-dasharray="${uRing} 226" transform="rotate(-90 42 42)" style="stroke:${arc}"/><text x="42" y="47" text-anchor="middle" style="fill:${txt}" font-weight="800" font-size="16">${uTarget ? Math.round(uGpFull * 100) + '%' : '—'}</text></svg>
       <div>${yearMode && yv ? `<div class="lbl2" style="color:${lbl}">${yv.yr} SALES${yrCur ? ' SO FAR' : ''}</div><div class="amt">${fm(yv.tot)} <span style="font-size:14px;font-weight:600;color:${sub}">vs ${fm(yv.totP)} in ${yv.yr - 1}</span></div><div style="font-size:13px;color:${sub}">${yv.totP ? (yv.tot >= yv.totP ? `${Math.round((yv.tot / yv.totP - 1) * 100)}% more than ${yv.yr - 1}` : `${Math.round(uGpFull * 100)}% of ${yv.yr - 1}`) : 'No sales recorded for ' + (yv.yr - 1)}</div>` : `<div class="lbl2" style="color:${lbl}">${goal ? monthName + ' GOAL' : `${monthName}, 1ST TO ${+b.slice(8)}${(n => n % 10 === 1 && n !== 11 ? 'ST' : n % 10 === 2 && n !== 12 ? 'ND' : n % 10 === 3 && n !== 13 ? 'RD' : 'TH')(+b.slice(8))}`}</div><div class="amt">${fm(MT.sales)} <span style="font-size:14px;font-weight:600;color:${sub}">${goal ? 'of ' + fm(goal) : 'vs ' + fm(LYS.sales) + ' last year'}</span></div><div style="font-size:13px;color:${sub}">${goal ? (MT.sales >= goal ? 'Goal reached! 🎉' : `${fm((goal - MT.sales) / Math.max(1, left))} a day for ${left} working days to reach it`) : LYM.sales ? (MT.sales >= LYM.sales ? `Already more than all of ${MON[md.getMonth()]} ${+b.slice(0, 4) - 1} (${fm(LYM.sales)})` : `${Math.round(gpFull * 100)}% of all of ${MON[md.getMonth()]} ${+b.slice(0, 4) - 1} (${fm(LYM.sales)})`) : ''}</div>`}</div></div>
-    `; })()}<div class="quick"><a class="btn gold" href="#order" data-go="order">+ Order</a><a class="btn line" href="#pricelist" data-go="pricelist">Catalog</a><a class="btn line" href="#yomtov" data-go="yomtov">Yom Tov list</a><a class="btn line" href="#reps" data-go="reps">Goals &amp; %</a></div>
+    `; })()}<div class="quick"><a class="btn gold" href="#order" data-go="order">+ Order</a><a class="btn line" href="#pricelist" data-go="pricelist">Catalog</a><a class="btn line" href="#yomtov" data-go="yomtov">Yom Tov list</a><a class="btn line" href="#${isSales() ? 'mycomm' : 'reps'}" data-go="${isSales() ? 'mycomm' : 'reps'}">Goals &amp; %</a></div>
   </div>
   <div class="tiles">
     ${yearMode && yv ? `
@@ -7076,6 +7110,7 @@ document.addEventListener('click', e => {
     case 'rep-sel': S.repSel = d.r ? (S.repSel === d.r ? null : d.r) : null; keep(); break;
     case 'rep-base': S.repCfg.base = d.b; saveReps(); keep(); break;
     case 'rep-print': { const [a2, b2, lbl] = repRange(); const r = repRows().find(x => x.code === d.r); if (r) printDoc(commissionDoc(repStats(r, a2, b2), a2, b2, lbl), `Chuster commission - ${repName(r.code)} - ${lbl}`); break; }
+    case 'mycomm-print': { const [a2, b2, lbl] = repRange(); const rows2 = repRows(); const r = rows2.find(x => x.code === S.user) || rows2.find(x => (myRepCodes() || []).some(c => x.codes.includes(c))); if (r) printDoc(commissionDoc(repStats(r, a2, b2), a2, b2, lbl), `Chuster commission - ${repName(r.code)} - ${lbl}`); break; }
     case 'ask-idea': doAsk(d.q); break;
     case 'pn-sort': S.pnSort = d.s; render(); break;
     case 'pn-range': S.pnFrom = +d.f; S.pnTo = +d.t; render(); break;
