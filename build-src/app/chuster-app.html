@@ -1280,14 +1280,21 @@ function storeRefs() {
 
 /* ---------- 1. Product sales (the screen in the picture) ---------- */
 function prRange() {
+  const lo = isoRd(REAL.orders.from), hiD = isoRd(REAL.orders.to);
+  if (S.pr && (S.pr.from || S.pr.to)) {            // a custom calendar range is set
+    let a = isoRd(S.pr.from || REAL.orders.from), b = isoRd(S.pr.to || REAL.orders.to);
+    if (a < lo) a = lo; if (b > hiD) b = hiD; if (a > b) a = b;
+    return [isoOf(a), isoOf(b)];
+  }
   const to = REAL.orders.to; const e = isoRd(to); const R = (S.pr && S.pr.range) || '30';
   const span = { '7': 6, '30': 29, '90': 89, 'all': 99999 }[R];
-  let a = e - span; const lo = isoRd(REAL.orders.from); if (a < lo) a = lo;
+  let a = e - span; if (a < lo) a = lo;
   return [isoOf(a), to];
 }
 function renderProductSales() {
   if (!REAL || !REAL.orders) return needData('Product sales');
   const [from, to] = prRange();
+  const prCustom = !!(S.pr.from || S.pr.to);
   const okRef = ref => { const c = REAL.catalog[ref]; if (!c) return false;
     if (S.pr.cat !== 'All' && catOf(c) !== S.pr.cat) return false;
     if (S.pr.pack !== 'All' && packOf(c) !== S.pr.pack) return false;
@@ -1338,7 +1345,12 @@ function renderProductSales() {
   return `${head('Product sales', `from your invoices${salesLocked() ? ' · your stores' : ''}`, `<span class="tag blue" style="font-size:13px;padding:8px 12px">📅 ${fmtShort(f)} – ${fmtShort(t)}</span>${dashTools('Product sales')}`)}
   <section class="card stack" style="gap:10px">
     <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center">
-      <div style="display:flex;gap:6px;align-items:center"><span class="eyebrow" style="color:var(--muted)">SHOW</span>${chipRow('pr-range', S.pr.range, [['7', '7 days'], ['30', '30 days'], ['90', '90 days'], ['all', 'All']])}</div>
+      <div style="display:flex;gap:6px;align-items:center"><span class="eyebrow" style="color:var(--muted)">SHOW</span>${chipRow('pr-range', prCustom ? '' : S.pr.range, [['7', '7 days'], ['30', '30 days'], ['90', '90 days'], ['all', 'All']])}</div>
+      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><span class="eyebrow" style="color:var(--muted)">OR PICK DATES</span>
+        <input type="date" id="pr-from" class="inp" value="${from}" min="${REAL.orders.from}" max="${REAL.orders.to}" style="width:auto" aria-label="From date">
+        <span class="sub" style="margin:0">–</span>
+        <input type="date" id="pr-to" class="inp" value="${to}" min="${REAL.orders.from}" max="${REAL.orders.to}" style="width:auto" aria-label="To date">
+        ${prCustom ? '<button class="chip" data-act="pr-range" data-v="30">Reset</button>' : ''}</div>
     </div>
     <div style="display:flex;gap:16px;flex-wrap:wrap">
       <div><span class="eyebrow" style="color:var(--muted)">CATEGORY</span>${chipRow('pr-cat', S.pr.cat, [['All', 'All'], ...CATS.map(c => [c, c])])}</div>
@@ -4988,7 +5000,7 @@ function openPOSection() {
 const DLY = REAL && REAL.daily ? REAL.daily : null;
 Object.assign(S, { ms: { rep: S.user === 'Motty' ? 'All' : 'Dudi', range: 'days', area: 'All', end: null, year: null } });
 Object.assign(S, { ss: { range: 'month', end: null, sort: 'sales', q: '', area: 'All' }, nlTab: 'new', nlQ: '', hbTab: 'overdue', hbQ: '', mgTab: 'best', mgQ: '', dvWeeks: 8, agTab: 'worst', scTab: 'urgent', scQ: '', psTab: 'left', psQ: '' });
-Object.assign(S, { pr: { range: '30', cat: 'All', pack: 'All', brand: 'All', metric: 'sales', q: '' }, scoSel: null, scoQ: '', xsSel: null, xsQ: '', arTab: 'all', winTab: 'up', fcQ: '' });
+Object.assign(S, { pr: { range: '30', cat: 'All', pack: 'All', brand: 'All', metric: 'sales', q: '', from: null, to: null }, scoSel: null, scoQ: '', xsSel: null, xsQ: '', arTab: 'all', winTab: 'up', fcQ: '' });
 Object.assign(S, { ret: { from: null, to: null } });
 const addDays = (iso, n) => isoOf(isoRd(iso) + n);
 const msYears = () => { const M = (REP && REP.months) || []; const y1 = +((M[M.length - 1] || DLY.to).slice(0, 4)); const y0 = +((M[0] || DLY.from).slice(0, 4)); const out = []; for (let y = y1; y >= y0; y--) out.push(y); return out; };
@@ -6985,7 +6997,7 @@ document.addEventListener('click', e => {
     case 'ag-tab': S.agTab = d.v; keep(); break;
     case 'sc-tab': S.scTab = d.v; keep(); break;
     case 'ps-tab': S.psTab = d.v; keep(); break;
-    case 'pr-range': S.pr.range = d.v; keep(); break;
+    case 'pr-range': S.pr.range = d.v; S.pr.from = null; S.pr.to = null; keep(); break;
     case 'pr-cat': S.pr.cat = d.v; keep(); break;
     case 'pr-pack': S.pr.pack = d.v; keep(); break;
     case 'pr-brand': S.pr.brand = d.v; keep(); break;
@@ -7145,6 +7157,8 @@ document.addEventListener('change', e => {
   if (t.id === 'ms-end' && t.value) { S.ms.end = t.value; render(); }
   if (t.id === 'ret-from' && t.value) { S.ret.from = t.value; render(); }
   if (t.id === 'ret-to' && t.value) { S.ret.to = t.value; render(); }
+  if (t.id === 'pr-from' && t.value) { S.pr.from = t.value; if (!S.pr.to) S.pr.to = REAL.orders.to; render(); }
+  if (t.id === 'pr-to' && t.value) { S.pr.to = t.value; if (!S.pr.from) S.pr.from = REAL.orders.from; render(); }
   if (t.id === 'rep-name') { const v = t.value.trim(); if (v) S.repCfg.names[t.dataset.r] = v; else delete S.repCfg.names[t.dataset.r]; saveReps(); render(); }
   if (t.id === 'rep-rate') { const v = parseFloat(t.value); if (v >= 0) S.repCfg.rates[t.dataset.r] = v; else delete S.repCfg.rates[t.dataset.r]; saveReps(); render(); toast('Commission % saved on this device.'); }
   if (cl.contains('it-cost')) { const v = parseFloat(t.value.replace(/[$,]/g, '')); if (v > 0) { S.myCost[t.dataset.f] = v; toast('Cost saved on this device.'); } else delete S.myCost[t.dataset.f]; saveCosts(); render(); }
