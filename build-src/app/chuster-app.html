@@ -5207,24 +5207,39 @@ function visitRows() {
   rows.sort((a, b) => (a.done - b.done) || (b.over - a.over) || ((b.c.sales12 || 0) - (a.c.sales12 || 0)));
   return rows;
 }
+function vsRowOf(c) {
+  const v = S.visit[c.name] || {};
+  const days = c.last ? TODAY - isoRd(c.last) : 9999;
+  return { c, v, days, per: c.orders12 ? (c.sales12 || 0) / c.orders12 : 0, over: c.gap ? days - c.gap : 0, done: v.visited === isoOf(TODAY) };
+}
 function renderVisits() {
   if (!REAL) return needData("Today's visits");
-  let rows = visitRows();
-  const areas = ['All', ...[...new Set(rows.map(r => r.c.area || 'Other'))].sort((x, y) => (AREA_ORDER.indexOf(x) + 1 || 99) - (AREA_ORDER.indexOf(y) + 1 || 99))];
+  // every area he sells to is always a filter — even if nothing in it is overdue today
+  const mineAll = REAL.customers.filter(c => c.active && custMine(c) && !c.offSeason);
+  const areas = ['All', ...[...new Set(mineAll.map(c => c.area || 'Other'))].sort((x, y) => (AREA_ORDER.indexOf(x) + 1 || 99) - (AREA_ORDER.indexOf(y) + 1 || 99))];
   if (!areas.includes(S.vsArea)) S.vsArea = 'All';
-  if (S.vsArea !== 'All') rows = rows.filter(r => (r.c.area || 'Other') === S.vsArea);
   const q = S.vsQ.trim().toLowerCase();
-  if (q) rows = rows.filter(r => r.c.name.toLowerCase().includes(q));
-  const todo = rows.filter(r => !r.done), done = rows.filter(r => r.done);
+  const matchQ = c => !q || c.name.toLowerCase().includes(q);
+  let due = visitRows();
+  if (S.vsArea !== 'All') due = due.filter(r => (r.c.area || 'Other') === S.vsArea);
+  due = due.filter(r => matchQ(r.c));
+  const todo = due.filter(r => !r.done), done = due.filter(r => r.done);
+  // when he picks an area, also show his other stores there (not overdue yet) so he can still plan the visit
+  let others = [];
+  if (S.vsArea !== 'All') {
+    const inDue = new Set(visitRows().map(r => r.c.name));
+    others = mineAll.filter(c => (c.area || 'Other') === S.vsArea && !inDue.has(c.name) && matchQ(c)).map(vsRowOf).sort((a, b) => (b.c.sales12 || 0) - (a.c.sales12 || 0));
+  }
   const chip = v => `<button class="chip" data-act="vs-area" data-v="${esc(v)}" aria-pressed="${S.vsArea === v}">${esc(v)}</button>`;
   const card = r => { const c = r.c; const msg = `Hi, it's Chuster. Do you need anything this week?`;
+    const tag = r.done ? '<span class="tag green">visited ✓</span>' : c.late ? `<span class="tag gold">${r.over > 0 ? r.over + ' days late' : 'due'}</span>` : '<span class="tag">on track</span>';
     return `<div class="card" style="padding:12px 14px;display:flex;flex-direction:column;gap:8px${r.done ? ';opacity:.6' : ''}">
       <div style="display:flex;gap:10px;align-items:flex-start">
         <button style="flex:1;min-width:0;background:none;border:none;text-align:left;cursor:pointer;color:inherit;font:inherit" data-act="cust-sel-go" data-n="${esc(c.name)}">
           <b style="font-size:15px">${esc(c.name)}</b>
           <div class="sub" style="margin:0;font-size:12.5px">${r.days < 9999 ? r.days + ' days' : 'no recent order'} · usually every ${c.gap || '?'} · ~${fm(r.per)}/order · ${esc(c.area || '')}${(c.balance || 0) > 1 ? ` · <span style="color:var(--bad-text)">owes ${fm(c.balance)}</span>` : ''}</div>
         </button>
-        ${r.done ? '<span class="tag green">visited ✓</span>' : `<span class="tag gold">${r.over > 0 ? r.over + ' days late' : 'due'}</span>`}
+        ${tag}
       </div>
       ${r.v.note ? `<div style="font-size:12.5px;background:var(--surface-2);border-radius:8px;padding:6px 8px">📝 ${esc(r.v.note)}${r.v.visited ? ` <span class="sub">· last visit ${fmtShort(isoRd(r.v.visited))}</span>` : ''}</div>` : r.v.visited ? `<div class="sub" style="margin:0;font-size:12px">last visit ${fmtShort(isoRd(r.v.visited))}</div>` : ''}
       <div style="display:flex;gap:6px;flex-wrap:wrap">
@@ -5235,15 +5250,17 @@ function renderVisits() {
       </div>
       <input class="inp vs-note" data-n="${esc(c.name)}" placeholder="Add a note (e.g. wants to try ziti)" value="${esc(r.v.note || '')}" style="font-size:13px">
     </div>`; };
-  const mapStops = todo.filter(r => r.c.address).slice(0, 10);
+  const mapStops = [...todo, ...others].filter(r => r.c.address).slice(0, 10);
   const mapHref = mapStops.length ? navLegHref(mapStops) : '';
-  return `${head("Today's visits", `${todo.length} store${todo.length === 1 ? '' : 's'} to see · later than they usually order`, mapStops.length > 1 && mapHref ? `<a class="btn gold" href="${esc(mapHref)}" target="_blank" rel="noopener">🗺️ Map my route</a>` : '')}
+  const areaTxt = S.vsArea === 'All' ? '' : ' in ' + S.vsArea;
+  return `${head("Today's visits", `${todo.length} store${todo.length === 1 ? '' : 's'} to see${areaTxt} · later than they usually order`, mapStops.length > 1 && mapHref ? `<a class="btn gold" href="${esc(mapHref)}" target="_blank" rel="noopener">🗺️ Map my route</a>` : '')}
     <section class="card" style="display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;padding:10px 14px">
       <div class="field" style="margin:0;flex:1;min-width:150px">${ic('search')}<label class="sr" for="vs-q">Search</label><input id="vs-q" value="${esc(S.vsQ)}" placeholder="Find a store" autocomplete="off"></div>
       <div class="chips" style="flex-wrap:wrap">${areas.map(chip).join('')}</div>
     </section>
-    ${todo.length ? `<div class="stack" style="gap:10px">${todo.map(card).join('')}</div>` : '<section class="card"><p class="sub" style="margin:0">Nobody is due for a visit right now. 👍</p></section>'}
-    ${done.length ? `<h2 style="margin:18px 0 0;font-size:15px">Visited today (${done.length})</h2><div class="stack" style="gap:10px">${done.map(card).join('')}</div>` : ''}`;
+    ${todo.length ? `<div class="stack" style="gap:10px">${todo.map(card).join('')}</div>` : `<section class="card"><p class="sub" style="margin:0">${S.vsArea === 'All' ? 'Nobody is due for a visit right now. 👍' : `No ${S.vsArea} store is overdue right now.${others.length ? ' Your other stores there are below.' : ''}`}</p></section>`}
+    ${done.length ? `<h2 style="margin:18px 0 0;font-size:15px">Visited today (${done.length})</h2><div class="stack" style="gap:10px">${done.map(card).join('')}</div>` : ''}
+    ${others.length ? `<h2 style="margin:18px 0 0;font-size:15px">Other ${S.vsArea} stores · ${others.length}</h2><p class="sub" style="margin:2px 0 0">Not overdue, but you can still see them while you're there.</p><div class="stack" style="gap:10px;margin-top:10px">${others.slice(0, 40).map(card).join('')}</div>${others.length > 40 ? `<p class="sub" style="margin:8px 0 0">Showing the top 40 by yearly sales.</p>` : ''}` : ''}`;
 }
 function renderPitch() {
   if (!REAL || !HIST) return needData('New to pitch');
