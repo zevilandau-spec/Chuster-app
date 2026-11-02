@@ -5229,12 +5229,15 @@ function renderVisits() {
       ${r.v.note ? `<div style="font-size:12.5px;background:var(--surface-2);border-radius:8px;padding:6px 8px">📝 ${esc(r.v.note)}${r.v.visited ? ` <span class="sub">· last visit ${fmtShort(isoRd(r.v.visited))}</span>` : ''}</div>` : r.v.visited ? `<div class="sub" style="margin:0;font-size:12px">last visit ${fmtShort(isoRd(r.v.visited))}</div>` : ''}
       <div style="display:flex;gap:6px;flex-wrap:wrap">
         ${c.phone ? `<a class="btn good sm" href="${esc(waHref(waNum(c.phone), msg))}" target="_blank" rel="noopener">WhatsApp</a><a class="btn ghost sm" href="${telHref(c.phone)}">${ic('phone')} Call</a>` : ''}
+        ${c.address ? `<a class="btn ghost sm" href="${esc(mapsHref(fixAddr(c.address)))}" target="_blank" rel="noopener">${ic('pin')} Directions</a>` : ''}
         <button class="btn primary sm" data-act="cust-order" data-n="${esc(c.name)}">+ Order</button>
         <button class="btn ${r.done ? 'ghost' : 'gold'} sm" data-act="vs-done" data-n="${esc(c.name)}">${r.done ? 'Undo' : 'Visited ✓'}</button>
       </div>
       <input class="inp vs-note" data-n="${esc(c.name)}" placeholder="Add a note (e.g. wants to try ziti)" value="${esc(r.v.note || '')}" style="font-size:13px">
     </div>`; };
-  return `${head("Today's visits", `${todo.length} store${todo.length === 1 ? '' : 's'} to see · later than they usually order`)}
+  const mapStops = todo.filter(r => r.c.address).slice(0, 10);
+  const mapHref = mapStops.length ? navLegHref(mapStops) : '';
+  return `${head("Today's visits", `${todo.length} store${todo.length === 1 ? '' : 's'} to see · later than they usually order`, mapStops.length > 1 && mapHref ? `<a class="btn gold" href="${esc(mapHref)}" target="_blank" rel="noopener">🗺️ Map my route</a>` : '')}
     <section class="card" style="display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;padding:10px 14px">
       <div class="field" style="margin:0;flex:1;min-width:150px">${ic('search')}<label class="sr" for="vs-q">Search</label><input id="vs-q" value="${esc(S.vsQ)}" placeholder="Find a store" autocomplete="off"></div>
       <div class="chips" style="flex-wrap:wrap">${areas.map(chip).join('')}</div>
