@@ -787,7 +787,7 @@ body:has(#ai-fab:not([hidden])) #view { padding-bottom: 72px; }
 .pk-act { flex: none; display: flex; flex-wrap: wrap; gap: 4px; justify-content: flex-end; max-width: 230px; }
 .pk-mv { display: inline-flex; gap: 2px; }
 .pk-step { padding: 7px 12px; border-radius: 10px; font-size: 13px; font-weight: 800; }
-.pk-step.clean { background: var(--gold-soft); color: var(--gold-text); } .pk-step.tube { background: var(--brand-soft); color: var(--brand-text); }
+.pk-step.clean { background: var(--gold-soft); color: var(--gold-text); } .pk-step.tube { background: var(--brand-soft); color: var(--brand-text); } .pk-step.hand { background: var(--surface-2); color: var(--fg); }
 .pk-tubes { display: flex; gap: 4px; flex: none; } .pk-tubes .chip { min-width: 34px; padding: 0 8px; }
 .o3-dlv { color: var(--good-text); font-weight: 800; } .o3-dlv.gold { color: var(--gold-text, #8a5a00); } .iv-deliv { padding: 0 8px; }
 .tile.tap { cursor: pointer; position: relative; } .tile.tap::after { content: '\203A'; position: absolute; top: 8px; right: 12px; color: var(--muted); font-size: 18px; line-height: 1; } .tile.tap:active { transform: scale(.985); }
@@ -2233,9 +2233,11 @@ const pkCanPack = () => S.role === 'Owner' || S.role === 'Office' || S.role === 
 const pkSetOf = full => S.pkSet[full] || {};
 function pkPlan() {
   const P = packNext(); const day = pkDay();
-  let items = P.rows.filter(r => r.pack > 0).map(r => { const st = pkSetOf(r.c.full); const pr = S.pkProg[day + '|' + r.c.full] || {}; return { r, full: r.c.full, tube: +st.tube || 0, egg: !!st.egg, done: +pr.done || 0, st: pr.st || '' }; });
-  // snack products (pretzels, chips) also need a clean machine before them
-  items.forEach(x => { x.snack = /Snacks/.test(x.r.c.group || '') || /pretzel|tortilla|chips|flips/i.test(x.r.c.name || ''); if (x.snack) x.egg = false; });
+  let items = P.rows.filter(r => r.pack > 0).map(r => { const st = pkSetOf(r.c.full); const pr = S.pkProg[day + '|' + r.c.full] || {}; return { r, full: r.c.full, tube: +st.tube || 0, egg: !!st.egg, hand: !!st.hand, done: +pr.done || 0, st: pr.st || '' }; });
+  // snack products (pretzels, chips) also need a clean machine before them; hand-packed products skip the machine entirely
+  items.forEach(x => { x.snack = /Snacks/.test(x.r.c.group || '') || /pretzel|tortilla|chips|flips/i.test(x.r.c.name || ''); if (x.snack) x.egg = false; if (x.hand) { x.egg = false; x.snack = false; x.tube = 0; } });
+  const handItems = items.filter(x => x.hand).sort((a, b) => b.r.pack - a.r.pack);
+  items = items.filter(x => !x.hand);
   // automatic order: noodles without egg (by tube), then the egg block (by tube), then snacks (by tube),
   // so one cleaning before the egg, and one after the egg that is also the cleaning before the snacks
   const tubesOf = L => [...new Set(L.map(x => x.tube))];
@@ -2259,7 +2261,12 @@ function pkPlan() {
     steps.push({ kind: 'job', x, n: i + 1 }); prev = x;
   });
   if (prev && prev.egg) steps.push({ kind: 'clean', text: 'Clean the machine after the egg products' });
-  return { P, ord, steps, day };
+  // hand-packed products: their own section at the end, no tube, no cleaning
+  if (handItems.length) {
+    steps.push({ kind: 'hand', text: 'Pack by hand (not on the machine)' });
+    handItems.forEach((x, i) => steps.push({ kind: 'job', x, n: ord.length + i + 1 }));
+  }
+  return { P, ord: ord.concat(handItems), steps, day };
 }
 function renderPacking() {
   if (!REAL) return needData('Packing plan');
@@ -2271,19 +2278,19 @@ function renderPacking() {
   const total = ord.reduce((t, x) => t + x.r.pack, 0), done = ord.reduce((t, x) => t + Math.min(x.r.pack, x.st === 'done' ? x.r.pack : x.done), 0);
   const pct = total ? Math.round(done / total * 100) : 0;
   const tubeCh = steps.filter(s2 => s2.kind === 'tube' && !s2.start).length, cleans = steps.filter(s2 => s2.kind === 'clean').length;
-  const noSet = ord.filter(x => !x.tube).length;
+  const noSet = ord.filter(x => !x.tube && !x.hand).length;
   const note = (S.pkNote[day] || {}).text || '';
   const job = s2 => { const x = s2.x, r = x.r, fin = x.st === 'done', now = x.st === 'now', dn = fin ? r.pack : Math.min(x.done, r.pack);
     return `<div class="pk-job ${gcls(r.c.group)}${fin ? ' fin' : now ? ' now' : ''}">
       <span class="pk-n">${fin ? '✓' : s2.n}</span>
-      <div class="main"><div class="name">${esc(r.c.name)}${x.egg ? ' <span class="tag gold">egg</span>' : ''}</div><div class="meta">${[r.c.code ? '#' + esc(r.c.code) : '', r.c.pack ? esc(r.c.pack) : '', x.tube ? tubeName(x.tube) : '<span style="color:var(--bad-text)">no tube set</span>', 'stock ' + fn(r.stock || 0)].filter(Boolean).join(' · ')}</div>
+      <div class="main"><div class="name">${esc(r.c.name)}${x.egg ? ' <span class="tag gold">egg</span>' : ''}${x.hand ? ' <span class="tag">by hand</span>' : ''}</div><div class="meta">${[r.c.code ? '#' + esc(r.c.code) : '', r.c.pack ? esc(r.c.pack) : '', x.hand ? 'by hand' : x.tube ? tubeName(x.tube) : '<span style="color:var(--bad-text)">no tube set</span>', 'stock ' + fn(r.stock || 0)].filter(Boolean).join(' · ')}</div>
         <div class="bar ${fin ? 'good' : 'gold'}" style="margin-top:5px"><i style="width:${r.pack ? Math.round(dn / r.pack * 100) : 0}%"></i></div></div>
       <div class="pk-qty"><b>${fn(dn)}</b><span class="sub" style="margin:0"> / ${fn(r.pack)}</span></div>
       ${pkCanPack() ? `<div class="pk-act">${fin ? `<button class="btn ghost sm" data-act="pkp" data-f="${esc(x.full)}" data-do="undo">Undo</button>`
         : now || x.done ? `<button class="btn good sm" data-act="pkp" data-f="${esc(x.full)}" data-do="add" data-n="6">+6</button><button class="btn ghost sm" data-act="pkp" data-f="${esc(x.full)}" data-do="add" data-n="1">+1</button><button class="btn primary sm" data-act="pkp" data-f="${esc(x.full)}" data-do="done">Done</button>`
         : `<button class="btn primary sm" data-act="pkp" data-f="${esc(x.full)}" data-do="start">Start</button>`}${pkCanEdit() ? `<span class="pk-mv"><button class="btn ghost sm" data-act="pkmv" data-f="${esc(x.full)}" data-d="-1" aria-label="Move up">↑</button><button class="btn ghost sm" data-act="pkmv" data-f="${esc(x.full)}" data-d="1" aria-label="Move down">↓</button></span>` : ''}</div>` : ''}
     </div>`; };
-  const list = steps.map(s2 => s2.kind === 'job' ? job(s2) : `<div class="pk-step ${s2.kind}">${s2.kind === 'clean' ? '🧽' : '🔧'} ${esc(s2.text)}</div>`).join('');
+  const list = steps.map(s2 => s2.kind === 'job' ? job(s2) : `<div class="pk-step ${s2.kind}">${s2.kind === 'clean' ? '🧽' : s2.kind === 'hand' ? '🖐' : '🔧'} ${esc(s2.text)}</div>`).join('');
   return `${head('Packing plan', `${pnLabel(P)} · built from usual orders and stock`, `${pkCanEdit() || S.role === 'Warehouse' ? `<button class="btn ghost" data-act="pk-set">Tubes &amp; egg</button>` : ''}<button class="btn gold" data-act="pn-print">Print list</button>`)}
   <div class="chips">${chip('Next delivery day', d0, d0)}${chip('Till Monday', d0, nextMon)}${chip('Till Friday', d0, fri)}${chip('Next 7 days', d0, d0 + 6)}</div>
   <div class="tiles">
@@ -2303,7 +2310,9 @@ function renderPacking() {
     </aside>
   </div>`;
 }
-function pkSetItems() { return (REAL.catalog || []).filter(c => /^Packs/.test(c.full || '') && !c.off).sort((a, b) => grank(a.group) - grank(b.group) || String(a.code).localeCompare(String(b.code))); }
+// products you can set up for packing: the boxed "Packs" items, plus the loose 60 / 120 products (they run on the machine too)
+const pkCfgable = c => !!c && !c.off && (/^Packs/.test(c.full || '') || /\s(60|120)\s*$/.test(c.full || ''));
+function pkSetItems() { return (REAL.catalog || []).filter(pkCfgable).sort((a, b) => grank(a.group) - grank(b.group) || String(a.code).localeCompare(String(b.code))); }
 async function pkAiGo() {
   const txt = S.pkAiT.trim(); if (!txt) { toast('Write what goes on each tube first.'); return; }
   const items = pkSetItems(); S.pkAi = { busy: true }; render();
@@ -2322,12 +2331,13 @@ async function pkAiGo() {
 }
 function pkSettings() {
   const q = S.pkSetQ.trim().toLowerCase();
-  const items = (REAL.catalog || []).filter(c => /^Packs/.test(c.full || '') && !c.off && (!q || (c.name + ' ' + c.code).toLowerCase().includes(q))).sort((a, b) => grank(a.group) - grank(b.group) || String(a.code).localeCompare(String(b.code)));
+  const items = (REAL.catalog || []).filter(c => pkCfgable(c) && (!q || (c.name + ' ' + c.code).toLowerCase().includes(q))).sort((a, b) => grank(a.group) - grank(b.group) || String(a.code).localeCompare(String(b.code)));
   const can = pkCanEdit() || S.role === 'Warehouse';
   const all = pkSetItems(), A = S.pkAi;
   const sumRow = (lbl, list, cls) => `<div class="pk-sum"><b class="${cls || ''}">${lbl}</b><span>${list.length ? list.map(c => esc(c.name + (c.pack ? ' ' + c.pack : ''))).join(', ') : '<i style="color:var(--muted)">none yet</i>'}</span></div>`;
-  const summary = [1, 2, 3, 4].map(t => sumRow(TUBE[t] + ' tube', all.filter(c => +pkSetOf(c.full).tube === t))).join('') + sumRow('Egg', all.filter(c => pkSetOf(c.full).egg), 'pk-eggc')
-    + (all.some(c => !+pkSetOf(c.full).tube) ? `<div class="pk-sum"><b style="color:var(--bad-text)">No tube yet</b><span>${all.filter(c => !+pkSetOf(c.full).tube).length} products</span></div>` : '');
+  const summary = [1, 2, 3, 4].map(t => sumRow(TUBE[t] + ' tube', all.filter(c => !pkSetOf(c.full).hand && +pkSetOf(c.full).tube === t))).join('') + sumRow('Egg', all.filter(c => pkSetOf(c.full).egg && !pkSetOf(c.full).hand), 'pk-eggc')
+    + sumRow('By hand', all.filter(c => pkSetOf(c.full).hand))
+    + (all.some(c => !pkSetOf(c.full).hand && !+pkSetOf(c.full).tube) ? `<div class="pk-sum"><b style="color:var(--bad-text)">No tube yet</b><span>${all.filter(c => !pkSetOf(c.full).hand && !+pkSetOf(c.full).tube).length} products</span></div>` : '');
   const preview = A && A.plan ? `<div class="pk-aiprev stack" style="gap:6px"><b>✨ The AI will set:</b>${A.say ? `<div class="sub" style="margin:0">${esc(A.say)}</div>` : ''}
       ${[1, 2, 3, 4].map(t => { const l = A.plan.filter(x => +x.tube === t); return l.length ? sumRow(TUBE[t] + ' tube', l.map(x => x.c)) : ''; }).join('')}${sumRow('Egg', A.plan.filter(x => x.egg).map(x => x.c), 'pk-eggc')}
       <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn primary" data-act="pk-ai-save">✓ Looks right, save it</button><button class="btn ghost" data-act="pk-ai-cancel">Cancel</button></div></div>` : '';
@@ -2344,8 +2354,8 @@ function pkSettings() {
   <section class="card stack" style="gap:6px">
     <div class="field">${ic('search')}<label class="sr" for="pk-set-q">Find a product</label><input id="pk-set-q" value="${esc(S.pkSetQ)}" placeholder="Find a product" autocomplete="off"></div>
     <div id="pk-set-list">${items.map(c => { const st = pkSetOf(c.full); return `<div class="irow or-row ${gcls(c.group)}"><div class="main"><div class="name">${esc(c.name)}</div><div class="meta">${c.code ? '#' + esc(c.code) : ''}${c.pack ? ' · ' + esc(c.pack) : ''}</div></div>
-      <div class="pk-tubes" role="group" aria-label="Tube">${[1, 2, 3, 4].map(t => `<button class="chip" data-act="pk-tube" data-f="${esc(c.full)}" data-t="${t}" aria-pressed="${+st.tube === t}"${can ? '' : ' disabled'}>${TUBE[t]}</button>`).join('')}</div>
-      <label class="pk-egg"><input type="checkbox" class="pk-egg-cb" data-f="${esc(c.full)}"${st.egg ? ' checked' : ''}${can ? '' : ' disabled'}> Egg</label></div>`; }).join('')}</div>
+      <div class="pk-tubes" role="group" aria-label="Tube">${[1, 2, 3, 4].map(t => `<button class="chip" data-act="pk-tube" data-f="${esc(c.full)}" data-t="${t}" aria-pressed="${!st.hand && +st.tube === t}"${can ? '' : ' disabled'}>${TUBE[t]}</button>`).join('')}<button class="chip" data-act="pk-hand" data-f="${esc(c.full)}" aria-pressed="${!!st.hand}"${can ? '' : ' disabled'}>By hand</button></div>
+      <label class="pk-egg"><input type="checkbox" class="pk-egg-cb" data-f="${esc(c.full)}"${st.egg ? ' checked' : ''}${can && !st.hand ? '' : ' disabled'}> Egg</label></div>`; }).join('')}</div>
   </section>${S.pkAll ? '' : '</div>'}`;
 }
 
@@ -6879,8 +6889,9 @@ document.addEventListener('click', e => {
     case 'pk-ai-go': pkAiGo(); break;
     case 'pk-ai-cancel': S.pkAi = null; render(); break;
     case 'pk-all': S.pkAll = !S.pkAll; render(); break;
-    case 'pk-ai-save': { const A = S.pkAi; if (!A || !A.plan) break; A.plan.forEach(x => { const st = Object.assign({}, pkSetOf(x.c.full), { tube: x.tube, egg: x.egg }); S.pkSet[x.c.full] = st; SYNC.put('ps', x.c.full, st); }); saveLS('chuster-pkset-v1', S.pkSet); toast(`Saved ${A.plan.length} products.`); S.pkAi = null; S.pkAiT = ''; render(); break; }
-    case 'pk-tube': { const f = d.f; const st = Object.assign({}, pkSetOf(f)); st.tube = +st.tube === +d.t ? 0 : +d.t; S.pkSet[f] = st; saveLS('chuster-pkset-v1', S.pkSet); SYNC.put('ps', f, st); render(); break; }
+    case 'pk-ai-save': { const A = S.pkAi; if (!A || !A.plan) break; A.plan.forEach(x => { const st = Object.assign({}, pkSetOf(x.c.full), { tube: x.tube, egg: x.egg }); if (x.tube) st.hand = false; S.pkSet[x.c.full] = st; SYNC.put('ps', x.c.full, st); }); saveLS('chuster-pkset-v1', S.pkSet); toast(`Saved ${A.plan.length} products.`); S.pkAi = null; S.pkAiT = ''; render(); break; }
+    case 'pk-tube': { const f = d.f; const st = Object.assign({}, pkSetOf(f)); st.tube = +st.tube === +d.t ? 0 : +d.t; if (st.tube) st.hand = false; S.pkSet[f] = st; saveLS('chuster-pkset-v1', S.pkSet); SYNC.put('ps', f, st); render(); break; }
+    case 'pk-hand': { const f = d.f; const st = Object.assign({}, pkSetOf(f)); st.hand = !st.hand; if (st.hand) { st.tube = 0; st.egg = false; } S.pkSet[f] = st; saveLS('chuster-pkset-v1', S.pkSet); SYNC.put('ps', f, st); render(); break; }
     case 'pkp': { const k = pkDay() + '|' + d.f; const pr = Object.assign({ done: 0 }, S.pkProg[k] || {}); const row = packNext().rows.find(r => r.c.full === d.f); const goal = row ? row.pack : 0;
       if (d.do === 'start') pr.st = 'now'; else if (d.do === 'add') { pr.done = (+pr.done || 0) + (+d.n || 1); pr.st = goal && pr.done >= goal ? 'done' : 'now'; } else if (d.do === 'done') { pr.st = 'done'; pr.done = Math.max(+pr.done || 0, goal); } else if (d.do === 'undo') { pr.st = 'now'; }
       pr.by = byName(); pr.at = nowIso(); S.pkProg[k] = pr; saveLS('chuster-pkprog-v1', S.pkProg); SYNC.put('pp', k, pr); render(); break; }
