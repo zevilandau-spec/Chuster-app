@@ -4966,12 +4966,21 @@ function openPOSection() {
 
 /* ================= Salesman dashboard (e.g. "Dudi's sales") ================= */
 const DLY = REAL && REAL.daily ? REAL.daily : null;
-Object.assign(S, { ms: { rep: S.user === 'Motty' ? 'All' : 'Dudi', range: 'days', area: 'All', end: null } });
+Object.assign(S, { ms: { rep: S.user === 'Motty' ? 'All' : 'Dudi', range: 'days', area: 'All', end: null, year: null } });
 Object.assign(S, { ss: { range: 'month', end: null, sort: 'sales', q: '', area: 'All' }, nlTab: 'new', nlQ: '', hbTab: 'overdue', hbQ: '', mgTab: 'best', mgQ: '', dvWeeks: 8, agTab: 'worst', scTab: 'urgent', scQ: '', psTab: 'left', psQ: '' });
 Object.assign(S, { pr: { range: '30', cat: 'All', pack: 'All', brand: 'All', metric: 'sales', q: '' }, scoSel: null, scoQ: '', xsSel: null, xsQ: '', arTab: 'all', winTab: 'up', fcQ: '' });
 const addDays = (iso, n) => isoOf(isoRd(iso) + n);
+const msYears = () => { const M = (REP && REP.months) || []; const y1 = +((M[M.length - 1] || DLY.to).slice(0, 4)); const y0 = +((M[0] || DLY.from).slice(0, 4)); const out = []; for (let y = y1; y >= y0; y--) out.push(y); return out; };
 function msRange() {
-  const end = S.ms.end || DLY.to; const e = isoRd(end); const R = S.ms.range;
+  const R = S.ms.range;
+  if (R === 'year') {
+    const y = S.ms.year || +DLY.to.slice(0, 4);
+    let a = y + '-01-01', b = y + '-12-31';
+    if (a < DLY.from) a = DLY.from;      // don't iterate empty days before data starts
+    if (b > DLY.to) b = DLY.to;          // current year stops at the latest day we have
+    return [a, b];
+  }
+  const end = S.ms.end || DLY.to; const e = isoRd(end);
   let a = e;
   if (R === 'week' || R === '2w' || R === '3w') { const sun = e - dow(e); a = sun - 7 * ({ week: 0, '2w': 1, '3w': 2 }[R]); }
   if (R === 'days') a = e - 6;
@@ -5162,16 +5171,40 @@ function renderMySales() {
   const LYM = msAgg(ly0, lyEnd, set, 'All'), LYS = msAgg(ly0, lySame <= lyEnd ? lySame : lyEnd, set, 'All');
   const target = goal || LYM.sales; // no goal yet: compare with all of this month last year
   const gp = target ? Math.min(1, MT.sales / target) : 0; const gpFull = target ? MT.sales / target : 0; const ring = Math.round(gp * 226);
-  // by day chart
-  const ds = []; for (let r = isoRd(a); r <= isoRd(b); r++) ds.push(isoOf(r));
-  const mx = Math.max(1, ...ds.map(d => Math.max(N.byDay[d] || 0, P.byDay[addDays(d, -364)] || 0)));
-  const avg = ds.length ? N.sales / ds.filter(d => (N.byDay[d] || 0) > 0).length || 0 : 0;
-  const bw = 640 / ds.length; const H = 230;
-  const dayChart = `<svg class="chart" viewBox="0 0 700 280" style="width:100%;height:auto;display:block" role="img" aria-label="Sales by day vs same days last year">
+  // Year view: the daily file only keeps ~430 days, so a full year (and "last year", etc.)
+  // is powered by the per-rep MONTHLY totals, which go back to 2020. byMonth drives the chart.
+  const yearMode = S.ms.range === 'year';
+  let yv = null;
+  if (yearMode && REP) {
+    const yr = S.ms.year || +DLY.to.slice(0, 4), MA = REP.months;
+    const r = rows.find(x => x.code === S.ms.rep);
+    const sArr = S.ms.rep === 'All' ? MA.map((_, i) => rows.reduce((s, rr) => s + (rr.sales[i] || 0), 0)) : (r ? r.sales : MA.map(() => 0));
+    const iArr = S.ms.rep === 'All' ? MA.map((_, i) => rows.reduce((s, rr) => s + (rr.inv[i] || 0), 0)) : (r ? r.inv : MA.map(() => 0));
+    const byM = Array(12).fill(0), byMp = Array(12).fill(0); let tot = 0, totP = 0, inv = 0;
+    MA.forEach((ym, i) => { const y = +ym.slice(0, 4), m = +ym.slice(5, 7) - 1; if (y === yr) { byM[m] += sArr[i] || 0; tot += sArr[i] || 0; inv += iArr[i] || 0; } else if (y === yr - 1) { byMp[m] += sArr[i] || 0; totP += sArr[i] || 0; } });
+    yv = { yr, tot, totP, inv, byM, byMp, has: MA.some(ym => +ym.slice(0, 4) === yr) };
+  }
+  // chart: by day for short spans, rolled up by month for long spans (a full year, etc.)
+  const byMonth = yearMode || (isoRd(b) - isoRd(a)) > 62;
+  let cols;
+  if (yearMode && yv) {
+    cols = yv.byM.map((n, m) => ({ n, p: yv.byMp[m], lab: MONS[m], tN: MON[m] + ' ' + yv.yr, tP: MON[m] + ' ' + (yv.yr - 1) }));
+  } else if (byMonth) {
+    const bk = new Map();
+    for (let r = isoRd(a); r <= isoRd(b); r++) { const d = isoOf(r); const ym = d.slice(0, 7); let o = bk.get(ym); if (!o) { o = { n: 0, p: 0, ym }; bk.set(ym, o); } o.n += N.byDay[d] || 0; o.p += P.byDay[addDays(d, -364)] || 0; }
+    cols = [...bk.values()].map(o => ({ n: o.n, p: o.p, lab: MONS[+o.ym.slice(5, 7) - 1], tN: MON[+o.ym.slice(5, 7) - 1] + ' ' + o.ym.slice(0, 4), tP: MON[+o.ym.slice(5, 7) - 1] + ' ' + (+o.ym.slice(0, 4) - 1) }));
+  } else {
+    cols = []; for (let r = isoRd(a); r <= isoRd(b); r++) { const d = isoOf(r); cols.push({ n: N.byDay[d] || 0, p: P.byDay[addDays(d, -364)] || 0, lab: WDS[dow(r)], mlab: MONS[+d.slice(5, 7) - 1] + ' ' + +d.slice(8), tN: fmtShort(r), tP: fmtShort(isoRd(addDays(d, -364))) + ', ' + addDays(d, -364).slice(0, 4) }); }
+  }
+  const mx = Math.max(1, ...cols.map(c => Math.max(c.n, c.p)));
+  const avg = byMonth ? 0 : (cols.length ? N.sales / cols.filter(c => c.n > 0).length || 0 : 0);
+  const bw = 640 / cols.length; const H = 230; const nc = cols.length;
+  const dayChart = `<svg class="chart" viewBox="0 0 700 280" style="width:100%;height:auto;display:block" role="img" aria-label="Sales vs same period last year">
     <path class="axis" d="M40 ${H + 16}H690"/>${avg ? `<path d="M40 ${(H + 16 - avg / mx * H).toFixed(1)}H690" stroke="var(--line-strong)" stroke-dasharray="5 5"/><text x="690" y="${(H + 10 - avg / mx * H).toFixed(1)}" text-anchor="end" style="font-size:13px;font-weight:700">${fm(avg)} avg</text>` : ''}
-    ${ds.map((d, i) => { const x = 44 + i * bw; const hp = Math.max(0, P.byDay[addDays(d, -364)] || 0) / mx * H, hn = Math.max(0, N.byDay[d] || 0) / mx * H; const w = Math.max(2, bw / 2 - 4);
-      return `<rect style="fill:var(--bar-muted)" x="${(x + 2).toFixed(1)}" y="${(H + 16 - hp).toFixed(1)}" width="${w.toFixed(1)}" height="${hp.toFixed(1)}" rx="3"><title>${fmtShort(isoRd(addDays(d, -364)))}, ${addDays(d, -364).slice(0, 4)}: ${fm(P.byDay[addDays(d, -364)] || 0)}</title></rect><rect class="ba" x="${(x + 2 + w + 2).toFixed(1)}" y="${(H + 16 - hn).toFixed(1)}" width="${w.toFixed(1)}" height="${hn.toFixed(1)}" rx="3"><title>${fmtShort(isoRd(d))}: ${fm(N.byDay[d] || 0)}</title></rect>
-        ${ds.length <= 7 || i % Math.ceil(ds.length / 12) === 0 ? `<text x="${(x + bw / 2).toFixed(1)}" y="${H + 38}" text-anchor="middle" style="font-size:${ds.length <= 7 ? 15 : 12}px">${ds.length <= 7 ? WDS[dow(isoRd(d))] : MONS[+d.slice(5, 7) - 1] + ' ' + +d.slice(8)}</text>` : ''}`; }).join('')}
+    ${cols.map((c, i) => { const x = 44 + i * bw; const hp = Math.max(0, c.p) / mx * H, hn = Math.max(0, c.n) / mx * H; const w = Math.max(2, bw / 2 - 4);
+      const showLab = byMonth || nc <= 7 || i % Math.ceil(nc / 12) === 0; const labTxt = byMonth ? c.lab : (nc <= 7 ? c.lab : c.mlab);
+      return `<rect style="fill:var(--bar-muted)" x="${(x + 2).toFixed(1)}" y="${(H + 16 - hp).toFixed(1)}" width="${w.toFixed(1)}" height="${hp.toFixed(1)}" rx="3"><title>${c.tP}: ${fm(c.p)}</title></rect><rect class="ba" x="${(x + 2 + w + 2).toFixed(1)}" y="${(H + 16 - hn).toFixed(1)}" width="${w.toFixed(1)}" height="${hn.toFixed(1)}" rx="3"><title>${c.tN}: ${fm(c.n)}</title></rect>
+        ${showLab ? `<text x="${(x + bw / 2).toFixed(1)}" y="${H + 38}" text-anchor="middle" style="font-size:${nc <= 7 ? 15 : 12}px">${labTxt}</text>` : ''}`; }).join('')}
   </svg>`;
   // by area
   const ar = [...new Set([...Object.keys(N.byArea), ...Object.keys(P.byArea)])].sort((x, y) => (AREA_ORDER.indexOf(x) + 1 || 99) - (AREA_ORDER.indexOf(y) + 1 || 99));
@@ -5190,35 +5223,49 @@ function renderMySales() {
   const mvList = (L, good) => L.map(x => `<div style="display:flex;justify-content:space-between;gap:8px;padding:6px 0;border-top:1px solid var(--line)"><a href="#customers" data-act="cust-sel-go" data-n="${esc(x.c.name)}" style="color:var(--fg);text-decoration:none">${esc(x.c.name)}</a><b style="color:${good ? 'var(--good-text)' : 'var(--bad-text)'};white-space:nowrap">${good ? '+' : '−'}$${fn(Math.abs(x.d))}</b></div>`).join('') || '<p class="sub" style="margin:6px 0 0">—</p>';
   const chip = (act, val, cur, label) => `<button class="chip" data-act="${act}" data-v="${esc(val)}" aria-pressed="${cur === val}">${esc(label)}</button>`;
   const monthName = MON[md.getMonth()].toUpperCase();
-  return `${head(who === 'All' ? 'Sales dashboard' : `${who}’s sales`, '', `<span class="tag blue" style="font-size:14px;padding:8px 12px">📅 ${rng(a, b)}</span><input class="inp" type="date" id="ms-end" value="${b}" max="${DLY.to}" min="${DLY.from}" style="width:auto" aria-label="Show dates ending on">`)}
+  return `${head(who === 'All' ? 'Sales dashboard' : `${who}’s sales`, '', `<span class="tag blue" style="font-size:14px;padding:8px 12px">📅 ${S.ms.range === 'year' ? (S.ms.year || +DLY.to.slice(0, 4)) : rng(a, b)}</span>${S.ms.range === 'year' ? '' : `<input class="inp" type="date" id="ms-end" value="${b}" max="${DLY.to}" min="${DLY.from}" style="width:auto" aria-label="Show dates ending on">`}`)}
   <section class="card" style="display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;padding:12px 16px">
     ${salesLocked() ? '' : `<span class="eyebrow" style="color:var(--muted)">REP</span><div class="chips" style="flex-wrap:wrap">${chip('ms-rep', 'All', S.ms.rep, 'All')}${rows.map(r => { const [c, bg] = repColor(r.code); const on = S.ms.rep === r.code; return `<button class="chip" data-act="ms-rep" data-v="${esc(r.code)}" aria-pressed="${on}" style="${on ? `background:${c};color:#fff;border-color:${c}` : `background:${bg};color:${c};border-color:${c}`}">${esc(r.name)}</button>`; }).join('')}</div>`}
-    <span class="eyebrow" style="color:var(--muted)">DATES</span><div class="chips" style="flex-wrap:wrap">${[['day', 'Day'], ['days', '7 days'], ['week', 'Week'], ['2w', '2 weeks'], ['3w', '3 weeks'], ['month', 'Month']].map(([k, l]) => chip('ms-range', k, S.ms.range, l)).join('')}</div>
-    <span class="eyebrow" style="color:var(--muted)">AREA</span><div class="chips" style="flex-wrap:wrap">${areas.map(x => chip('ms-area', x, S.ms.area, x)).join('')}</div>
+    <span class="eyebrow" style="color:var(--muted)">DATES</span><div class="chips" style="flex-wrap:wrap">${[['day', 'Day'], ['days', '7 days'], ['week', 'Week'], ['2w', '2 weeks'], ['3w', '3 weeks'], ['month', 'Month'], ['year', 'Year']].map(([k, l]) => chip('ms-range', k, S.ms.range, l)).join('')}</div>
+    ${S.ms.range === 'year' ? (() => { const cy = +DLY.to.slice(0, 4), sel = S.ms.year || cy; return `<span class="eyebrow" style="color:var(--muted)">YEAR</span><div class="chips" style="flex-wrap:wrap">${msYears().map(y => chip('ms-year', String(y), String(sel), y === cy ? 'This year (' + y + ')' : y === cy - 1 ? 'Last year (' + y + ')' : String(y))).join('')}</div>`; })() : ''}
+    ${S.ms.range === 'year' ? '' : `<span class="eyebrow" style="color:var(--muted)">AREA</span><div class="chips" style="flex-wrap:wrap">${areas.map(x => chip('ms-area', x, S.ms.area, x)).join('')}</div>`}
   </section>
   ${(() => { const gold = S.ms.rep === 'All' || (rows.find(r => r.code === S.ms.rep) || {}).person; const rc = repColor(S.ms.rep)[0];
     const sub = gold ? '#5A3D10' : '#CFD8F5', track = gold ? 'rgba(22,32,74,0.14)' : 'rgba(255,255,255,0.18)', arc = gold ? rc : '#F4BC3A', txt = gold ? '#16204A' : '#FFFFFF', lbl = gold ? '#753A27' : '#F4BC3A';
+    const yrCur = yearMode && yv && yv.yr === +DLY.to.slice(0, 4);
+    const uTarget = yearMode && yv ? yv.totP : target, uGpFull = yearMode && yv ? (yv.totP ? yv.tot / yv.totP : 0) : gpFull, uRing = yearMode && yv ? Math.round(Math.min(1, uGpFull) * 226) : ring;
     return `<div class="hero ${gold ? 'ms-gold' : 'ms-hero'}" style="${gold ? '' : `background:linear-gradient(120deg, ${rc} 0%, ${rc}DD 100%)`}">
-    <div class="who"><span><b>${who === 'All' ? 'Hi Zevi 👋' : gold ? 'Hi ' + esc(who) + ' 👋' : esc(who)}</b><small style="color:${sub}">${active} stores · ${fmtLong(isoRd(b))}</small></span></div>
-    <div class="goal"><svg width="84" height="84" viewBox="0 0 84 84" role="img" aria-label="${Math.round(gpFull * 100)}% of ${goal ? 'the month goal' : 'last year'}"><circle cx="42" cy="42" r="36" fill="none" stroke-width="8" style="stroke:${track}"/><circle cx="42" cy="42" r="36" fill="none" stroke-width="8" stroke-linecap="round" stroke-dasharray="${ring} 226" transform="rotate(-90 42 42)" style="stroke:${arc}"/><text x="42" y="47" text-anchor="middle" style="fill:${txt}" font-weight="800" font-size="16">${target ? Math.round(gpFull * 100) + '%' : '—'}</text></svg>
-      <div><div class="lbl2" style="color:${lbl}">${goal ? monthName + ' GOAL' : `${monthName}, 1ST TO ${+b.slice(8)}${(n => n % 10 === 1 && n !== 11 ? 'ST' : n % 10 === 2 && n !== 12 ? 'ND' : n % 10 === 3 && n !== 13 ? 'RD' : 'TH')(+b.slice(8))}`}</div><div class="amt">${fm(MT.sales)} <span style="font-size:14px;font-weight:600;color:${sub}">${goal ? 'of ' + fm(goal) : 'vs ' + fm(LYS.sales) + ' last year'}</span></div><div style="font-size:13px;color:${sub}">${goal ? (MT.sales >= goal ? 'Goal reached! 🎉' : `${fm((goal - MT.sales) / Math.max(1, left))} a day for ${left} working days to reach it`) : LYM.sales ? (MT.sales >= LYM.sales ? `Already more than all of ${MON[md.getMonth()]} ${+b.slice(0, 4) - 1} (${fm(LYM.sales)})` : `${Math.round(gpFull * 100)}% of all of ${MON[md.getMonth()]} ${+b.slice(0, 4) - 1} (${fm(LYM.sales)})`) : ''}</div></div></div>
+    <div class="who"><span><b>${who === 'All' ? 'Hi Zevi 👋' : gold ? 'Hi ' + esc(who) + ' 👋' : esc(who)}</b><small style="color:${sub}">${yearMode && yv ? yv.yr + (yrCur ? ' · so far' : '') : active + ' stores · ' + fmtLong(isoRd(b))}</small></span></div>
+    <div class="goal"><svg width="84" height="84" viewBox="0 0 84 84" role="img" aria-label="${Math.round(uGpFull * 100)}% of ${yearMode ? 'last year' : goal ? 'the month goal' : 'last year'}"><circle cx="42" cy="42" r="36" fill="none" stroke-width="8" style="stroke:${track}"/><circle cx="42" cy="42" r="36" fill="none" stroke-width="8" stroke-linecap="round" stroke-dasharray="${uRing} 226" transform="rotate(-90 42 42)" style="stroke:${arc}"/><text x="42" y="47" text-anchor="middle" style="fill:${txt}" font-weight="800" font-size="16">${uTarget ? Math.round(uGpFull * 100) + '%' : '—'}</text></svg>
+      <div>${yearMode && yv ? `<div class="lbl2" style="color:${lbl}">${yv.yr} SALES${yrCur ? ' SO FAR' : ''}</div><div class="amt">${fm(yv.tot)} <span style="font-size:14px;font-weight:600;color:${sub}">vs ${fm(yv.totP)} in ${yv.yr - 1}</span></div><div style="font-size:13px;color:${sub}">${yv.totP ? (yv.tot >= yv.totP ? `${Math.round((yv.tot / yv.totP - 1) * 100)}% more than ${yv.yr - 1}` : `${Math.round(uGpFull * 100)}% of ${yv.yr - 1}`) : 'No sales recorded for ' + (yv.yr - 1)}</div>` : `<div class="lbl2" style="color:${lbl}">${goal ? monthName + ' GOAL' : `${monthName}, 1ST TO ${+b.slice(8)}${(n => n % 10 === 1 && n !== 11 ? 'ST' : n % 10 === 2 && n !== 12 ? 'ND' : n % 10 === 3 && n !== 13 ? 'RD' : 'TH')(+b.slice(8))}`}</div><div class="amt">${fm(MT.sales)} <span style="font-size:14px;font-weight:600;color:${sub}">${goal ? 'of ' + fm(goal) : 'vs ' + fm(LYS.sales) + ' last year'}</span></div><div style="font-size:13px;color:${sub}">${goal ? (MT.sales >= goal ? 'Goal reached! 🎉' : `${fm((goal - MT.sales) / Math.max(1, left))} a day for ${left} working days to reach it`) : LYM.sales ? (MT.sales >= LYM.sales ? `Already more than all of ${MON[md.getMonth()]} ${+b.slice(0, 4) - 1} (${fm(LYM.sales)})` : `${Math.round(gpFull * 100)}% of all of ${MON[md.getMonth()]} ${+b.slice(0, 4) - 1} (${fm(LYM.sales)})`) : ''}</div>`}</div></div>
     `; })()}<div class="quick"><a class="btn gold" href="#order" data-go="order">+ Order</a><a class="btn line" href="#pricelist" data-go="pricelist">Catalog</a><a class="btn line" href="#yomtov" data-go="yomtov">Yom Tov list</a><a class="btn line" href="#reps" data-go="reps">Goals &amp; %</a></div>
   </div>
   <div class="tiles">
+    ${yearMode && yv ? `
+    <div class="tile ct ct-blue"><div class="k">Sales · ${yv.yr}${yv.yr === +DLY.to.slice(0, 4) ? ' so far' : ''}</div><div class="v">${fm(yv.tot)}</div><div class="s">${pctTxt(yv.tot, yv.totP)} vs ${yv.yr - 1}</div></div>
+    <div class="tile ct ct-gold"><div class="k">All of ${yv.yr - 1}</div><div class="v">${fm(yv.totP)}</div><div class="s">the year before</div></div>
+    <div class="tile ct ct-red"><div class="k">Invoices · ${yv.yr}</div><div class="v">${fn(yv.inv)}</div><div class="s">${yv.inv ? fm(yv.tot / yv.inv) + ' average' : '—'}</div></div>
+    <div class="tile ct ct-green"><div class="k">Change</div><div class="v" style="color:${yv.tot >= yv.totP ? 'var(--good-text)' : 'var(--bad-text)'}">${yv.totP ? (yv.tot >= yv.totP ? '+' : '') + Math.round((yv.tot / yv.totP - 1) * 100) + '%' : '—'}</div><div class="s">${yv.tot >= yv.totP ? 'up' : 'down'} vs ${yv.yr - 1}</div></div>
+    ` : `
     <div class="tile ct ct-blue"><div class="k">Sales · ${rng(a, b)}</div><div class="v">${fm(N.sales)}</div><div class="s">${pctTxt(N.sales, P.sales)} vs last year</div></div>
     <div class="tile ct ct-gold"><div class="k">Same days last year</div><div class="v">${fm(P.sales)}</div><div class="s">${rng(la, lb)}, ${la.slice(0, 4)}</div></div>
     <div class="tile ct ct-red"><div class="k">Cases</div><div class="v">${fn(N.cases)}${N.casesKnown ? '' : '<span style="font-size:13px;color:var(--muted)">*</span>'}</div><div class="s">${N.casesKnown ? pctTxt(N.cases, P.cases) + ' · ' : ''}${N.inv} invoices${N.casesKnown ? '' : ` · *cases to ${fmtShort(isoRd(DLY.casesTo))}`}</div></div>
     <div class="tile ct ct-green"><div class="k">Stores ordered</div><div class="v">${N.stores.size}</div><div class="s">of ${active} stores · ${P.stores.size} last year</div></div>
+    `}
   </div>
+  ${yearMode ? `
+  <figure class="card" style="margin:0"><figcaption class="card-head"><h2>By month <span class="sub" style="font-weight:600">${yv ? yv.yr : ''}</span></h2><span class="legend"><span><i style="background:var(--chart-a)"></i>${yv ? yv.yr : ''}</span><span><i style="background:var(--bar-muted)"></i>${yv ? yv.yr - 1 : ''}</span></span></figcaption>${dayChart}</figure>
+  <p class="sub" style="margin:6px 2px 0;font-size:12px">Full-year totals come from your monthly sales, so every year back to ${msYears()[msYears().length - 1]} is here. By-area, “needs a visit” and movers appear on the shorter ranges (day, week, month), where day-by-day detail is available.</p>
+  ` : `
   <div class="split">
-    <figure class="card" style="margin:0"><figcaption class="card-head"><h2>By day <span class="sub" style="font-weight:600">${rng(a, b)}</span></h2><span class="legend"><span><i style="background:var(--chart-a)"></i>${b.slice(0, 4)}</span><span><i style="background:var(--bar-muted)"></i>last year</span></span></figcaption>${dayChart}</figure>
+    <figure class="card" style="margin:0"><figcaption class="card-head"><h2>${byMonth ? 'By month' : 'By day'} <span class="sub" style="font-weight:600">${rng(a, b)}</span></h2><span class="legend"><span><i style="background:var(--chart-a)"></i>${b.slice(0, 4)}</span><span><i style="background:var(--bar-muted)"></i>last year</span></span></figcaption>${dayChart}</figure>
     <section class="card"><div class="card-head"><h2>By area</h2><span class="legend"><span><i style="background:var(--chart-a)"></i>${b.slice(0, 4)}</span><span><i style="background:var(--bar-muted)"></i>last year</span></span></div>${areaBars || '<p class="sub">No sales in these dates.</p>'}</section>
   </div>
   <div class="split even">
     <section class="card"><div class="card-head"><h2>Needs a visit <span class="sub" style="font-weight:600">later than they usually order · ${late.length}</span></h2></div>${visit}</section>
     <section class="card"><div class="card-head"><h2>Movers <span class="sub" style="font-weight:600">last 4 weeks vs last year</span></h2><a class="btn ghost sm" href="#reps" data-go="reps">See more ›</a></div>
       <div class="split even" style="gap:14px"><div><div class="eyebrow" style="color:var(--good-text)">▲ GROWING</div>${mvList(grow, true)}</div><div><div class="eyebrow" style="color:var(--bad-text)">▼ DROPPING</div>${mvList(drop, false)}</div></div></section>
-  </div>`;
+  </div>`}`;
 }
 
 /* ================= Deliveries from real invoices: schedule by area + day, driver stops, proof, office status, daily report ================= */
@@ -6929,7 +6976,8 @@ document.addEventListener('click', e => {
     case 'win-tab': S.winTab = d.v; keep(); break;
     case 'go-store-prod': break;
     case 'go-item': go('items'); break;
-    case 'ms-range': S.ms.range = d.v; keep(); break;
+    case 'ms-range': S.ms.range = d.v; if (d.v === 'year' && !S.ms.year) S.ms.year = +DLY.to.slice(0, 4); keep(); break;
+    case 'ms-year': S.ms.year = +d.v; keep(); break;
     case 'ms-area': S.ms.area = d.v; keep(); break;
     case 'rep-sel': S.repSel = d.r ? (S.repSel === d.r ? null : d.r) : null; keep(); break;
     case 'rep-base': S.repCfg.base = d.b; saveReps(); keep(); break;
