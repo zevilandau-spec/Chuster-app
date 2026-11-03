@@ -8,8 +8,10 @@
 param([switch]$Install, [switch]$Test, [switch]$Full, [switch]$Other, [switch]$History, [switch]$Watch)
 
 $ErrorActionPreference = 'Stop'
-$Ver = '4.1'
+$Ver = '4.2'
 $AppName = 'Chuster App Sync'
+# the owner turned off sending from the app into QuickBooks (nothing is made in QuickBooks while this is false)
+$SendToQB = $false
 $TaskName = 'Chuster QB Sync'
 $Here = Split-Path -Parent $MyInvocation.MyCommand.Path
 $CfgPath = Join-Path $Here 'config.json'
@@ -357,6 +359,11 @@ function Process-Queue($st, [bool]$upload) {
       if ([string]$o.kind -eq 'sync') { $st.done[$id] = (NowS); $script:ForceRead = $true; if ($upload) { try { Put-Result $id ([ordered]@{ st = 'done'; at = (NowS) }) } catch { } }; Log 'Sync now: asked in the app, reading QuickBooks.'; continue }
       if ($o.st -eq 'ok') { $st.pending[$id] = $o } else { $st.pending.Remove($id) }
     }
+  }
+  # the owner asked: nothing from the app goes into QuickBooks for now (orders, invoices, changes, payments are kept, not made)
+  if (-not $SendToQB) {
+    if ($st.pending.Count) { if (-not $st.held) { $st.held = @{} }; foreach ($id in @($st.pending.Keys)) { $st.held[$id] = $st.pending[$id]; $st.pending.Remove($id) }; Log 'Sending to QuickBooks is turned off: kept the app''s orders, made nothing.' }
+    return 0
   }
   foreach ($id in @($st.pending.Keys)) {
     $o = $st.pending[$id]; $try = [int]$o.try; $tk = "$id#$try"
