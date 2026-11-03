@@ -682,6 +682,9 @@ body:has(#ai-fab:not([hidden])) #view { padding-bottom: 72px; }
 .lx-seg button, .lx-pickbtn { border: 1px solid var(--line-strong); background: var(--surface); border-radius: 10px; padding: 10px 6px; font: 700 14px/1 inherit; color: var(--fg); cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; position: relative; }
 .lx-seg button[aria-pressed="true"] { border: 2px solid var(--brand); color: var(--brand-text); background: var(--brand-soft); }
 .lx-pickbtn input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; }
+.lx-ctrls { margin: 10px 0 6px; }
+.lx-actrow { display: flex; gap: 8px; margin: 0 0 8px; }
+.lx-actrow .btn { flex: 1; white-space: nowrap; }
 .lx-sheetbtns { display: flex; gap: 8px; }
 .lx-sheetbtns .btn { flex: 1; }
 .lx-menu { display: flex; flex-direction: column; gap: 6px; }
@@ -2127,6 +2130,10 @@ function renderOrder() {
   const totalTxt = T.boxes ? (T.priced ? money(T.total) : T.total ? money(T.total) + ' + items with no price' : '[$ total]') : '$0.00';
   return `
   ${head('New order', 'Type how many of each item, or tap + and −')}
+  ${(() => { const ids = Object.keys(S.drafts || {}); if (!ids.length) return ''; const list = ids.map(id => S.drafts[id]).sort((a, b) => (b.ts || '').localeCompare(a.ts || ''));
+    return `<section class="card stack" style="gap:6px"><div class="card-head" style="margin:0"><h2 style="font-size:16px">💾 Drafts · ${list.length}</h2><span class="sub" style="margin:0">unfinished orders</span></div>${list.map(dft => { const n = Object.keys(dft.oq || {}).length; const boxes = Object.values(dft.oq || {}).reduce((s, q) => s + (+q || 0), 0);
+      return `<div style="display:flex;gap:8px;align-items:center;border-top:1px solid var(--line);padding:8px 0"><div style="flex:1;min-width:0"><b>${esc(dft.c || '—')}</b><div class="sub" style="margin:0;font-size:12px">${n} item${n === 1 ? '' : 's'} · ${fn(boxes)} box${boxes === 1 ? '' : 'es'}${dft.ref ? ` · #${esc(dft.ref)}` : ''} · saved ${esc(fmtShort(isoRd((dft.ts || isoOf(TODAY)).slice(0, 10))))}${dft.by ? ' by ' + esc(dft.by) : ''}</div></div><button class="btn primary sm" data-act="draft-open" data-id="${esc(dft.id)}">Open</button><button class="btn ghost sm" data-act="draft-del" data-id="${esc(dft.id)}" aria-label="Delete draft">✕</button></div>`; }).join('')}</section>`;
+  })()}
   <div class="split">
     <div class="stack" style="gap:16px">
       <section class="card stack">
@@ -2138,7 +2145,7 @@ function renderOrder() {
         })() : ''}` : ''}
         ${!storeName || S.storeOpen ? `<div class="field">${ic('search')}<label class="sr" for="store-q">Find a store</label><input id="store-q" value="${esc(S.storeQ)}" placeholder="Find a store by name, area or phone" autocomplete="off"></div>
         <div id="store-list" style="max-height:440px;overflow-y:auto;padding-right:2px">${storeRows()}</div>` : ''}
-        ${storeName && !S.storeOpen ? `<div class="actions"><button class="btn gold" data-act="repeat">Repeat last order</button><button class="btn ghost" data-act="soon" data-name="Say an order">Say an order</button><button class="btn ghost" data-act="soon" data-name="Upload PDF or photo">Upload PDF / photo</button><button class="btn ghost" data-act="clear-order" style="color:var(--bad-text)">✕ Cancel order</button></div>` : ''}
+        ${storeName && !S.storeOpen ? `<div class="actions"><button class="btn gold" data-act="repeat">Repeat last order</button><button class="btn ghost" data-act="save-draft">💾 Save as draft</button><button class="btn ghost" data-act="soon" data-name="Say an order">Say an order</button><button class="btn ghost" data-act="soon" data-name="Upload PDF or photo">Upload PDF / photo</button><button class="btn ghost" data-act="clear-order" style="color:var(--bad-text)">✕ Cancel order</button></div>` : ''}
       </section>
       ${storeName ? `<section class="card">
         <div class="order-filter">
@@ -2788,7 +2795,7 @@ function renderHomeReal() {
   const bars = yrs.map(([y, v, cls], i) => { const h = v / ymax * 186, x = 10 + i * slot + (slot - bw) / 2, cx = x + bw / 2; return `<rect class="${cls}" x="${x.toFixed(1)}" y="${(230 - h).toFixed(1)}" width="${bw.toFixed(1)}" height="${h.toFixed(1)}" rx="5"/><text class="lbl-strong" x="${cx.toFixed(1)}" y="${(222 - h).toFixed(1)}" text-anchor="middle" style="font-size:${fs}px">${fm(v)}</text><text x="${cx.toFixed(1)}" y="250" text-anchor="middle" style="font-size:${fs}px">${y === String(CY) && yrs.length <= 4 ? CY + ' so far' : y}</text>`; }).join('');
   const agingBar = `<div class="aging" role="img" aria-label="Money owed by age">${t.map((v, i) => v > 0 ? `<i style="width:${(v / t.reduce((s, x) => s + Math.max(x, 0), 0) * 100).toFixed(1)}%;background:${AGE_COLORS[i]}"></i>` : '').join('')}</div>`;
   return `
-  ${head('Dashboard', todayLine(), `${qbTag()}${S.role === 'Owner' ? '<button class="btn ghost" data-act="qb-sync">Sync now</button>' : ''}<button class="btn gold" data-act="sum-open">Send morning summary</button><a class="btn ghost" href="#customers" data-go="customers">Customers</a><a class="btn primary" href="#order" data-go="order">+ New order</a>`)}
+  ${head('Dashboard', todayLine(), `${qbTag()}<button class="btn gold" data-act="sum-open">Send morning summary</button><a class="btn ghost" href="#customers" data-go="customers">Customers</a><a class="btn primary" href="#order" data-go="order">+ New order</a>`)}
   ${S.sumOpen ? summaryCard() : ''}
   ${homeTrucks()}
   <!--@brief--><div class="brief"><strong>${greet}, Zevi.</strong> On ${fmtShort(prevRd)}: <a href="#orders" data-go="orders"><strong>${fm(D.prevDay.amount)} in ${D.prevDay.count} invoices</strong></a>. This year so far: <strong>${fm(D.ytd)}</strong>, ${sgn(g)} vs the same days last year. Stores owe <strong>${fm(D.ar.total)}</strong>, and <a href="#customers" data-act="go-cust" data-f="owe" class="red">${fm(past)} of it is past due</a>. <a href="#inventory" data-act="go-inv" data-f="zero" class="red">${D.counts.belowZero} items are below zero</a>${D.counts.low ? `, <a href="#inventory" data-act="go-inv" data-f="low">${D.counts.low} are under their reorder point</a>` : ''}, and <a href="#customers" data-act="go-cust" data-f="late">${D.counts.late} stores are later than usual to reorder</a>.</div>
@@ -4282,7 +4289,8 @@ Object.assign(S, { col: loadLS('chuster-collect-v1', {}), colF: 'all', colOpen: 
   supplies: loadLS('chuster-supplies-v1', {}), llDate: null, llTruck: 0, llDone: {}, areaTruck: loadLS('chuster-areatruck-v1', {}), sumOpen: false, proof: { photos: [], sig: null }, sigOpen: false,
   visit: loadLS('chuster-visit-v1', {}), vsArea: 'All', vsQ: '',
   pitch: loadLS('chuster-pitch-v1', {}), pitchSetup: false, pitchQ: '', pitchOpen: null, pitchArea: 'All',
-  cover: loadLS('chuster-cover-v1', { freq: { 'Boro Park': 'w', 'Williamsburg': 'w', 'Monroe': 'w', 'Monsey': 'w', 'Lakewood': '2a', 'Flatbush': '2b' } }), coverTag: loadLS('chuster-covertag-v1', {}), coverSetup: false, coverQ: '', coverShowCov: {} });
+  cover: loadLS('chuster-cover-v1', { freq: { 'Boro Park': 'w', 'Williamsburg': 'w', 'Monroe': 'w', 'Monsey': 'w', 'Lakewood': '2a', 'Flatbush': '2b' } }), coverTag: loadLS('chuster-covertag-v1', {}), coverSetup: false, coverQ: '', coverShowCov: {},
+  drafts: loadLS('chuster-drafts-v1', {}) });
 if (!S.cover.freq) S.cover.freq = { 'Boro Park': 'w', 'Williamsburg': 'w', 'Monroe': 'w', 'Monsey': 'w', 'Lakewood': '2a', 'Flatbush': '2b' };
 const needData = t => head(t, '') + `<section class="card stack"><h2>Needs your QuickBooks numbers</h2><p class="sub" style="margin:0">This screen uses your real numbers, so it only works in your private link.</p></section>`;
 const todayIso = () => isoOf(TODAY);
@@ -5898,7 +5906,7 @@ const SYNC = (function () {
     if (!viaApp && onNetlify && e && e.name === 'TypeError') { viaApp = true; try { localStorage.setItem('chuster-db-via-app', '1'); } catch (x) { /* ignore */ } setTimeout(() => tick(), 500); }
   }
   const st = { ok: null, err: '', last: 0, since: loadLS('chuster-sync-since', {}), out: loadLS('chuster-sync-out', {}), seen: {}, key: null, flushing: false, pulling: false, started: false };
-  const COLLS = ['gc', 'ds', 'rd', 'll', 'do', 'sc', 'tr', 'lq', 'ls', 'lm', 'lx', 'lh', 'qi', 'qo', 'qc', 'qs', 'qp', 'qh', 'qw', 'qr', 'ps', 'pp', 'pn', 'pq', 'sx', 'sl', 'vn', 'pt', 'cv', 'cg'];
+  const COLLS = ['gc', 'ds', 'rd', 'll', 'do', 'sc', 'tr', 'lq', 'ls', 'lm', 'lx', 'lh', 'qi', 'qo', 'qc', 'qs', 'qp', 'qh', 'qw', 'qr', 'ps', 'pp', 'pn', 'pq', 'sx', 'sl', 'vn', 'pt', 'cv', 'cg', 'df'];
   const h = s => { let a = 0x811c9dc5, b = 0x9e3779b9; for (let i = 0; i < s.length; i++) { const c = s.charCodeAt(i); a = Math.imul(a ^ c, 16777619) >>> 0; b = Math.imul(b ^ c, 2246822519) >>> 0; } return a.toString(36) + b.toString(36); };
   const b64 = u8 => { let s = ''; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); return btoa(s); };
   const unb64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -6076,8 +6084,7 @@ function qbTag() {
   if (!REAL) return '';
   if (!qbLive()) return `<span class="tag blue">Sales to ${fmtShort(isoRd(REAL.asOf))} · balances ${REAL.snapAsOf ? fmtShort(isoRd(REAL.snapAsOf)) : ''}</span>`;
   if (QB.status.ok === false) return `<span class="tag red" title="${esc(QB.status.err || '')}">QuickBooks sync problem · ${esc(QB.status.err || '')}</span>`;
-  const fm = QB.status.full ? Math.round((Date.now() - new Date(QB.status.full).getTime()) / 60000) : NaN; const fr = isNaN(fm) ? '' : ' · last read ' + (fm < 1 ? 'just now' : fm < 60 ? fm + ' min ago' : fm < 1440 ? Math.round(fm / 60) + ' hr ago' : Math.round(fm / 1440) + ' days ago');
-  return `<span class="tag ${qbStale() ? 'gold' : 'green'}">● QuickBooks live · ${qbAgo()}${qbStale() ? ' · is the office PC on?' : fr}</span>`;
+  return `<span class="tag ${qbStale() ? 'gold' : 'green'}">● QuickBooks live · ${qbAgo()}${qbStale() ? ' · is the office PC on?' : ''}</span>`;
 }
 const mdyOf = iso => iso ? `${iso.slice(5, 7)}/${iso.slice(8, 10)}/${iso.slice(0, 4)}` : '';
 const yearBack = iso => `${+iso.slice(0, 4) - 1}${iso.slice(4)}`;
@@ -6316,7 +6323,7 @@ function lxItemRow(it, can, mode) {
         ${mode === 'items' ? `<span class="lx-instops${it.done ? ' on' : ''}">${it.done ? `${it.done} of ` : ''}${it.stops.size} stop${it.stops.size === 1 ? '' : 's'}</span>` : ''}
         <div class="lx-bar"><i style="width:${pct}%"></i></div>
         ${short ? `<span class="tag red" style="align-self:flex-start">QuickBooks: ${fn(stock)} in stock</span>` : ''}</div>
-      <div class="lx-count"><b class="num">${it.bulk ? (it.have >= it.need ? '✓' : '0') : fn(it.have)}<small>/${it.bulk ? '1' : fn(it.need)}</small></b><span>${it.bulk ? lxAmt(c, it.need, true) : left > 0 ? `${fn(left)} to collect` : 'all loaded'}</span></div>
+      <div class="lx-count"><b class="num">${it.bulk ? (it.have >= it.need ? '✓' : '0') : fn(it.have)}<small>/${it.bulk ? '1' : fn(it.need)}</small></b><span>${it.bulk ? lxAmt(c, it.need, true) : left > 0 ? `${fn(left)} to load` : 'all loaded'}</span></div>
       ${it.bulk ? `<div class="lx-step"><button class="lx-ok${it.have >= it.need ? ' on' : ''}" data-act="lx-${mode === 'items' ? 'item' : 'line'}-all" data-id="${esc(mode === 'items' ? it.id : it.lines[0].key)}"${can ? '' : ' disabled'} aria-label="Loaded ${esc(it.name)}">✓</button></div>`
         : lxStepper(mode === 'items' ? 'item' : 'line', mode === 'items' ? it.id : it.lines[0].key, it.have, it.need, can, it.name)}
     </div></div>`;
@@ -6354,7 +6361,7 @@ function renderLoad() {
   const retBoxes = rets.reduce((s, r) => s + r.boxes, 0);
   const tiles = `<div class="lx-tiles">
       <button data-act="lx-mode" data-m="items" aria-pressed="${S.lxMode === 'items'}"><b class="num">${fn(T.need)}</b><span>Boxes</span></button>
-      <button data-act="lx-mode" data-m="stops" aria-pressed="false" class="lx-loaded"><b class="num">${fn(T.have)}</b><span>Loaded</span><small>${T.need - T.have > 0 ? fn(T.need - T.have) + ' to collect' : T.need ? 'all loaded ✓' : ''}</small></button>
+      <button data-act="lx-mode" data-m="stops" aria-pressed="false" class="lx-loaded"><b class="num">${fn(T.have)}</b><span>Loaded</span><small>${T.need - T.have > 0 ? fn(T.need - T.have) + ' to load' : T.need ? 'all loaded ✓' : ''}</small></button>
       <button data-act="lx-mode" data-m="stops" aria-pressed="${S.lxMode === 'stops'}"><b class="num">${tabStops.length}</b><span>Stops</span></button>
       <button data-act="lx-mode" data-m="items" aria-pressed="false"><b class="num">${items.length}</b><span>Items</span></button>
       <button data-act="lx-mode" data-m="returns" aria-pressed="${S.lxMode === 'returns'}"><b class="num" style="color:${retBoxes ? 'var(--bad-text)' : 'inherit'}">${fn(retBoxes)}</b><span>Returns</span></button>
@@ -6386,14 +6393,20 @@ function renderLoad() {
   }
   const selBar = sel ? `<div class="lx-selbar"><div class="lx-selhead"><button class="icon-btn" data-act="lx-select" aria-label="Stop choosing"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button><span class="lx-badge">${sel.length}</span> chosen<button class="lx-link" data-act="lx-pick-all">${sel.length === shown.length ? 'Choose none' : `Choose all ${shown.length}`}</button></div>
       <div class="lx-selacts"><button data-act="lx-sheet" data-s="date"${sel.length ? '' : ' disabled'}><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>Ship date</button><button data-act="lx-sheet" data-s="type"${sel.length ? '' : ' disabled'}><svg viewBox="0 0 24 24"><path d="M3 7h11v9H3zM14 10h4l3 3v3h-7z"/></svg>Ship type</button><button data-act="lx-print"${sel.length ? '' : ' disabled'}><svg viewBox="0 0 24 24"><path d="M6 9V3h12v6M6 18H4v-7h16v7h-2M8 14h8v7H8z"/></svg>Print</button><button data-act="lx-labels"${sel.length ? '' : ' disabled'}><svg viewBox="0 0 24 24"><path d="M3 12V4h8l10 10-8 8z"/><circle cx="7.5" cy="8.5" r="1.5"/></svg>Labels</button></div></div>` : '';
-  return `<div class="lx"><h1 class="lx-dh">Loading</h1>${top}${tabs}${tiles}${banner}${doneBar}${body}<div style="height:${sel ? 130 : 10}px"></div></div>${selBar}${lxSheetHtml(date, all, tabStops, items)}`;
+  const viewToggle = `<div class="lx-seg" role="group" aria-label="View"><button data-act="lx-mode" data-m="stops" aria-pressed="${S.lxMode === 'stops'}">By stop</button><button data-act="lx-mode" data-m="items" aria-pressed="${S.lxMode === 'items'}">By product</button>${retBoxes ? `<button data-act="lx-mode" data-m="returns" aria-pressed="${S.lxMode === 'returns'}">Returns · ${fn(retBoxes)}</button>` : ''}</div>`;
+  const stillN = items.reduce((s, i) => s + (i.bulk ? 0 : Math.max(0, i.need - i.have)), 0);
+  const stillBtn = `<button class="btn ghost sm" data-act="lx-sheet" data-s="missing">📋 Still to load${stillN ? ' · ' + fn(stillN) : ''}</button>`;
+  const selBtn = `<button class="btn ${sel ? 'primary' : 'gold'} sm" data-act="lx-select">${sel ? '✓ Done' : '☑ Ship type / date'}</button>`;
+  const actRow = S.lxMode === 'returns' ? '' : `<div class="lx-actrow">${S.lxMode === 'stops' ? selBtn : ''}${stillBtn}</div>`;
+  const ctrlRow = `<div class="lx-ctrls">${viewToggle}</div>${actRow}`;
+  return `<div class="lx"><h1 class="lx-dh">Loading</h1>${top}${tabs}${tiles}${ctrlRow}${banner}${doneBar}${body}<div style="height:${sel ? 130 : 10}px"></div></div>${selBar}${lxSheetHtml(date, all, tabStops, items)}`;
 }
 function lxStopView(date, st, can, all) {
   const c = st.x.c; const items = st.lines.map(l => ({ id: l.key, c: l.c, name: l.name, group: l.c ? l.c.group : 'Other', bulk: l.bulk, lines: [l], need: l.q, have: Math.min(l.q, +S.lq[l.key] || 0), stops: new Set([st.k]), done: 0 })).sort((a, b) => grank(a.group) - grank(b.group) || String(a.c ? a.c.code : 'zz').localeCompare(String(b.c ? b.c.code : 'zz'), 'en', { numeric: true }));
   const i = all.indexOf(st); const next = all.slice(i + 1).find(s => s.type === st.type && !s.full);
   return `<div class="lx"><div class="lx-shead"><button class="icon-btn" data-act="lx-back" aria-label="Back to all stops"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button><div style="min-width:0;flex:1"><h1 class="lx-h1">${esc(st.name)}</h1><span class="sub" style="margin:0">${esc(fixAddr(c.address || ''))}</span></div></div>
     <div class="lx-chips" style="margin:2px 0 8px">${st.nums.map(n => `<button class="lx-inv" data-act="inv-print" data-n="${esc(n)}">#${esc(n)} ↗</button>`).join('')}<span class="lx-area">${esc((st.x.area || 'Other').toUpperCase())}</span><button class="lx-type lx-typebtn" data-act="lx-sheet" data-s="type1">${esc(LX_TYPE_NAME(st.type))} ▾</button></div>
-    <div class="lx-tiles lx-tiles3"><div><b class="num">${fn(st.need)}</b><span>Boxes</span></div><div class="lx-loaded"><b class="num">${fn(st.have)}</b><span>Loaded</span><small>${st.need - st.have > 0 ? fn(st.need - st.have) + ' to collect' : st.need ? 'all loaded ✓' : ''}</small></div><div><b class="num">${items.length}</b><span>Items</span></div></div>
+    <div class="lx-tiles lx-tiles3"><div><b class="num">${fn(st.need)}</b><span>Boxes</span></div><div class="lx-loaded"><b class="num">${fn(st.have)}</b><span>Loaded</span><small>${st.need - st.have > 0 ? fn(st.need - st.have) + ' to load' : st.need ? 'all loaded ✓' : ''}</small></div><div><b class="num">${items.length}</b><span>Items</span></div></div>
     ${can ? '' : `<div class="lx-lock"><span><b>Just looking.</b> Start loading ${fmtShort(isoRd(date))} to count boxes.</span><button class="btn primary sm" data-act="lx-sheet" data-s="confirm">Start loading</button></div>`}
     ${items.length ? lxGroupList(items, can, 'line') : `<p class="sub lx-empty">No product lines for this invoice yet. They come in from QuickBooks. You can still mark the whole stop loaded.</p>`}
     <div class="lx-stopacts">
@@ -6562,6 +6575,7 @@ SYNC.on('vn', (k, v) => { if (v == null) delete S.visit[k]; else S.visit[k] = v;
 SYNC.on('pt', (k, v) => { if (v == null) delete S.pitch[k]; else S.pitch[k] = v; saveLS('chuster-pitch-v1', S.pitch); });
 SYNC.on('cv', (k, v) => { if (k === 'freq' && v) S.cover.freq = v; saveLS('chuster-cover-v1', S.cover); });
 SYNC.on('cg', (k, v) => { if (v == null) delete S.coverTag[k]; else S.coverTag[k] = v; saveLS('chuster-covertag-v1', S.coverTag); });
+SYNC.on('df', (k, v) => { if (v == null) delete S.drafts[k]; else S.drafts[k] = v; saveLS('chuster-drafts-v1', S.drafts); });
 SYNC.on('pp', (k, v) => { if (v == null) delete S.pkProg[k]; else S.pkProg[k] = v; saveLS('chuster-pkprog-v1', S.pkProg); });
 SYNC.on('pn', (k, v) => { if (v == null) delete S.pkNote[k]; else S.pkNote[k] = v; saveLS('chuster-pknote-v1', S.pkNote); });
 SYNC.on('pq', (k, v) => { if (v == null) delete S.pkOrder[k]; else S.pkOrder[k] = v; saveLS('chuster-pkorder-v1', S.pkOrder); });
@@ -6581,7 +6595,7 @@ function qwState(rec) {
   return 'sending';
 }
 const canSend = kind => kind === 'cm' ? S.role === 'Owner' : (kind === 'invmod' || kind === 'invvoid') ? ivCanEdit() : (S.role === 'Owner' || S.role === 'Office');
-const qwList = () => Object.values(S.qw).filter(r => r && r.kind !== 'sync').sort((a, b) => (b.upd || 0) - (a.upd || 0));
+const qwList = () => Object.values(S.qw).filter(Boolean).sort((a, b) => (b.upd || 0) - (a.upd || 0));
 const qwCount = () => qwList().filter(r => { const s = qwState(r); return (s === 'wait' || s === 'error') && (r.kind !== 'cm' || S.role === 'Owner'); }).length;
 const fullOf = (ref, full) => typeof ref === 'number' && REAL.catalog[ref] ? REAL.catalog[ref].full : (full || String(ref));
 const nameOfFull = f => { const c = REAL && REAL.catalog.find(x => x.full === f); return c ? c.name + (c.pack ? ' ' + c.pack : '') : String(f).split(':').pop(); };
@@ -7055,6 +7069,18 @@ document.addEventListener('click', e => {
       break;
     }
     case 'clear-order': { const had = Object.values(S.oq).some(q => q > 0); S.oq = {}; S.orderGroup = 'All'; S.orderStore = ''; S.orderRef = ''; S.orderShip = null; S.shipCalOpen = false; keep(); toast(had ? 'Order canceled. Nothing was sent to QuickBooks.' : 'Cleared.'); render(); break; }
+    case 'save-draft': {
+      if (!S.orderStore) { toast('Pick a store first.'); break; }
+      const oq = {}; Object.keys(S.oq).forEach(k => { if (S.oq[k] > 0) oq[k] = S.oq[k]; });
+      if (!Object.keys(oq).length) { toast('Add at least one item before saving a draft.'); break; }
+      const el = document.getElementById('inv-num'); const ref = String((el ? el.value : S.orderRef) || '').trim();
+      const id = 'd' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+      S.drafts[id] = { id, c: S.orderStore, oq, ship: S.orderShip || null, ref, by: byName(), ts: nowIso() };
+      saveLS('chuster-drafts-v1', S.drafts); SYNC.put('df', id, S.drafts[id]);
+      S.oq = {}; S.orderStore = ''; S.orderGroup = 'All'; S.orderQ = ''; S.orderRef = ''; S.orderShip = null; S.shipCalOpen = false; S.storeOpen = false; S.storeQ = '';
+      keep(); toast('Saved as a draft. Finish it any time from Drafts at the top of New order.'); render(); window.scrollTo(0, 0); break; }
+    case 'draft-open': { const dft = S.drafts[d.id]; if (!dft) { toast('That draft is gone.'); break; } S.orderStore = dft.c; S.oq = Object.assign({}, dft.oq || {}); S.orderShip = dft.ship || null; S.orderRef = dft.ref || ''; S.orderGroup = 'All'; S.orderQ = ''; S.storeOpen = false; S.shipCalOpen = false; delete S.drafts[d.id]; saveLS('chuster-drafts-v1', S.drafts); SYNC.put('df', d.id, null); go('order'); window.scrollTo(0, 0); toast('Draft opened. Finish it and send, or save it again.'); break; }
+    case 'draft-del': { delete S.drafts[d.id]; saveLS('chuster-drafts-v1', S.drafts); SYNC.put('df', d.id, null); keep(); toast('Draft deleted.'); break; }
     case 'save-order': { const cr = creditRisk(REAL && REAL.customers.find(c => c.name === S.orderStore)); if (cr && cr.bad && S.creditOk !== S.orderStore) { S.creditOk = S.orderStore; toast(`${S.orderStore} owes money over 90 days or is over the limit. Tap Send again to send anyway.`); break; } }
       S.creditOk = null; sendOrder(); break;
     case 'inv-filter': S.invFilter = d.f; S.invEdit = null; keep(); break;
@@ -7083,7 +7109,6 @@ document.addEventListener('click', e => {
     case 'sx-now': { const { g90, g60 } = sxLists(); const arr = (d.g === '90' ? g90 : g60).filter(c => !sxOff(c.name) && c.email); if (!arr.length) break;
       if (S.sxConfirm !== d.g) { S.sxConfirm = d.g; toast(`Tap again to email ${arr.length} statements now.`); setTimeout(() => { S.sxConfirm = null; }, 6000); break; }
       S.sxConfirm = null; sxPut('now', { id: qwId(), names: arr.map(c => c.name), at: nowIso() }); toast(`Sending ${arr.length} statements… they go out over the next few minutes.`); render(); break; }
-    case 'qb-sync': if (S.role !== 'Owner') break; qwSave({ id: qwId(), kind: 'sync', st: 'ok', try: 0, c: '', lines: [], total: 0, memo: 'Sync now', by: byName(), at: nowIso(), okBy: byName(), okAt: nowIso() }); toast('Sync asked. The office PC reads QuickBooks in about a minute.'); break;
     case 'iv-void': S.ivVoid = S.ivVoid === d.n ? null : d.n; render(); break;
     case 'iv-void-no': S.ivVoid = null; render(); break;
     case 'iv-void-yes': { const o = REAL.orders.list.find(x => x.n === d.n); if (!o) break;
