@@ -91,6 +91,7 @@ jobs:
             d = Cipher(algorithms.AES(ek), modes.CBC(iv)).decryptor(); pt = d.update(ct) + d.finalize(); pt = pt[:-pt[-1]]
             val = json.loads(pt).get('val') or {}
             if val.get('was'): print('::notice::renumbered %s -> %s' % (val.get('was'), val.get('num')))
+            print('::notice::result st=%s num=%s at=%s err=%s' % (val.get('st'), val.get('num', ''), val.get('at', ''), str(val.get('err') or '')[:80]))
           print('::notice::results-24h=%d' % len(q))
           PY
       - name: How the other app talks to its server
