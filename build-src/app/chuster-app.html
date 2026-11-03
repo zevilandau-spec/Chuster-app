@@ -6255,7 +6255,7 @@ function lxStops(date) {
     const tt = +t; const ls = S.lship[x.k];
     const type = ls && ls !== 'truck' ? ls : tt >= 0 ? 't' + tt : ((x.c.rep === 'PU') ? 'pickup' : 'notset');
     const lines = [];
-    x.o.nums.forEach(n => { const o = idx.get(n); if (!o) return; o.l.forEach(([ref, q], i) => { if (!(q > 0)) return; const c = typeof ref === 'number' ? REAL.catalog[ref] : null; lines.push({ key: `${date}|${n}|${i}`, ref, c, q, bulk: c ? !!bulkOf(c.full) : false, n, name: c ? c.name : String(ref) }); }); });
+    x.o.nums.forEach(n => { const o = idx.get(n); if (!o) return; o.l.forEach(([ref, q], i) => { if (!(q > 0)) return; const c = typeof ref === 'number' ? REAL.catalog[ref] : null; if (!c && /total|subtotal/i.test(String(ref))) return; lines.push({ key: `${date}|${n}|${i}`, ref, c, q, bulk: c ? !!bulkOf(c.full) : false, n, name: c ? c.name : String(ref) }); }); });
     const got = l => Math.min(l.q, +S.lq[l.key] || 0);
     const need = lines.reduce((s, l) => s + (l.bulk ? 0 : l.q), 0), have = lines.reduce((s, l) => s + (l.bulk ? 0 : got(l)), 0);
     const ready = stopReady(date, x);
