@@ -448,7 +448,7 @@ body:has(#ai-fab:not([hidden])) #view { padding-bottom: 72px; }
 .chip.gc { background: var(--gs); border-color: transparent; color: var(--fg); }
 .chip.gc[aria-pressed="true"] { background: var(--gt); border-color: var(--gt); color: #FFFFFF; }
 @media (max-width: 959px) {
-  .order-spacer { display: block; height: 76px; }
+  .order-spacer { display: block; height: calc(116px + env(safe-area-inset-bottom, 0px)); }
   .order-bar { display: flex; position: fixed; left: 0; right: 0; bottom: calc(62px + env(safe-area-inset-bottom, 0px)); z-index: 19; background: var(--surface); border-top: 1px solid var(--line); box-shadow: 0 -4px 14px rgba(15, 20, 35, 0.10); padding-block: 10px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); justify-content: space-between; align-items: center; gap: 12px; }
 }
 .cust-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; width: 100%; padding: 12px 10px; border: none; border-top: 1px solid var(--line); background: transparent; color: var(--fg); font: inherit; text-align: left; cursor: pointer; border-radius: 10px; }
@@ -900,7 +900,8 @@ main { padding-block: 14px 32px; }
 .ds-finishpad { display: none; }
 @media (max-width: 959px) {
   .ds-finishbar { position: fixed; left: 0; right: 0; bottom: calc(62px + env(safe-area-inset-bottom, 0px)); z-index: 19; margin: 0; box-shadow: 0 -4px 14px rgba(15, 20, 35, .12); padding: 10px max(16px, env(safe-area-inset-right, 0px)) 10px max(16px, env(safe-area-inset-left, 0px)); }
-  .ds-finishpad { display: block; height: 72px; }
+  .ds-finishpad { display: block; height: calc(116px + env(safe-area-inset-bottom, 0px)); }
+  .order-send-flow { display: none; }
 }
 .dlv-addr { font-size: 13px; color: var(--muted); margin-top: 2px; line-height: 1.3; }
 .dlv-chip.pallet { background: var(--ct-blue-bg); color: var(--ct-blue); }
@@ -2162,7 +2163,7 @@ function renderOrder() {
         </button>${S.shipCalOpen ? shipCal(val, auto) : ''}</div>
       <p class="sub" style="margin:0">Leave it on automatic, or tap to pick a day. Shabbos &amp; Yom Tov are greyed out.</p>`; })()}
       ${T.low ? `<div class="note"><strong>Heads up:</strong> ${T.low} item${T.low > 1 ? 's' : ''} on this order ${T.low > 1 ? 'are' : 'is'} below zero in stock.</div>` : ''}
-      <button class="btn primary big full" data-act="save-order"${T.boxes ? '' : ' disabled'}>Send to QuickBooks</button>
+      <button class="btn primary big full order-send-flow" data-act="save-order"${T.boxes ? '' : ' disabled'}>Send to QuickBooks</button>
     </aside>
   </div>
   <div class="order-spacer"></div>
