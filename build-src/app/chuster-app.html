@@ -896,6 +896,11 @@ main { padding-block: 14px 32px; }
 .ds-track > span { display: block; height: 100%; background: var(--good); border-radius: 6px; transition: width .2s; }
 .ds-bar > b { width: 64px; text-align: right; font-variant-numeric: tabular-nums; font-size: 13px; }
 .ds-finishbar { position: sticky; bottom: 0; z-index: 8; background: var(--surface); padding: 10px 0; margin-top: 4px; }
+.ds-finishpad { display: none; }
+@media (max-width: 959px) {
+  .ds-finishbar { position: fixed; left: 0; right: 0; bottom: calc(62px + env(safe-area-inset-bottom, 0px)); z-index: 19; margin: 0; box-shadow: 0 -4px 14px rgba(15, 20, 35, .12); padding: 10px max(16px, env(safe-area-inset-right, 0px)) 10px max(16px, env(safe-area-inset-left, 0px)); }
+  .ds-finishpad { display: block; height: 72px; }
+}
 .dlv-addr { font-size: 13px; color: var(--muted); margin-top: 2px; line-height: 1.3; }
 .dlv-chip.pallet { background: var(--ct-blue-bg); color: var(--ct-blue); }
 .dlv-btn.ph { color: var(--brand, #22409A); }
@@ -5783,6 +5788,7 @@ function driverStop(x, list) {
     <label class="lbl" for="d-note">Note (optional)</label><input class="inp" id="d-note" placeholder="e.g. left at back door, 2 cases returned">
     <button class="btn danger" data-act="d-skip" data-k="${esc(x.k)}">Could not deliver at all</button>
   </section>
+  <div class="ds-finishpad" aria-hidden="true"></div>
   <div class="ds-finishbar"><button class="btn ${proofOk ? 'primary' : 'gold'} big full" data-act="d-finish" data-k="${esc(x.k)}"${proofOk ? '' : ' aria-disabled="true"'}>${finishLabel}</button></div>`;
 }
 function driverDayText() {
