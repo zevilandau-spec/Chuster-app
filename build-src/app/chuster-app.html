@@ -867,6 +867,7 @@ main { padding-block: 14px 32px; }
 .of-x { flex: none; width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--line); background: var(--surface-2); font-size: 18px; line-height: 1; cursor: pointer; color: inherit; margin-left: auto; }
 .to-top { position: fixed; right: max(16px, env(safe-area-inset-right,0px)); bottom: calc(84px + env(safe-area-inset-bottom,0px)); z-index: 30; width: 46px; height: 46px; border-radius: 50%; border: none; background: var(--brand, #22409A); color: #fff; font-size: 20px; box-shadow: 0 6px 16px rgba(0,0,0,.25); cursor: pointer; display: none; }
 .to-top.show { display: block; }
+@media (max-width: 959px) { .to-top { bottom: calc(140px + env(safe-area-inset-bottom, 0px)); width: 42px; height: 42px; } }
 /* clean deliveries list */
 .dlv-toggle { display: flex; gap: 10px; }
 .dlv-toggle button { flex: 1; padding: 13px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); font: inherit; font-weight: 800; font-size: 15px; cursor: pointer; color: var(--muted); }
