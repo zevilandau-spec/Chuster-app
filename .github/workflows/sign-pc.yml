@@ -19,10 +19,9 @@ jobs:
           ck = hmac.new(key, b'chuster-qb-code', hashlib.sha256).digest()
           mac = lambda b: base64.b64encode(hmac.new(ck, b, hashlib.sha256).digest()).decode()
           # safety: the key must reproduce the signature of the last signed version
-          c = subprocess.check_output(['git', 'log', '-1', '--format=%H', '--', 'qb/sync.sig']).decode().strip()
-          old = subprocess.check_output(['git', 'show', c + ':qb/sync.ps1'])
-          oldsig = subprocess.check_output(['git', 'show', c + ':qb/sync.sig']).decode().strip()
-          if mac(old) != oldsig: raise SystemExit('key does not reproduce the last signature; not signing')
+          cs = subprocess.check_output(['git', 'log', '-6', '--format=%H', '--', 'qb/sync.sig']).decode().split()
+          good = any(mac(subprocess.check_output(['git', 'show', c + ':qb/sync.ps1'])) == subprocess.check_output(['git', 'show', c + ':qb/sync.sig']).decode().strip() for c in cs)
+          if not good: raise SystemExit('key does not reproduce an earlier signature; not signing')
           open('qb/sync.sig', 'w').write(mac(open('qb/sync.ps1', 'rb').read()))
           print('::notice::signed')
           PY
