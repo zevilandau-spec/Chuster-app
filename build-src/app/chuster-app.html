@@ -6142,7 +6142,19 @@ function qbApply() {
   REAL.monthly = Object.entries(mon).sort((a, b) => a[0] < b[0] ? -1 : 1);
   // last year's same days grow with the calendar
   const lyFrom = yearBack(B.asOf), lyTo = yearBack(today);
-  Object.entries(B.days).forEach(([d, rows]) => { if (d > lyFrom && d <= lyTo) { const s = rows.reduce((t, x) => t + x[1], 0); REAL.ytdPrev += s; if (d.slice(0, 7) === yearBack(B.asOf).slice(0, 7)) REAL.oct.prevSame += s; } });
+  Object.entries(B.days).forEach(([d, rows]) => { if (d > lyFrom && d <= lyTo) { const s = rows.reduce((t, x) => t + x[1], 0); REAL.ytdPrev += s; } });
+  // Hero "this month" card: compute for TODAY's month from the daily data, so it
+  // rolls into the new month on its own even when the QuickBooks export (B.asOf)
+  // is still dated in the prior month. Otherwise the label (today) and the figures
+  // (build month) disagree and last year's current month never shows.
+  { const curMon = today.slice(0, 7), lyToday = yearBack(today), lyMon = lyToday.slice(0, 7);
+    let hNow = 0, hPrevSame = 0, hPrevFull = 0;
+    Object.entries(REAL.daily.days).forEach(([d, rows]) => {
+      const m = d.slice(0, 7), s = rows.reduce((t, x) => t + x[1], 0);
+      if (m === curMon && d <= today) hNow += s;
+      else if (m === lyMon) { hPrevFull += s; if (d <= lyToday) hPrevSame += s; }
+    });
+    REAL.oct = { now: Math.round(hNow * 100) / 100, prevSame: Math.round(hPrevSame * 100) / 100, prevFull: Math.round(hPrevFull * 100) / 100 }; }
   const dayTot = d => { const r = REAL.daily.days[d] || []; return { date: d, count: r.length, amount: Math.round(r.reduce((s, x) => s + x[1], 0) * 100) / 100 }; };
   const ds = Object.keys(REAL.daily.days).filter(d => d <= today && REAL.daily.days[d].length).sort();
   if (ds.length) { const last = ds[ds.length - 1]; REAL.lastDay = dayTot(last); const prev = ds.filter(d => d < today).pop() || last; REAL.prevDay = dayTot(prev); }
