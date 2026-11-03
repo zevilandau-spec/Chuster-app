@@ -2902,6 +2902,9 @@ function custDetail(c) {
     ${pos > 0 ? `<div class="aging" role="img" aria-label="Owed by age">${t.map((v, i) => v > 0 ? `<i style="width:${(v / pos * 100).toFixed(1)}%;background:${AGE_COLORS[i]}"></i>` : '').join('')}</div>
       <table class="mini-table">${t.map((v, i) => Math.abs(v) >= 1 ? `<tr><td><span style="display:inline-block;width:10px;height:10px;border-radius:3px;background:${AGE_COLORS[i]};margin-right:8px"></span>${AGE_LABELS[i]}</td><td>${money(v)}</td></tr>` : '').join('')}</table>` : ''}
     <div class="truck" style="font-size:14px;line-height:1.5">${c.last ? `Last order <strong>${fmtShort(isoRd(c.last))}</strong>. ` : 'No orders in the last 3 years. '}${c.gap ? `Usually orders every <strong>${c.gap} day${c.gap > 1 ? 's' : ''}</strong>.` : ''}${c.late ? ' <strong style="color:var(--gold-text)">Later than usual.</strong>' : ''}${c.offSeason ? ` <strong style="color:var(--brand-text)">Seasonal: usually orders ${monthsTxt(c.months)}, so it isn't counted as late now.</strong>` : ''}</div>
+    ${(() => { const pit = pitchForStore(c); if (!pit.length) return ''; const pm = p => `Hi, it's Chuster. We have ${p.cat.name}${p.cat.pack ? ' (' + p.cat.pack + ')' : ''} now — want to try it on your next order?`;
+      return `<div style="background:var(--gold-soft);border:1px solid var(--gold);border-radius:12px;padding:10px 12px"><div class="eyebrow" style="color:var(--gold-text)">💡 NEW TO PITCH HERE</div><div class="sub" style="margin:3px 0 6px;font-size:13px">Doesn’t carry ${pit.length} new product${pit.length > 1 ? 's' : ''} yet.</div><div style="display:flex;flex-direction:column;gap:5px">${pit.slice(0, 6).map(p => `<div style="display:flex;gap:8px;align-items:center;justify-content:space-between"><span style="font-size:14px;font-weight:700">${esc(p.cat.name)}${p.cat.pack ? ` <span class="sub" style="font-weight:600">${esc(p.cat.pack)}</span>` : ''}</span>${c.phone ? `<a class="btn good sm" href="${esc(waHref(waNum(c.phone), pm(p)))}" target="_blank" rel="noopener">WhatsApp</a>` : ''}</div>`).join('')}${pit.length > 6 ? `<span class="sub" style="margin:2px 0 0">+ ${pit.length - 6} more</span>` : ''}</div></div>`;
+    })()}
     ${c.top.length ? `<div><div class="eyebrow">BUYS MOST (LAST 6 MONTHS)</div><div style="margin-top:4px;font-size:14px">${c.top.map(esc).join(' · ')}</div></div>` : ''}
     ${c.open.length ? `<div><div class="eyebrow">OPEN INVOICES · ${c.open.length}</div><table class="mini-table">${c.open.slice(0, 12).map(o => `<tr><td>#${esc(o.num)} · ${esc(o.date)}${isPast(o) ? ' <span style="color:var(--bad-text);font-weight:800">past due</span>' : ''}</td><td>${money(o.amt)}</td></tr>`).join('')}</table>${c.open.length > 12 ? `<p class="sample" style="margin:6px 0 0">+ ${c.open.length - 12} more. All of them are on the statement.</p>` : ''}</div>` : ''}
     ${(() => { const v = S.visit[c.name] || {}; return `<div><div class="eyebrow">MY NOTE</div><input class="inp vs-note" data-n="${esc(c.name)}" placeholder="e.g. prefers Thursday delivery, wants to try ziti" value="${esc(v.note || '')}" style="font-size:13px;margin-top:4px">${v.visited ? `<div class="sub" style="margin:4px 0 0;font-size:12px">Last visit ${fmtShort(isoRd(v.visited))}</div>` : ''}</div>`; })()}
@@ -4268,7 +4271,7 @@ function saveLS(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catc
 Object.assign(S, { col: loadLS('chuster-collect-v1', {}), colF: 'all', colOpen: null, ytName: null, ytOpen: null, ytDone: loadLS('chuster-yt-v1', {}), lostOpen: null, cpSort: 'profit', pcOpen: null,
   supplies: loadLS('chuster-supplies-v1', {}), llDate: null, llTruck: 0, llDone: {}, areaTruck: loadLS('chuster-areatruck-v1', {}), sumOpen: false, proof: { photos: [], sig: null }, sigOpen: false,
   visit: loadLS('chuster-visit-v1', {}), vsArea: 'All', vsQ: '',
-  pitch: loadLS('chuster-pitch-v1', {}), pitchSetup: false, pitchQ: '', pitchOpen: null,
+  pitch: loadLS('chuster-pitch-v1', {}), pitchSetup: false, pitchQ: '', pitchOpen: null, pitchArea: 'All',
   cover: loadLS('chuster-cover-v1', { freq: { 'Boro Park': 'w', 'Williamsburg': 'w', 'Monroe': 'w', 'Monsey': 'w', 'Lakewood': '2a', 'Flatbush': '2b' } }), coverTag: loadLS('chuster-covertag-v1', {}), coverSetup: false, coverQ: '', coverShowCov: {} });
 if (!S.cover.freq) S.cover.freq = { 'Boro Park': 'w', 'Williamsburg': 'w', 'Monroe': 'w', 'Monsey': 'w', 'Lakewood': '2a', 'Flatbush': '2b' };
 const needData = t => head(t, '') + `<section class="card stack"><h2>Needs your QuickBooks numbers</h2><p class="sub" style="margin:0">This screen uses your real numbers, so it only works in your private link.</p></section>`;
@@ -5321,6 +5324,12 @@ function coverSetup() {
       ${q ? (list.map(c => `<div class="irow or-row"><div class="main"><div class="name">${esc(c.name)}</div><div class="meta">${esc(c.area || '')}${S.coverTag[c.name] ? ' · now ' + esc(S.coverTag[c.name]) : ''}</div></div><button class="chip" data-act="cover-tagfb" data-n="${esc(c.name)}" aria-pressed="${S.coverTag[c.name] === 'Flatbush'}">${S.coverTag[c.name] === 'Flatbush' ? '✓ Flatbush' : 'Tag Flatbush'}</button></div>`).join('') || '<p class="sub" style="margin:0">No match.</p>') : '<p class="sub" style="margin:0">Type a store name above.</p>'}
       <div class="sub" style="margin:4px 0 0">Tagged Flatbush: ${fb.length ? fb.map(esc).join(', ') : 'none yet'}</div></section>`;
 }
+function pitchForStore(c) {
+  if (!REAL || !HIST || !c) return [];
+  const ci = REAL.customers.indexOf(c); if (ci < 0) return [];
+  const h = histOf(ci);
+  return REAL.catalog.map((cat, i) => ({ cat, i })).filter(x => S.pitch[x.cat.full] && !x.cat.off && !(h[x.i] && Object.values(h[x.i]).some(q => q > 0)));
+}
 function renderPitch() {
   if (!REAL || !HIST) return needData('New to pitch');
   const canEdit = S.role === 'Owner' || S.role === 'Office';
@@ -5334,17 +5343,23 @@ function renderPitch() {
         <div>${items.map(c => `<div class="irow or-row ${gcls(c.group)}"><div class="main"><div class="name">${esc(c.name)}</div><div class="meta">${c.code ? '#' + esc(c.code) : ''}${c.pack ? ' · ' + esc(c.pack) : ''}</div></div><button class="chip" data-act="pitch-flag" data-f="${esc(c.full)}" aria-pressed="${!!S.pitch[c.full]}">${S.pitch[c.full] ? '📣 Pitching' : 'Pitch this'}</button></div>`).join('')}</div></section>`;
   }
   const mine = REAL.customers.map((c, ci) => ({ c, ci })).filter(x => x.c.active && custMine(x.c));
+  const areas = ['All', ...[...new Set(mine.map(x => x.c.area || 'Other'))].sort((p, q) => (AREA_ORDER.indexOf(p) + 1 || 99) - (AREA_ORDER.indexOf(q) + 1 || 99))];
+  if (!areas.includes(S.pitchArea)) S.pitchArea = 'All';
+  const inArea = x => S.pitchArea === 'All' || (x.c.area || 'Other') === S.pitchArea;
   const per = flagged.map(p => {
-    const notCarry = mine.filter(x => { const h = histOf(x.ci); return !(h[p.i] && Object.values(h[p.i]).some(q => q > 0)); }).sort((a, b) => (b.c.sales12 || 0) - (a.c.sales12 || 0));
+    const notCarry = mine.filter(x => inArea(x) && (() => { const h = histOf(x.ci); return !(h[p.i] && Object.values(h[p.i]).some(q => q > 0)); })()).sort((a, b) => (b.c.sales12 || 0) - (a.c.sales12 || 0));
     return { p, notCarry };
   }).sort((a, b) => b.notCarry.length - a.notCarry.length);
-  return `${head('New to pitch', 'new products your stores don’t carry yet', canEdit ? `<button class="btn ghost" data-act="pitch-setup">Choose products</button>` : '')}
+  const chip = v => `<button class="chip" data-act="pitch-area" data-v="${esc(v)}" aria-pressed="${S.pitchArea === v}">${esc(v)}</button>`;
+  const areaTxt = S.pitchArea === 'All' ? '' : ' in ' + S.pitchArea;
+  return `${head('New to pitch', `new products your stores don’t carry yet${areaTxt}`, canEdit ? `<button class="btn ghost" data-act="pitch-setup">Choose products</button>` : '')}
     ${!flagged.length ? `<section class="card"><p class="sub" style="margin:0">${canEdit ? 'No products flagged yet. Tap <b>Choose products</b> to pick the ones to pitch (like the new 60 / 120).' : 'Nothing to pitch right now — ask Zevi to mark the new products.'}</p></section>`
-    : per.map(({ p, notCarry }) => { const open = S.pitchOpen === p.c.full; const show = open ? notCarry : notCarry.slice(0, 8);
-      return `<section class="card stack" style="gap:6px"><div style="display:flex;justify-content:space-between;gap:8px;align-items:baseline"><h2 style="margin:0;font-size:16px">${esc(p.c.name)}${p.c.pack ? ` <span class="sub" style="font-weight:600">${esc(p.c.pack)}</span>` : ''}</h2><span class="tag gold">${notCarry.length} don’t carry</span></div>
-        ${notCarry.length ? show.map(x => `<div style="display:flex;gap:8px;align-items:center;border-top:1px solid var(--line);padding:6px 0"><button style="flex:1;min-width:0;background:none;border:none;text-align:left;cursor:pointer;color:inherit;font:inherit" data-act="cust-sel-go" data-n="${esc(x.c.name)}"><b>${esc(x.c.name)}</b><span class="sub" style="display:block;margin:0;font-size:12px">${esc(x.c.area || '')} · ${fm(x.c.sales12 || 0)}/yr</span></button>${x.c.phone ? `<a class="btn good sm" href="${esc(waHref(waNum(x.c.phone), `Hi, it's Chuster. We have ${p.c.name}${p.c.pack ? ' (' + p.c.pack + ')' : ''} now — want to try it on your next order?`))}" target="_blank" rel="noopener">WhatsApp</a>` : ''}<button class="btn primary sm" data-act="cust-order" data-n="${esc(x.c.name)}">+ Order</button></div>`).join('') : '<p class="sub" style="margin:0">Every one of your stores already carries this. 👍</p>'}
+    : `<section class="card" style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:10px 14px"><span class="eyebrow" style="color:var(--muted)">AREA</span><div class="chips" style="flex-wrap:wrap">${areas.map(chip).join('')}</div></section>
+    ${per.map(({ p, notCarry }) => { const open = S.pitchOpen === p.c.full; const show = open ? notCarry : notCarry.slice(0, 8);
+      return `<section class="card stack" style="gap:6px"><div style="display:flex;justify-content:space-between;gap:8px;align-items:baseline"><h2 style="margin:0;font-size:16px">${esc(p.c.name)}${p.c.pack ? ` <span class="sub" style="font-weight:600">${esc(p.c.pack)}</span>` : ''}</h2><span class="tag ${notCarry.length ? 'gold' : 'green'}">${notCarry.length} don’t carry${areaTxt}</span></div>
+        ${notCarry.length ? show.map(x => `<div style="display:flex;gap:8px;align-items:center;border-top:1px solid var(--line);padding:6px 0"><button style="flex:1;min-width:0;background:none;border:none;text-align:left;cursor:pointer;color:inherit;font:inherit" data-act="cust-sel-go" data-n="${esc(x.c.name)}"><b>${esc(x.c.name)}</b><span class="sub" style="display:block;margin:0;font-size:12px">${esc(x.c.area || '')} · ${fm(x.c.sales12 || 0)}/yr</span></button>${x.c.phone ? `<a class="btn good sm" href="${esc(waHref(waNum(x.c.phone), `Hi, it's Chuster. We have ${p.c.name}${p.c.pack ? ' (' + p.c.pack + ')' : ''} now — want to try it on your next order?`))}" target="_blank" rel="noopener">WhatsApp</a>` : ''}<button class="btn primary sm" data-act="cust-order" data-n="${esc(x.c.name)}">+ Order</button></div>`).join('') : `<p class="sub" style="margin:0">Every ${S.pitchArea === 'All' ? 'one of your stores' : S.pitchArea + ' store'} already carries this. 👍</p>`}
         ${notCarry.length > 8 ? `<button class="btn ghost sm" data-act="pitch-open" data-f="${esc(p.c.full)}">${open ? 'Show less' : `See all ${notCarry.length} ›`}</button>` : ''}</section>`;
-    }).join('')}`;
+    }).join('')}`}`;
 }
 function renderMyComm() {
   if (!REAL || !REP) return needData('My commission');
@@ -7219,6 +7234,7 @@ document.addEventListener('click', e => {
     case 'pitch-setup': S.pitchSetup = !S.pitchSetup; S.pitchQ = ''; keep(); break;
     case 'pitch-flag': { const f = d.f; if (S.pitch[f]) delete S.pitch[f]; else S.pitch[f] = 1; saveLS('chuster-pitch-v1', S.pitch); SYNC.put('pt', f, S.pitch[f] || null); keep(); break; }
     case 'pitch-open': S.pitchOpen = S.pitchOpen === d.f ? null : d.f; keep(); break;
+    case 'pitch-area': S.pitchArea = d.v; keep(); break;
     case 'cover-setup': S.coverSetup = !S.coverSetup; S.coverQ = ''; keep(); break;
     case 'cover-freq': { if (!S.cover.freq) S.cover.freq = {}; S.cover.freq[d.a] = d.v; saveLS('chuster-cover-v1', S.cover); SYNC.put('cv', 'freq', S.cover.freq); keep(); break; }
     case 'cover-tagfb': { const n = d.n; if (S.coverTag[n] === 'Flatbush') delete S.coverTag[n]; else S.coverTag[n] = 'Flatbush'; saveLS('chuster-covertag-v1', S.coverTag); SYNC.put('cg', n, S.coverTag[n] || null); keep(); break; }
