@@ -8,7 +8,7 @@
 param([switch]$Install, [switch]$Test, [switch]$Full, [switch]$Other, [switch]$History, [switch]$Watch)
 
 $ErrorActionPreference = 'Stop'
-$Ver = '4.0'
+$Ver = '4.1'
 $AppName = 'Chuster App Sync'
 $TaskName = 'Chuster QB Sync'
 $Here = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -353,6 +353,8 @@ function Process-Queue($st, [bool]$upload) {
       $rec = Unprotect ([string]$p.Value.v); if (-not $rec -or -not $rec.val -or -not $rec.val.id) { continue }
       $o = $rec.val; $id = [string]$o.id
       if ($st.done.ContainsKey($id)) { continue }
+      # 'Sync now' from the app (the owner's okay): read QuickBooks fully in this round
+      if ([string]$o.kind -eq 'sync') { $st.done[$id] = (NowS); $script:ForceRead = $true; if ($upload) { try { Put-Result $id ([ordered]@{ st = 'done'; at = (NowS) }) } catch { } }; Log 'Sync now: asked in the app, reading QuickBooks.'; continue }
       if ($o.st -eq 'ok') { $st.pending[$id] = $o } else { $st.pending.Remove($id) }
     }
   }
@@ -424,12 +426,13 @@ function Sync-Once([bool]$upload) {
     if ($upload -and $made -gt 0) { try { Fix-DupNumbers } catch { Log ('Same-number check: ' + $_.Exception.Message) } }
     $count['made'] = $made
     $mins = if ($st.full) { ($started - [datetime]::Parse($st.full, $Inv)).TotalMinutes } else { 999 }
-    # a full refresh of customers, balances, items and stock holds QuickBooks the longest, so do it only now and then (every 30 min), not on every order
-    $heavy = $first -or $Full -or ($mins -ge 30)
+    # reading QuickBooks (sales, balances, items, stock) happens only when the owner taps 'Sync now' in the app, or once a night (11 PM - 6 AM)
+    $night = ($started.Hour -ge 23) -or ($started.Hour -lt 6)
+    $heavy = $first -or $Full -or ($night -and $mins -ge 360)
     if (-not $first -and -not $Full -and -not $script:ForceRead -and $made -eq 0 -and -not $heavy) {
       if ($upload) { $status = [ordered]@{ at = $started.ToString('yyyy-MM-ddTHH:mm:ss'); full = $st.full; ok = $true; ver = $Ver; from = $from; pc = $env:COMPUTERNAME; counts = $count; mail = (Mail-Probe) }
         Db-Patch ([ordered]@{ 'qh/status' = [ordered]@{ v = (Protect (ToJson ([ordered]@{ k = 'status'; val = $status; by = 'QuickBooks' }))); t = @{ '.sv' = 'timestamp' } } }) }
-      Log ('Checked the To QuickBooks list: nothing new. Next full QuickBooks read in ' + [Math]::Ceiling(30 - $mins) + ' min.')
+      Log 'Checked the To QuickBooks list: nothing new. QuickBooks is read when Sync now is tapped in the app, or tonight.'
       return
     }
     $txnFilter = if ($first) { "<TxnDateRangeFilter><FromTxnDate>$from</FromTxnDate></TxnDateRangeFilter>" } else { "<ModifiedDateRangeFilter><FromModifiedDate>$since</FromModifiedDate></ModifiedDateRangeFilter>" }
@@ -541,9 +544,9 @@ function Sync-Once([bool]$upload) {
   foreach ($id in $sentNow.Keys) { if ($null -eq $recs[$id][2]) { $st.sent.Remove($id) } else { $st.sent[$id] = $sentNow[$id] } }
   foreach ($id in $prune) { $st.sent.Remove($id); $st.dates.Remove($id) }
   foreach ($id in @($st.dates.Keys)) { if ($recs.ContainsKey($id) -and $null -eq $recs[$id][2]) { $st.dates.Remove($id) } }
-  $st.last = $started.ToString('yyyy-MM-ddTHH:mm:ss'); $st.full = $st.last
+  $st.last = $started.ToString('yyyy-MM-ddTHH:mm:ss'); if ($heavy -or $script:ForceRead) { $st.full = $st.last }
   Save-State $st
-  $status = [ordered]@{ at = $started.ToString('yyyy-MM-ddTHH:mm:ss'); full = $started.ToString('yyyy-MM-ddTHH:mm:ss'); ok = $true; ver = $Ver; from = $from; pc = $env:COMPUTERNAME; counts = $count; mail = (Mail-Probe) }
+  $status = [ordered]@{ at = $started.ToString('yyyy-MM-ddTHH:mm:ss'); full = $st.full; ok = $true; ver = $Ver; from = $from; pc = $env:COMPUTERNAME; counts = $count; mail = (Mail-Probe) }
   Db-Patch ([ordered]@{ 'qh/status' = [ordered]@{ v = (Protect (ToJson ([ordered]@{ k = 'status'; val = $status; by = 'QuickBooks' }))); t = @{ '.sv' = 'timestamp' } } })
   Log ('Sent ' + $sentNow.Count + ' changes to the app.')
 }

@@ -1,0 +1,34 @@
+name: Sign the office PC program
+on: workflow_dispatch
+permissions:
+  contents: write
+jobs:
+  sign:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Sign qb/sync.ps1 with the office key (the key never leaves the secret store)
+        env:
+          CHUSTER_SECRETS: ${{ secrets.CHUSTER_SECRETS }}
+        run: |
+          python3 - <<'PY'
+          import json, os, hmac, hashlib, base64, subprocess
+          key = base64.b64decode(json.loads(os.environ['CHUSTER_SECRETS'])['sync']['key'])
+          ck = hmac.new(key, b'chuster-qb-code', hashlib.sha256).digest()
+          mac = lambda b: base64.b64encode(hmac.new(ck, b, hashlib.sha256).digest()).decode()
+          # safety: the key must reproduce the signature of the last signed version
+          c = subprocess.check_output(['git', 'log', '-1', '--format=%H', '--', 'qb/sync.sig']).decode().strip()
+          old = subprocess.check_output(['git', 'show', c + ':qb/sync.ps1'])
+          oldsig = subprocess.check_output(['git', 'show', c + ':qb/sync.sig']).decode().strip()
+          if mac(old) != oldsig: raise SystemExit('key does not reproduce the last signature; not signing')
+          open('qb/sync.sig', 'w').write(mac(open('qb/sync.ps1', 'rb').read()))
+          print('::notice::signed')
+          PY
+          git config user.name "Chuster rebuild"
+          git config user.email "actions@users.noreply.github.com"
+          git add qb/sync.sig
+          if git diff --cached --quiet; then echo "already signed"; exit 0; fi
+          git commit -m "Sign the office PC program"
+          git pull --rebase origin main && git push origin HEAD:main

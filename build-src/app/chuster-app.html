@@ -2788,7 +2788,7 @@ function renderHomeReal() {
   const bars = yrs.map(([y, v, cls], i) => { const h = v / ymax * 186, x = 10 + i * slot + (slot - bw) / 2, cx = x + bw / 2; return `<rect class="${cls}" x="${x.toFixed(1)}" y="${(230 - h).toFixed(1)}" width="${bw.toFixed(1)}" height="${h.toFixed(1)}" rx="5"/><text class="lbl-strong" x="${cx.toFixed(1)}" y="${(222 - h).toFixed(1)}" text-anchor="middle" style="font-size:${fs}px">${fm(v)}</text><text x="${cx.toFixed(1)}" y="250" text-anchor="middle" style="font-size:${fs}px">${y === String(CY) && yrs.length <= 4 ? CY + ' so far' : y}</text>`; }).join('');
   const agingBar = `<div class="aging" role="img" aria-label="Money owed by age">${t.map((v, i) => v > 0 ? `<i style="width:${(v / t.reduce((s, x) => s + Math.max(x, 0), 0) * 100).toFixed(1)}%;background:${AGE_COLORS[i]}"></i>` : '').join('')}</div>`;
   return `
-  ${head('Dashboard', todayLine(), `${qbTag()}<button class="btn gold" data-act="sum-open">Send morning summary</button><a class="btn ghost" href="#customers" data-go="customers">Customers</a><a class="btn primary" href="#order" data-go="order">+ New order</a>`)}
+  ${head('Dashboard', todayLine(), `${qbTag()}${S.role === 'Owner' ? '<button class="btn ghost" data-act="qb-sync">Sync now</button>' : ''}<button class="btn gold" data-act="sum-open">Send morning summary</button><a class="btn ghost" href="#customers" data-go="customers">Customers</a><a class="btn primary" href="#order" data-go="order">+ New order</a>`)}
   ${S.sumOpen ? summaryCard() : ''}
   ${homeTrucks()}
   <!--@brief--><div class="brief"><strong>${greet}, Zevi.</strong> On ${fmtShort(prevRd)}: <a href="#orders" data-go="orders"><strong>${fm(D.prevDay.amount)} in ${D.prevDay.count} invoices</strong></a>. This year so far: <strong>${fm(D.ytd)}</strong>, ${sgn(g)} vs the same days last year. Stores owe <strong>${fm(D.ar.total)}</strong>, and <a href="#customers" data-act="go-cust" data-f="owe" class="red">${fm(past)} of it is past due</a>. <a href="#inventory" data-act="go-inv" data-f="zero" class="red">${D.counts.belowZero} items are below zero</a>${D.counts.low ? `, <a href="#inventory" data-act="go-inv" data-f="low">${D.counts.low} are under their reorder point</a>` : ''}, and <a href="#customers" data-act="go-cust" data-f="late">${D.counts.late} stores are later than usual to reorder</a>.</div>
@@ -6076,7 +6076,8 @@ function qbTag() {
   if (!REAL) return '';
   if (!qbLive()) return `<span class="tag blue">Sales to ${fmtShort(isoRd(REAL.asOf))} · balances ${REAL.snapAsOf ? fmtShort(isoRd(REAL.snapAsOf)) : ''}</span>`;
   if (QB.status.ok === false) return `<span class="tag red" title="${esc(QB.status.err || '')}">QuickBooks sync problem · ${esc(QB.status.err || '')}</span>`;
-  return `<span class="tag ${qbStale() ? 'gold' : 'green'}">● QuickBooks live · ${qbAgo()}${qbStale() ? ' · is the office PC on?' : ''}</span>`;
+  const fm = QB.status.full ? Math.round((Date.now() - new Date(QB.status.full).getTime()) / 60000) : NaN; const fr = isNaN(fm) ? '' : ' · last read ' + (fm < 1 ? 'just now' : fm < 60 ? fm + ' min ago' : fm < 1440 ? Math.round(fm / 60) + ' hr ago' : Math.round(fm / 1440) + ' days ago');
+  return `<span class="tag ${qbStale() ? 'gold' : 'green'}">● QuickBooks live · ${qbAgo()}${qbStale() ? ' · is the office PC on?' : fr}</span>`;
 }
 const mdyOf = iso => iso ? `${iso.slice(5, 7)}/${iso.slice(8, 10)}/${iso.slice(0, 4)}` : '';
 const yearBack = iso => `${+iso.slice(0, 4) - 1}${iso.slice(4)}`;
@@ -6580,7 +6581,7 @@ function qwState(rec) {
   return 'sending';
 }
 const canSend = kind => kind === 'cm' ? S.role === 'Owner' : (kind === 'invmod' || kind === 'invvoid') ? ivCanEdit() : (S.role === 'Owner' || S.role === 'Office');
-const qwList = () => Object.values(S.qw).filter(Boolean).sort((a, b) => (b.upd || 0) - (a.upd || 0));
+const qwList = () => Object.values(S.qw).filter(r => r && r.kind !== 'sync').sort((a, b) => (b.upd || 0) - (a.upd || 0));
 const qwCount = () => qwList().filter(r => { const s = qwState(r); return (s === 'wait' || s === 'error') && (r.kind !== 'cm' || S.role === 'Owner'); }).length;
 const fullOf = (ref, full) => typeof ref === 'number' && REAL.catalog[ref] ? REAL.catalog[ref].full : (full || String(ref));
 const nameOfFull = f => { const c = REAL && REAL.catalog.find(x => x.full === f); return c ? c.name + (c.pack ? ' ' + c.pack : '') : String(f).split(':').pop(); };
@@ -7082,6 +7083,7 @@ document.addEventListener('click', e => {
     case 'sx-now': { const { g90, g60 } = sxLists(); const arr = (d.g === '90' ? g90 : g60).filter(c => !sxOff(c.name) && c.email); if (!arr.length) break;
       if (S.sxConfirm !== d.g) { S.sxConfirm = d.g; toast(`Tap again to email ${arr.length} statements now.`); setTimeout(() => { S.sxConfirm = null; }, 6000); break; }
       S.sxConfirm = null; sxPut('now', { id: qwId(), names: arr.map(c => c.name), at: nowIso() }); toast(`Sending ${arr.length} statements… they go out over the next few minutes.`); render(); break; }
+    case 'qb-sync': if (S.role !== 'Owner') break; qwSave({ id: qwId(), kind: 'sync', st: 'ok', try: 0, c: '', lines: [], total: 0, memo: 'Sync now', by: byName(), at: nowIso(), okBy: byName(), okAt: nowIso() }); toast('Sync asked. The office PC reads QuickBooks in about a minute.'); break;
     case 'iv-void': S.ivVoid = S.ivVoid === d.n ? null : d.n; render(); break;
     case 'iv-void-no': S.ivVoid = null; render(); break;
     case 'iv-void-yes': { const o = REAL.orders.list.find(x => x.n === d.n); if (!o) break;
