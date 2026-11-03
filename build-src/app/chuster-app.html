@@ -5887,7 +5887,7 @@ const SYNC = (function () {
     if (!viaApp && onNetlify && e && e.name === 'TypeError') { viaApp = true; try { localStorage.setItem('chuster-db-via-app', '1'); } catch (x) { /* ignore */ } setTimeout(() => tick(), 500); }
   }
   const st = { ok: null, err: '', last: 0, since: loadLS('chuster-sync-since', {}), out: loadLS('chuster-sync-out', {}), seen: {}, key: null, flushing: false, pulling: false, started: false };
-  const COLLS = ['gc', 'ds', 'rd', 'll', 'do', 'sc', 'tr', 'lq', 'ls', 'lm', 'lx', 'lh', 'qi', 'qo', 'qc', 'qs', 'qp', 'qh', 'qw', 'qr', 'ps', 'pp', 'pn', 'pq', 'sx', 'sl'];
+  const COLLS = ['gc', 'ds', 'rd', 'll', 'do', 'sc', 'tr', 'lq', 'ls', 'lm', 'lx', 'lh', 'qi', 'qo', 'qc', 'qs', 'qp', 'qh', 'qw', 'qr', 'ps', 'pp', 'pn', 'pq', 'sx', 'sl', 'vn', 'pt', 'cv', 'cg'];
   const h = s => { let a = 0x811c9dc5, b = 0x9e3779b9; for (let i = 0; i < s.length; i++) { const c = s.charCodeAt(i); a = Math.imul(a ^ c, 16777619) >>> 0; b = Math.imul(b ^ c, 2246822519) >>> 0; } return a.toString(36) + b.toString(36); };
   const b64 = u8 => { let s = ''; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); return btoa(s); };
   const unb64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -5964,7 +5964,7 @@ const SYNC = (function () {
     st.pulling = false; badge();
     if (changed) refresh();
   }
-  const LIVE = ['route', 'stop', 'loadlist', 'loading', 'toqb', 'dsched', 'home', 'orders', 'customers', 'collect', 'inventory', 'mysales', 'payments', 'tools', 'reorder', 'packing'];
+  const LIVE = ['route', 'stop', 'loadlist', 'loading', 'toqb', 'dsched', 'home', 'orders', 'customers', 'collect', 'inventory', 'mysales', 'payments', 'tools', 'reorder', 'packing', 'visits', 'coverage', 'pitch'];
   function refresh() {
     const a = document.activeElement; if (S.sigOpen || (a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) && a.id !== 'ms-end')) { st.pend = true; return; }
     st.pend = false; if (typeof qbAfterPull === 'function') qbAfterPull(); if (LIVE.includes(S.view)) { const y = window.scrollY; render(); window.scrollTo(0, y); }
