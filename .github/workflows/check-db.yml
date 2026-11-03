@@ -94,19 +94,20 @@ jobs:
             print('::notice::result st=%s num=%s at=%s err=%s' % (val.get('st'), val.get('num', ''), val.get('at', ''), str(val.get('err') or '')[:80]))
           print('::notice::results-24h=%d' % len(q))
           # what each of those requests was (kind, date, total, item count; no names)
-          import urllib.parse
-          for kid in q.keys():
-            try:
-              w = json.load(urllib.request.urlopen('https://chuster.netlify.app/db/%s/qw/%s.json' % (S['space'], urllib.parse.quote(kid)))) or {}
-              b = base64.b64decode(w['v'][3:]); iv, ct = b[:16], b[16:-32]
-              d = Cipher(algorithms.AES(ek), modes.CBC(iv)).decryptor(); pt = d.update(ct) + d.finalize(); pt = pt[:-pt[-1]]
-              o = json.loads(pt).get('val') or {}
-              rb = base64.b64decode(q[kid]['v'][3:]); iv, ct = rb[:16], rb[16:-32]
-              d = Cipher(algorithms.AES(ek), modes.CBC(iv)).decryptor(); pt = d.update(ct) + d.finalize(); pt = pt[:-pt[-1]]
-              res = json.loads(pt).get('val') or {}
-              print('::notice::request kind=%s date=%s total=%s items=%d asked=%s -> %s %s' % (o.get('kind'), o.get('d'), o.get('total'), len(o.get('lines') or []), str(o.get('okAt') or o.get('at') or '')[:16], res.get('st'), res.get('num', '')))
-            except Exception as e:
-              print('::notice::request %s unreadable %s' % (kid[:6], str(e)[:60]))
+          def dec(v):
+            b = base64.b64decode(v[3:]); iv, ct = b[:16], b[16:-32]
+            d = Cipher(algorithms.AES(ek), modes.CBC(iv)).decryptor(); pt = d.update(ct) + d.finalize(); return json.loads(pt[:-pt[-1]])
+          res = {}
+          for rv in q.values():
+            try: r = dec(rv['v']); res[r.get('k')] = r.get('val') or {}
+            except Exception: pass
+          w = json.load(urllib.request.urlopen('https://chuster.netlify.app/db/%s/qw.json?orderBy=%%22t%%22&startAt=%d' % (S['space'], int(time.time()*1000) - 30*86400000))) or {}
+          for wv in w.values():
+            try: o = (dec(wv['v']).get('val') or {})
+            except Exception: continue
+            r = res.get(o.get('id'))
+            if r is None: continue
+            print('::notice::request kind=%s date=%s total=%s items=%d asked=%s -> %s %s %s' % (o.get('kind'), o.get('d'), o.get('total'), len(o.get('lines') or []), str(o.get('okAt') or o.get('at') or '')[:16], r.get('st'), r.get('num', ''), str(r.get('err') or '')[:40]))
           PY
       - name: How the other app talks to its server
         if: false
