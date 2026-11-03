@@ -52,7 +52,11 @@ jobs:
             if git push origin HEAD:main; then echo "pushed"; exit 0; fi
             echo "push rejected, syncing with latest (attempt $i)"
             git fetch origin main
-            git reset --soft origin/main
+            # keep only our three generated files; everything else comes from the latest main
+            # (a soft reset here used to undo other commits made meanwhile, e.g. a new PC program signature)
+            mkdir -p /tmp/ours && cp index.html version.json build-status.json /tmp/ours/
+            git reset -q --hard origin/main
+            cp /tmp/ours/index.html /tmp/ours/version.json /tmp/ours/build-status.json .
             git add index.html version.json build-status.json
             if git diff --cached --quiet; then echo "another run already rebuilt this - done"; exit 0; fi
             git commit -m "App rebuilt from QuickBooks history"
