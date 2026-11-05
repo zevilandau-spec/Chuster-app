@@ -1,11 +1,11 @@
 {
  "result": "failed",
  "history": "2026-11-03T23:01:35",
- "at": "2026-11-05T02:11Z",
+ "at": "2026-11-05T02:23Z",
  "last": [
   "books 486271 bytes | expenses 25709 deposits 2930 bill payments 2823 open sales orders 0 estimates 0 adjustments 0 builds 0 POs 1232 journal 33 accounts 140",
   "sync added; url = https://chuster-afb77-default-rtdb.firebaseio.com",
-  "locked 1134857 bytes for Owner:Zevi, Office:Office, Warehouse:Warehouse, Driver:Driver, Sales:Dudi, SalesDriver:Motty, Owner:Ben, Owner:Moses | round trip ok: true",
+  "locked 1134837 bytes for Owner:Zevi, Office:Office, Warehouse:Warehouse, Driver:Driver, Sales:Dudi, SalesDriver:Motty, Owner:Ben, Owner:Moses | round trip ok: true",
   "Traceback (most recent call last):",
   "  File \"/home/runner/work/Chuster-app/Chuster-app/build-src/tools/build_locked.py\", line 118, in <module>",
   "    assert 'window.CHUSTER_DATA=' not in doc and 'ROSENFELD' not in doc and 'Aron' not in doc and 'WINLAND' not in doc",
