@@ -650,6 +650,14 @@ body:has(#ai-fab:not([hidden])) #view { padding-bottom: 72px; }
 .lx-bar { height: 5px; border-radius: 4px; background: rgba(22, 32, 74, .1); overflow: hidden; max-width: 140px; }
 .lx-bar i { display: block; height: 100%; background: var(--brand); }
 .lx-item.done .lx-bar i { background: var(--good); }
+.lx-inamebtn { border: none; background: none; text-align: left; width: 100%; padding: 0; cursor: pointer; color: var(--fg); font: inherit; font-weight: 800; font-size: 15.5px; }
+.lx-cv { font-size: 11.5px; font-weight: 800; color: var(--brand-text); white-space: nowrap; }
+.lx-cutwrap { margin-top: 4px; border: 1px solid var(--line); border-radius: 12px; padding: 6px 8px; background: var(--surface-2); }
+.lx-cutrow { display: flex; align-items: center; gap: 8px; padding: 5px 2px; border-top: 1px solid rgba(22, 32, 74, .07); }
+.lx-cutrow:first-child { border-top: none; }
+.lx-cutn { flex: 1; min-width: 0; font-weight: 700; font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lx-cutq { font-size: 13.5px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.lx-cutq .tag.red { margin-left: 2px; }
 .lx-count { display: flex; flex-direction: column; align-items: center; flex: none; min-width: 64px; }
 .lx-count b { font-size: 21px; font-weight: 800; line-height: 1; }
 .lx-count b small { font-size: 14px; color: var(--muted); }
@@ -3720,15 +3728,49 @@ function dashCsv(name) {
   a.download = `chuster-${(name || 'report').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}-${isoOf(TODAY)}.csv`;
   document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
 }
+// QuickBooks-style invoice (matches the invoice the office prints from QuickBooks).
 function invoiceDoc(o) {
   const c = custByName(o.c) || {};
+  const CO = { name: 'Chuster Noodle Packaging USA', addr1: '65 Steuben St.', addr2: 'Brooklyn NY 11205', phone: '718-399-2864', email: 'Chusternoodle@gmail.com' };
+  const mdy = s => s ? (s.slice(5, 7) + '/' + s.slice(8, 10) + '/' + s.slice(0, 4)) : '';
+  const isCM = o.t === 'cm';
+  const shipD = (typeof dDateOf === 'function') ? dDateOf(o) : o.d;
   const due = (c.open || []).find(x => x.num === o.n);
-  const d = o.d.slice(5, 7) + '/' + o.d.slice(8) + '/' + o.d.slice(0, 4);
+  const addrLines = a => String(a || '').replace(/,\s*,/g, ',').split(',').map(s => s.trim()).filter(Boolean);
+  const billLines = [`<b>${esc(c.name || o.c)}</b>`, ...addrLines(c.address).map(esc)];
+  const shipStr = o.ship ? shipFromAddr(o.ship).replace(/ \/ /g, ', ') : (c.address || '');
+  const shipLines = [`<b>${esc(c.name || o.c)}</b>`, ...addrLines(shipStr).map(esc)];
+  let delivered = '';
+  Object.keys(S.dstat || {}).forEach(k => { const s = S.dstat[k]; if (k.indexOf('|' + o.n) >= 0 && s && s.st === 'done' && s.at) delivered = (k.slice(5, 7) + '/' + k.slice(8, 10) + '/' + k.slice(2, 4) + ' ' + s.at); });
   const rows = o.l.map(([ref, q, a]) => { const p = typeof ref === 'number' ? S.catalog[ref] : null;
-    return { cells: [esc(p && p.code && p.code !== '—' ? p.code : ''), esc(p ? p.name : ref) + (p && p.pack ? ` <span style="color:#5F5A4E">${esc(p.pack)}</span>` : ''), fnu(q), q ? money(a / q) : '', money(a)] }; });
-  return docSheet({ title: o.t === 'cm' ? 'Credit memo' : 'Invoice', meta: [['No.', o.n], ['Date', d], ...(c.terms ? [['Terms', c.terms]] : []), ...(due && due.due ? [['Due', due.due]] : [])],
-    parties: [['Bill to', [o.c, c.address, c.phone]]], cols: ['Code', 'Product', 'Qty', 'Price', 'Amount'], right: 3, code: true, rows,
-    totals: [['Total', money(o.a), true]], note: 'Thank you for your business.' });
+    return { qty: fnu(Math.abs(q)), desc: esc(p ? p.name : String(ref)), um: esc(p && p.pack ? p.pack : ''), code: esc(p && p.code && p.code !== '—' ? p.code : ''), upc: esc(p && p.upc ? p.upc : ''), rate: q ? money(Math.abs(a / q)) : '', amt: money(Math.abs(a)) }; });
+  const BR = '#7a5230';
+  const meta = [['Invoice #:', o.n], ['Invoice Date:', mdy(o.d)], ['Ship Date:', mdy(shipD)], ['P.O. Number:', ''], ['Terms:', c.terms || ''], ['Rep:', c.rep || ''], ['Deliverd:', delivered]];
+  return `<div class="ps inv-qb" style="font-family:Arial,Helvetica,sans-serif;color:#222">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start">
+      <div style="display:flex;gap:12px;align-items:flex-start"><div class="brand-logo" role="img" aria-label="Chuster" style="width:92px;height:46px;flex:none"></div>
+        <div><div style="font-weight:800;font-size:16px">${esc(CO.name)}</div><div style="font-size:12px;color:#444;margin-top:3px">${esc(CO.addr1)}<br>${esc(CO.addr2)}</div></div></div>
+      <div style="font-size:34px;font-weight:800;letter-spacing:.5px">${isCM ? 'Credit Memo' : 'Invoice'}</div>
+    </div>
+    <div style="display:flex;justify-content:flex-end;margin-top:14px"><table style="border-collapse:collapse;font-size:12px">${meta.map(([k, v]) => `<tr><td style="text-align:right;color:${BR};font-weight:700;padding:1px 8px 1px 0;white-space:nowrap">${esc(k)}</td><td style="font-weight:700;color:#16204A;white-space:nowrap">${esc(v) || '&nbsp;'}</td></tr>`).join('')}</table></div>
+    <div style="display:flex;gap:40px;margin:16px 0 10px">
+      <div style="min-width:220px"><div style="color:${BR};font-weight:800;font-size:13px;margin-bottom:3px">Bill To:</div><div style="font-size:12px;line-height:1.5">${billLines.join('<br>')}</div></div>
+      <div style="min-width:220px"><div style="color:${BR};font-weight:800;font-size:13px;margin-bottom:3px">Ship To:</div><div style="font-size:12px;line-height:1.5">${shipLines.join('<br>')}</div></div>
+    </div>
+    <table style="width:100%;border-collapse:collapse;font-size:12px;margin-top:6px">
+      <thead><tr style="background:#cabea7;color:${BR}">
+        <th style="padding:6px 6px;text-align:right;width:42px">Qty</th><th style="padding:6px;text-align:left">Description</th><th style="padding:6px;text-align:left;width:95px">U/M</th><th style="padding:6px;text-align:left;width:60px">Item C…</th><th style="padding:6px;text-align:left;width:110px">UPC</th><th style="padding:6px;text-align:right;width:70px">Rate</th><th style="padding:6px;text-align:right;width:80px">Amount</th></tr></thead>
+      <tbody>${rows.map((r, i) => `<tr style="background:${i % 2 ? '#ededed' : '#fff'}"><td style="padding:5px 6px;text-align:right;vertical-align:top">${r.qty}</td><td style="padding:5px 6px;vertical-align:top">${r.desc}</td><td style="padding:5px 6px;vertical-align:top">${r.um}</td><td style="padding:5px 6px;vertical-align:top">${r.code}</td><td style="padding:5px 6px;vertical-align:top">${r.upc}</td><td style="padding:5px 6px;text-align:right;vertical-align:top">${r.rate}</td><td style="padding:5px 6px;text-align:right;vertical-align:top">${r.amt}</td></tr>`).join('')}</tbody>
+    </table>
+    <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-top:22px">
+      <table style="font-size:12px;border-collapse:collapse"><tr><td style="color:#333;padding:0 40px 2px 0;border-bottom:1px solid #999">Phone #</td><td style="color:#333;padding:0 0 2px;border-bottom:1px solid #999">E-Mail</td></tr><tr><td style="padding-top:4px">${esc(CO.phone)}</td><td style="padding-top:4px">${esc(CO.email)}</td></tr></table>
+      <div style="min-width:220px">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;border-bottom:1.5px solid #333;padding-bottom:3px"><span style="font-weight:800;font-size:15px">Total</span><b style="font-size:14px">${money(Math.abs(o.a))}</b></div>
+        <div style="display:flex;justify-content:space-between;align-items:baseline;border-bottom:1.5px solid #333;padding:8px 0 3px;margin-top:8px"><span style="font-weight:800;font-size:15px">Balance Due</span><b style="font-size:14px">${money(due ? due.amt : o.a)}</b></div>
+      </div>
+    </div>
+    <div style="text-align:center;color:#666;font-size:11px;margin-top:18px">Page 1</div>
+  </div>`;
 }
 function statementDoc(c) {
   const CO = { name: 'Chuster Noodle Packaging USA', addr: ['65 Steuben St.', 'Brooklyn NY 11205'], phone: '718-399-2864', email: 'Chusternoodle@gmail.com' };
@@ -5984,7 +6026,7 @@ const SYNC = (function () {
     if (!viaApp && onNetlify && e && e.name === 'TypeError') { viaApp = true; try { localStorage.setItem('chuster-db-via-app', '1'); } catch (x) { /* ignore */ } setTimeout(() => tick(), 500); }
   }
   const st = { ok: null, err: '', last: 0, since: loadLS('chuster-sync-since', {}), out: loadLS('chuster-sync-out', {}), seen: {}, key: null, flushing: false, pulling: false, started: false };
-  const COLLS = ['gc', 'ds', 'rd', 'll', 'do', 'sc', 'tr', 'lq', 'ls', 'lm', 'lx', 'lh', 'qi', 'qo', 'qc', 'qs', 'qp', 'qh', 'qw', 'qr', 'ps', 'pp', 'pn', 'pq', 'sx', 'sl', 'vn', 'pt', 'cv', 'cg', 'df'];
+  const COLLS = ['gc', 'ds', 'rd', 'll', 'do', 'sc', 'tr', 'lq', 'ls', 'lm', 'lx', 'lh', 'qi', 'qo', 'qc', 'qs', 'qp', 'qh', 'qw', 'qr', 'ps', 'pp', 'pn', 'pq', 'sx', 'sl', 'vn', 'pt', 'cv', 'cg', 'df', 'cut'];
   const h = s => { let a = 0x811c9dc5, b = 0x9e3779b9; for (let i = 0; i < s.length; i++) { const c = s.charCodeAt(i); a = Math.imul(a ^ c, 16777619) >>> 0; b = Math.imul(b ^ c, 2246822519) >>> 0; } return a.toString(36) + b.toString(36); };
   const b64 = u8 => { let s = ''; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); return btoa(s); };
   const unb64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -6319,7 +6361,7 @@ SYNC.start();
 /* ================= Loading: by stop or by item, ship types, the crew's loading day, counts shared with every phone ================= */
 // lq loaded count per invoice line · ls ship type per stop · lm invoice moved to another day · lx crew loading day · lh history
 Object.assign(S, { lq: loadLS('chuster-lq-v1', {}), lship: loadLS('chuster-lship-v1', {}), lmove: loadLS('chuster-lmove-v1', {}), lhist: loadLS('chuster-lhist-v1', {}),
-  lday: loadLS('chuster-lday-v1', null), lxDate: null, lxTab: 'all', lxMode: 'stops', lxQ: '', lxGroups: [], lxStop: null, lxSel: null, lxSheet: null, lxSort: 'route', lxHide: false, lxPick: null });
+  lday: loadLS('chuster-lday-v1', null), lxDate: null, lxTab: 'all', lxMode: 'stops', lxQ: '', lxGroups: [], lxStop: null, lxSel: null, lxSheet: null, lxSort: 'route', lxHide: false, lxDel: 'all', lxMenuK: null, lxOpenItem: null, lxCut: loadLS('chuster-lxcut-v1', {}), lxPick: null });
 (function lxPrune() {
   const cut = isoOf(TODAY - 21); let ch = false;
   [S.lq, S.lship, S.lhist].forEach(m => Object.keys(m).forEach(k => { const d = m === S.lhist ? (m[k] && m[k].d) : k.slice(0, 10); if (!d || d < cut) { delete m[k]; ch = true; } }));
@@ -6332,9 +6374,15 @@ SYNC.on('ls', (k, v) => { if (v == null) delete S.lship[k]; else S.lship[k] = v;
 SYNC.on('lm', (k, v) => { if (v == null) delete S.lmove[k]; else S.lmove[k] = v; saveLS('chuster-lmove-v1', S.lmove); });
 SYNC.on('lx', (k, v) => { if (k === 'day') { S.lday = v || null; saveLS('chuster-lday-v1', S.lday); } });
 SYNC.on('lh', (k, v) => { if (v == null) delete S.lhist[k]; else S.lhist[k] = v; saveLS('chuster-lhist-v1', S.lhist); });
+SYNC.on('cut', (k, v) => { if (v == null) delete S.lxCut[k]; else S.lxCut[k] = v; saveLS('chuster-lxcut-v1', S.lxCut); });
 
-const LX_TYPES = () => [['all', 'All'], ...DTRUCKS().map((t, i) => ['t' + i, t.name]), ['pallet', 'Pallets'], ['pickup', 'Pick up'], ['notset', 'Not set']];
-const LX_TYPE_NAME = t => (LX_TYPES().find(x => x[0] === t) || [, t])[1];
+// Loading groups, old-app style: Truck = Cases + Pallets; Motty's is a separate driver; Not set is undecided.
+const LX_TYPES = () => [['all', 'All'], ['truck', 'Truck'], ['cases', 'Cases'], ['pallet', 'Pallets'], ['motty', "Motty's"], ['notset', 'Not set']];
+const LX_TYPE_NAME = t => t === 'pickup' ? 'Pick up' : t === 'truck' ? 'Truck' : (LX_TYPES().find(x => x[0] === t) || [, t])[1];
+// which real loading types (not the 'all'/'truck' rollups) a stop can be set to
+const LX_SETTABLE = [['cases', 'Cases', 'loose on the truck (loading list)'], ['pallet', 'Pallets', 'packed on a pallet'], ['motty', "Motty's", "goes on Motty's route"], ['notset', 'Not set', 'not decided yet']];
+// does a stop of this type belong under the given tab (truck = cases + pallets)
+const lxInTab = (type, tab) => tab === 'all' ? true : tab === 'truck' ? (type === 'cases' || type === 'pallet') : type === tab;
 const LX_GROUP_SHORT = { 'Chuster': ['CP', 'Chuster packaged'], 'Landaus': ['LP', 'Landaus packaged'], 'Chuster Snacks': ['CS', 'Chuster snacks'], 'Chuster Loose': ['CL', 'Chuster loose'], 'Landaus Loose': ['LL', 'Landaus loose'] };
 let lxIdxCache = null;
 function lxIndex() {
@@ -6351,9 +6399,10 @@ function lxStops(date) {
   const byT = dayStops(date); const idx = lxIndex(); const out = [];
   Object.keys(byT).forEach(t => byT[t].forEach((x, pos) => {
     const tt = +t; const ls = S.lship[x.k];
-    const type = ls && ls !== 'truck' ? ls : tt >= 0 ? 't' + tt : ((x.c.rep === 'PU') ? 'pickup' : 'notset');
+    // default: loose on the truck ("Cases"); PU stores pick up; otherwise whatever was set
+    const type = (ls && ls !== 'truck') ? ls : ((x.c.rep === 'PU') ? 'pickup' : 'cases');
     const lines = [];
-    x.o.nums.forEach(n => { const o = idx.get(n); if (!o) return; o.l.forEach(([ref, q], i) => { if (!(q > 0)) return; const c = typeof ref === 'number' ? REAL.catalog[ref] : null; if (!c && /total|subtotal/i.test(String(ref))) return; lines.push({ key: `${date}|${n}|${i}`, ref, c, q, bulk: c ? !!bulkOf(c.full) : false, n, name: c ? c.name : String(ref) }); }); });
+    x.o.nums.forEach(n => { const o = idx.get(n); if (!o) return; o.l.forEach(([ref, q0], i) => { if (!(q0 > 0)) return; const c = typeof ref === 'number' ? REAL.catalog[ref] : null; if (!c && /total|subtotal/i.test(String(ref))) return; const key = `${date}|${n}|${i}`; const cut = Math.min(q0, +S.lxCut[key] || 0); lines.push({ key, ref, c, q: q0 - cut, q0, cut, bulk: c ? !!bulkOf(c.full) : false, n, name: c ? c.name : String(ref), stopName: x.o.c }); }); });
     const got = l => Math.min(l.q, +S.lq[l.key] || 0);
     const need = lines.reduce((s, l) => s + (l.bulk ? 0 : l.q), 0), have = lines.reduce((s, l) => s + (l.bulk ? 0 : got(l)), 0);
     const ready = stopReady(date, x);
@@ -6414,8 +6463,13 @@ function lxItemRow(it, can, mode) {
   const c = it.c; const left = it.need - it.have; const pct = it.need ? Math.round(it.have / it.need * 100) : 0;
   const stock = c && c.stock != null ? c.stock : null;
   const short = left > 0 && stock != null && stock < 0;
+  const open = mode === 'items' && S.lxOpenItem === it.id;
+  const nameEl = mode === 'items'
+    ? `<button class="lx-iname lx-inamebtn" data-act="lx-openitem" data-id="${esc(it.id)}">${esc(it.name)}${c && c.pack ? ` <span class="lx-pack">${esc(c.pack)}</span>` : ''} <span class="lx-cv">${open ? '▲ close' : '▾ take down'}</span></button>`
+    : `<div class="lx-iname">${esc(it.name)}${c && c.pack ? ` <span class="lx-pack">${esc(c.pack)}</span>` : ''}</div>`;
+  const expand = open ? `<div class="lx-cutwrap">${it.lines.slice().sort((a, b) => b.q0 - a.q0).map(l => `<div class="lx-cutrow"><span class="lx-cutn">${esc(l.stopName || '')}</span><span class="lx-cutq">${l.cut ? `<s style="color:var(--muted)">${fn(l.q0)}</s> <b>${fn(l.q)}</b> <span class="tag red">−${fn(l.cut)}</span>` : `<b>${fn(l.q0)}</b>`}</span><span class="lx-step"><button class="lx-sb" data-act="lx-cut" data-k="${esc(l.key)}" data-d="1"${can && l.q > 0 ? '' : ' disabled'} aria-label="Take one down from ${esc(l.stopName)}">−</button><button class="lx-sb" data-act="lx-cut" data-k="${esc(l.key)}" data-d="-1"${can && l.cut ? '' : ' disabled'} aria-label="Give one back to ${esc(l.stopName)}">+</button></span></div>`).join('')}<p class="sub" style="margin:4px 2px 0;font-size:11px">Tap − to take boxes down from a store. The office is told and the invoice is lined up to change.</p></div>` : '';
   return `<div class="lx-item${it.have >= it.need ? ' done' : ''}">
-    <div class="lx-iname">${esc(it.name)}${c && c.pack ? ` <span class="lx-pack">${esc(c.pack)}</span>` : ''}</div>
+    ${nameEl}
     <div class="lx-irow">
       <div class="lx-imeta"><span>${c && c.code ? esc(c.code) + ' · ' : ''}${it.bulk ? 'by weight' : 'boxes'}</span>
         ${mode === 'items' ? `<span class="lx-instops${it.done ? ' on' : ''}">${it.done ? `${it.done} of ` : ''}${it.stops.size} stop${it.stops.size === 1 ? '' : 's'}</span>` : ''}
@@ -6424,7 +6478,7 @@ function lxItemRow(it, can, mode) {
       <div class="lx-count"><b class="num">${it.bulk ? (it.have >= it.need ? '✓' : '0') : fn(it.have)}<small>/${it.bulk ? '1' : fn(it.need)}</small></b><span>${it.bulk ? lxAmt(c, it.need, true) : left > 0 ? `${fn(left)} to load` : 'all loaded'}</span></div>
       ${it.bulk ? `<div class="lx-step"><button class="lx-ok${it.have >= it.need ? ' on' : ''}" data-act="lx-${mode === 'items' ? 'item' : 'line'}-all" data-id="${esc(mode === 'items' ? it.id : it.lines[0].key)}"${can ? '' : ' disabled'} aria-label="Loaded ${esc(it.name)}">✓</button></div>`
         : lxStepper(mode === 'items' ? 'item' : 'line', mode === 'items' ? it.id : it.lines[0].key, it.have, it.need, can, it.name)}
-    </div></div>`;
+    </div>${expand}</div>`;
 }
 function lxGroupList(items, can, mode) {
   const groups = [...new Set(items.map(i => i.group))];
@@ -6438,15 +6492,17 @@ function renderLoad() {
   const date = S.lxDate; const can = lxCan(date);
   const all = lxSort(lxStops(date));
   if (S.lxStop) { const st = all.find(s => s.k === S.lxStop); if (st) return lxStopView(date, st, can, all); S.lxStop = null; }
-  const types = LX_TYPES().filter(([id]) => id === 'all' || id === S.lxTab || all.some(s => s.type === id) || ['pallet', 'notset'].includes(id) || id.startsWith('t'));
-  const inTab = s => S.lxTab === 'all' || s.type === S.lxTab;
+  // old-app style: always show all six tabs (All · Truck · Cases · Pallets · Motty's · Not set)
+  const types = LX_TYPES();
+  const inTab = s => lxInTab(s.type, S.lxTab);
   const tabStops = all.filter(inTab);
   const sum = L => ({ need: L.reduce((s, x) => s + x.need, 0), have: L.reduce((s, x) => s + x.have, 0) });
   const T = sum(tabStops); const items = lxItems(tabStops); const rets = lxReturns(date);
   const q = S.lxQ.trim().toLowerCase();
-  const shown = tabStops.filter(s => (!S.lxHide || !s.full) && (!q || s.name.toLowerCase().includes(q) || s.nums.some(n => n.includes(q)) || (s.x.c.address || '').toLowerCase().includes(q)));
+  const lxDelivered = s => ((S.dstat[s.k] || {}).st === 'done');
+  const shown = tabStops.filter(s => (!S.lxHide || !s.full) && (S.lxDel === 'all' || (S.lxDel === 'del' ? lxDelivered(s) : !lxDelivered(s))) && (!q || s.name.toLowerCase().includes(q) || s.nums.some(n => n.includes(q)) || (s.x.c.address || '').toLowerCase().includes(q)));
   const sel = S.lxSel;
-  const tabFull = S.lxTab.startsWith('t') && tabStops.length && tabStops.every(s => s.full);
+  const tabFull = ['truck', 'cases', 'pallet', 'motty'].includes(S.lxTab) && tabStops.length && tabStops.every(s => s.full);
   const pct = T.need ? Math.round(T.have / T.need * 100) : 0;
   const top = `<div class="lx-top">
       <button class="icon-btn lx-tbtn${sel ? ' on' : ''}" data-act="lx-select" aria-label="${sel ? 'Stop choosing stops' : 'Choose stops'}" title="Choose stops"><svg viewBox="0 0 24 24"><path d="M2 12l4 4 8-8M10 16l2 2 10-10"/></svg></button>
@@ -6454,7 +6510,7 @@ function renderLoad() {
       <button class="icon-btn lx-tbtn" data-act="lx-sheet" data-s="hist" aria-label="What happened" title="What happened"><svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7M3 4v5h5M12 7v5l3 2"/></svg></button>
       <button class="icon-btn lx-tbtn" data-act="lx-sheet" data-s="filter" aria-label="Sort and show" title="Sort and show"><svg viewBox="0 0 24 24"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg></button>
     </div>`;
-  const tabs = `<div class="lx-tabs" role="tablist">${types.map(([id, name]) => { const s = sum(all.filter(x => id === 'all' || x.type === id)); return `<button role="tab" data-act="lx-tab" data-t="${id}" aria-selected="${S.lxTab === id}"><b>${esc(name)}</b><span class="num">${fn(s.have)}/${fn(s.need)}</span></button>`; }).join('')}</div>
+  const tabs = `<div class="lx-tabs" role="tablist">${types.map(([id, name]) => { const s = sum(all.filter(x => lxInTab(x.type, id))); return `<button role="tab" data-act="lx-tab" data-t="${id}" aria-selected="${S.lxTab === id}"><b>${esc(name)}</b><span class="num">${fn(s.have)}/${fn(s.need)}</span></button>`; }).join('')}</div>
     <div class="lx-prog" aria-label="${pct}% loaded"><i style="width:${pct}%"></i></div>`;
   const retBoxes = rets.reduce((s, r) => s + r.boxes, 0);
   const tiles = `<div class="lx-tiles">
@@ -6480,13 +6536,13 @@ function renderLoad() {
   } else {
     body = `<div class="lx-search"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg><input id="lx-q" type="search" placeholder="Search store, address or #" value="${esc(S.lxQ)}" autocomplete="off"></div>
       ${shown.map(s => { const c = s.x.c; const r = s.ready ? S.ready[`${date}|${s.nums[0]}`] : null; const on = sel && sel.includes(s.k);
-        return `<div class="lx-stop${s.full ? ' full' : ''}${on ? ' sel' : ''}">
+        return `<div class="lx-stop${s.full ? ' full' : ''}${on ? ' sel' : ''}" data-lpk="${esc(s.k)}">
           ${sel ? `<button class="lx-cb${on ? ' on' : ''}" data-act="lx-pick" data-k="${esc(s.k)}" aria-pressed="${on}" aria-label="Choose ${esc(s.name)}">${on ? '✓' : ''}</button>` : ''}
           <div class="lx-smain"><button class="lx-sname" data-act="${sel ? 'lx-pick' : 'lx-open'}" data-k="${esc(s.k)}">${esc(s.name)}${shipTag(s) ? ` <span class="lx-shipt">· ${esc(shipTag(s))}</span>` : ''}</button>
             <span class="lx-addr">${esc(dlvAddr(s))}</span>
-            <span class="lx-chips">${s.nums.map(n => `<button class="lx-inv" data-act="inv-print" data-n="${esc(n)}">#${esc(n)} ↗</button>`).join('')}<span class="lx-area">${esc((s.x.area || 'Other').toUpperCase())}</span>${S.lxTab === 'all' ? `<span class="lx-type">${esc(LX_TYPE_NAME(s.type))}</span>` : ''}${r && r.at ? `<span class="lx-who">✓ ${esc(r.at)}${r.by ? ' · ' + esc(r.by) : ''}</span>` : ''}</span></div>
+            <span class="lx-chips">${s.nums.map(n => `<button class="lx-inv" data-act="inv-print" data-n="${esc(n)}">#${esc(n)} ↗</button>`).join('')}<span class="lx-area">${esc((s.x.area || 'Other').toUpperCase())}</span>${S.lxTab === 'all' ? `<span class="lx-type">${esc(LX_TYPE_NAME(s.type))}</span>` : ''}${lxDelivered(s) ? '<span class="lx-who" style="color:var(--good-text);font-weight:700">✓✓ delivered</span>' : ''}${r && r.at ? `<span class="lx-who">✓ ${esc(r.at)}${r.by ? ' · ' + esc(r.by) : ''}</span>` : ''}</span></div>
           <div class="lx-scount"><b class="num">${fn(s.have)}<small>/${fn(s.need)}</small></b><span>boxes</span>
-            <span class="lx-sbtns"><button class="lx-sq" data-act="lx-open" data-k="${esc(s.k)}" aria-label="Open ${esc(s.name)}"><svg viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="16" rx="2"/><path d="M9 9h6M9 13h6M9 17h3"/></svg></button><button class="lx-ok${s.full ? ' on' : ''}" data-act="lx-stop-all" data-k="${esc(s.k)}"${can ? '' : ' disabled'} aria-label="${s.full ? 'Unload' : 'Load all of'} ${esc(s.name)}">✓</button></span></div>
+            <span class="lx-sbtns"><button class="lx-sq" data-act="lx-stopmenu" data-k="${esc(s.k)}" aria-label="Ship date, type or print for ${esc(s.name)}">⋯</button><button class="lx-sq" data-act="lx-open" data-k="${esc(s.k)}" aria-label="Open ${esc(s.name)}"><svg viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="16" rx="2"/><path d="M9 9h6M9 13h6M9 17h3"/></svg></button><button class="lx-ok${s.full ? ' on' : ''}" data-act="lx-stop-all" data-k="${esc(s.k)}"${can ? '' : ' disabled'} aria-label="${s.full ? 'Unload' : 'Load all of'} ${esc(s.name)}">✓</button></span></div>
         </div>`; }).join('') || `<p class="sub lx-empty">${tabStops.length ? (q ? 'No stop matches.' : 'Every stop here is loaded.') : `No stops ${S.lxTab === 'all' ? '' : 'for ' + esc(LX_TYPE_NAME(S.lxTab)) + ' '}on ${fmtShort(isoRd(date))}.`}</p>`}`;
   }
   const selBar = sel ? `<div class="lx-selbar"><div class="lx-selhead"><button class="icon-btn" data-act="lx-select" aria-label="Stop choosing"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button><span class="lx-badge">${sel.length}</span> chosen<button class="lx-link" data-act="lx-pick-all">${sel.length === shown.length ? 'Choose none' : `Choose all ${shown.length}`}</button></div>
@@ -6535,7 +6591,7 @@ function lxSheetHtml(date, all, tabStops, items) {
   }
   if (s === 'type' || s === 'type1') {
     const cur = s === 'type1' ? (all.find(x => x.k === S.lxStop) || {}).type : null;
-    return wrap(s === 'type1' ? 'Ship type' : `Ship type for ${(S.lxSel || []).length} stop${(S.lxSel || []).length === 1 ? '' : 's'}`, `<div class="lx-menu">${LX_TYPES().filter(([id]) => id !== 'all').map(([id, name]) => `<button data-act="lx-settype" data-t="${id}" aria-pressed="${cur === id}">${esc(name)}<small>${id.startsWith('t') ? 'goes on this truck' : id === 'pallet' ? 'packed on a pallet' : id === 'pickup' ? 'the store picks it up' : 'not decided yet'}</small></button>`).join('')}</div>
+    return wrap(s === 'type1' ? 'Ship type' : `Ship type for ${(S.lxSel || []).length} stop${(S.lxSel || []).length === 1 ? '' : 's'}`, `<div class="lx-menu">${LX_SETTABLE.map(([id, name, desc]) => `<button data-act="lx-settype" data-t="${id}" aria-pressed="${cur === id}">${esc(name)}<small>${esc(desc)}</small></button>`).join('')}</div>
       <p class="sub" style="margin:0;font-size:12px">Trucks follow <a href="#dsched" data-go="dsched">Delivery days</a>. A change here is for this day only, and Deliveries shows it too.</p>`);
   }
   if (s === 'date') {
@@ -6543,12 +6599,23 @@ function lxSheetHtml(date, all, tabStops, items) {
       <p class="sub" style="margin:0;font-size:12px">The invoice date in QuickBooks stays the same. Only loading and Deliveries move.</p>
       <div class="lx-sheetbtns"><button class="btn ghost" data-act="lx-close">Cancel</button><button class="btn primary" data-act="lx-move">Move</button></div>`);
   }
+  if (s === 'stopact') {
+    const st = all.find(x => x.k === S.lxMenuK); if (!st) return '';
+    return wrap(st.name, `
+      <div class="lx-k">Ship type</div>
+      <div class="lx-menu">${LX_SETTABLE.map(([id, name, desc]) => `<button data-act="lx-setone" data-k="${esc(st.k)}" data-t="${id}" aria-pressed="${st.type === id}">${esc(name)}<small>${esc(desc)}</small></button>`).join('')}</div>
+      <div class="lx-k" style="margin-top:10px">Ship date</div>
+      <label class="lbl" for="lx-oneday">Move this stop to another day</label><input type="date" class="inp" id="lx-oneday" value="${esc(date)}">
+      <p class="sub" style="margin:0;font-size:12px">The invoice date in QuickBooks stays the same — only loading and Deliveries move.</p>
+      <div class="lx-sheetbtns"><button class="btn ghost" data-act="inv-print" data-n="${esc(st.nums[0])}">🖨 Print invoice</button><button class="btn ghost" data-act="lx-close">Close</button></div>`);
+  }
   if (s === 'hist') {
     const L = Object.values(S.lhist).filter(h => h && h.d === date).sort((a, b) => b.ts - a.ts).slice(0, 80);
     return wrap(`What happened · ${fmtShort(isoRd(date))}`, L.length ? `<div class="lx-hist">${L.map(h => `<div><span class="num">${esc(h.at)}</span><span>${esc(h.t)}</span><small>${esc(h.by || '')}</small></div>`).join('')}</div>` : '<p class="sub" style="margin:0">Nothing yet for this day.</p>');
   }
   if (s === 'filter') {
     return wrap('Sort and show', `<div class="lx-k">Sort stops</div><div class="lx-menu">${[['route', 'Delivery order', 'first stop on top'], ['load', 'Loading order', 'last stop goes in first'], ['name', 'Store name', 'A to Z'], ['boxes', 'Most boxes', 'big orders first']].map(([id, n, sm]) => `<button data-act="lx-sort" data-s="${id}" aria-pressed="${S.lxSort === id}">${n}<small>${sm}</small></button>`).join('')}</div>
+      <div class="lx-k" style="margin-top:10px">Show stops</div><div class="lx-menu">${[['all', 'All stops', 'delivered and not'], ['undel', 'Not delivered yet', 'still out or waiting'], ['del', 'Delivered ✓✓', 'the driver signed them off']].map(([id, n, sm]) => `<button data-act="lx-del" data-s="${id}" aria-pressed="${S.lxDel === id}">${n}<small>${sm}</small></button>`).join('')}</div>
       <label class="lx-toggle"><input type="checkbox" id="lx-hide"${S.lxHide ? ' checked' : ''}> Hide what's fully loaded</label>
       <button class="btn ghost" data-act="lx-printtab">Print the loading sheet for ${esc(LX_TYPE_NAME(S.lxTab))}</button>`);
   }
@@ -6589,6 +6656,7 @@ function lxAction(a, d, el) {
     case 'lx-start': S.lday = { d: d.d, by: byName(), at: nowHM() }; saveLS('chuster-lday-v1', S.lday); SYNC.put('lx', 'day', S.lday); S.lxDate = d.d; S.lxSheet = null; lxLog(d.d, `Started loading ${fmtShort(isoRd(d.d))}`); toast(`Loading ${fmtShort(isoRd(d.d))} on every phone`); break;
     case 'lx-reset': lxLog(S.lday.d, 'Stopped the loading day'); S.lday = null; saveLS('chuster-lday-v1', null); SYNC.put('lx', 'day', null); S.lxSheet = null; toast('No loading day now. Counts stay saved.'); break;
     case 'lx-sort': S.lxSort = d.s; break;
+    case 'lx-del': S.lxDel = d.s; S.lxSheet = null; break;
     case 'lx-line': case 'lx-line-all': {
       if (!can) return toast('Start loading this day first.');
       const st = all().find(s => s.lines.some(l => l.key === d.id)); if (!st) break; const l = st.lines.find(x => x.key === d.id);
@@ -6600,7 +6668,7 @@ function lxAction(a, d, el) {
     }
     case 'lx-item': case 'lx-item-all': {
       if (!can) return toast('Start loading this day first.');
-      const stops = all().filter(s => S.lxTab === 'all' || s.type === S.lxTab); const it = lxItems(stops).find(i => i.id === d.id); if (!it) break;
+      const stops = all().filter(s => lxInTab(s.type, S.lxTab)); const it = lxItems(stops).find(i => i.id === d.id); if (!it) break;
       const ordered = lxSort(stops.slice()).flatMap(s => s.lines.filter(l => it.lines.includes(l)));
       if (a === 'lx-item-all') { const fill = it.have < it.need; ordered.forEach(l => lxSetQ(l.key, fill ? l.q : 0)); lxLog(date, `${it.name}: all ${it.stops.size} stops ${fill ? 'loaded' : 'taken off'}`); }
       else if (+d.d > 0) { const l = ordered.find(x => (+S.lq[x.key] || 0) < x.q); if (l) lxSetQ(l.key, (+S.lq[l.key] || 0) + 1); }
@@ -6616,6 +6684,20 @@ function lxAction(a, d, el) {
       lxLog(date, `${st.name} ${fill ? 'fully loaded' : 'taken off'}`); toast(fill ? `${st.name} loaded ✓` : `${st.name} taken off`);
       break;
     }
+    case 'lx-stopmenu': S.lxMenuK = d.k; S.lxSheet = 'stopact'; break;
+    case 'lx-openitem': S.lxOpenItem = S.lxOpenItem === d.id ? null : d.id; break;
+    case 'lx-cut': {
+      if (!can) return toast('Start loading this day first.');
+      const k = d.k, delta = +d.d || 0, parts = k.split('|'), n = parts[1], i = +parts[2];
+      const o = (REAL.orders.list || []).find(x => x.n === n);
+      const q0 = o && o.l && o.l[i] ? (o.l[i][1] || 0) : 0;
+      let cut = (+S.lxCut[k] || 0) + delta; cut = Math.max(0, Math.min(q0, cut));
+      if (cut) S.lxCut[k] = cut; else delete S.lxCut[k];
+      saveLS('chuster-lxcut-v1', S.lxCut); SYNC.put('cut', k, cut || null);
+      if (o && o.l[i]) { const ref = o.l[i][0], cc = typeof ref === 'number' ? REAL.catalog[ref] : null; lxLog(date, `${o.c}: ${delta > 0 ? 'took down' : 'gave back'} ${Math.abs(delta)} ${cc ? cc.name : ref} (#${n})`); }
+      break;
+    }
+    case 'lx-setone': { S.lship[d.k] = d.t; SYNC.put('ls', d.k, d.t); saveLS('chuster-lship-v1', S.lship); const st = all().find(s => s.k === d.k); lxLog(date, `${st ? st.name : 'A stop'} set to ${LX_TYPE_NAME(d.t)}`); toast(`Set to ${LX_TYPE_NAME(d.t)}`); S.lxSheet = null; S.lxMenuK = null; break; }
     case 'lx-settype': {
       const ks = S.lxSheet === 'type1' ? [S.lxStop] : (S.lxSel || []); const t = d.t;
       ks.forEach(k => {
@@ -6634,10 +6716,10 @@ function lxAction(a, d, el) {
       toast(`Moved to ${fmtShort(isoRd(nd))}`); S.lxSheet = null; S.lxSel = []; break;
     }
     case 'lx-print': { const stops = lxSort(all().filter(s => (S.lxSel || []).includes(s.k))); if (stops.length) printDoc(lxDoc(date, stops, 'Loading sheet'), 'Loading sheet'); return; }
-    case 'lx-printtab': { const stops = lxSort(all().filter(s => S.lxTab === 'all' || s.type === S.lxTab)); printDoc(lxDoc(date, stops, `Loading sheet · ${LX_TYPE_NAME(S.lxTab)}`), 'Loading sheet'); return; }
+    case 'lx-printtab': { const stops = lxSort(all().filter(s => lxInTab(s.type, S.lxTab))); printDoc(lxDoc(date, stops, `Loading sheet · ${LX_TYPE_NAME(S.lxTab)}`), 'Loading sheet'); return; }
     case 'lx-labels': { const stops = d.k ? all().filter(s => s.k === d.k) : lxSort(all().filter(s => (S.lxSel || []).includes(s.k))); if (stops.length) printDoc(`<div class="lx-labels">${lxLabels(date, stops)}</div>`, 'Labels'); return; }
     case 'lx-tell': {
-      const stops = all().filter(s => s.type === S.lxTab); const n = LX_TYPE_NAME(S.lxTab);
+      const stops = all().filter(s => lxInTab(s.type, S.lxTab)); const n = LX_TYPE_NAME(S.lxTab);
       const txt = `${n} is loaded for ${fmtShort(isoRd(date))}: ${stops.length} stops, ${fn(stops.reduce((s, x) => s + x.need, 0))} boxes.\n` + stops.map((s, i) => `${i + 1}. ${s.name}`).join('\n');
       lxLog(date, `Told the driver ${n} is loaded`); window.open('https://wa.me/?text=' + encodeURIComponent(txt), '_blank', 'noopener'); return;
     }
@@ -6646,15 +6728,36 @@ function lxAction(a, d, el) {
   render();
 }
 document.addEventListener('click', e => { const el = e.target.closest('[data-act^="lx-"]'); if (!el || el.disabled) return; if (el.tagName === 'A' && !el.getAttribute('href')) e.preventDefault(); lxAction(el.dataset.act, el.dataset, el); });
+// Press-and-hold a stop → its Ship date / Ship type / Print menu (old-app style).
+(function () {
+  let timer = null, sx = 0, sy = 0, fired = false, key = null;
+  const cancel = () => { if (timer) { clearTimeout(timer); timer = null; } };
+  document.addEventListener('pointerdown', e => {
+    const row = e.target.closest('[data-lpk]');
+    if (!row || e.target.closest('.lx-sbtns, .lx-cb, input, a')) { cancel(); return; }
+    key = row.dataset.lpk; sx = e.clientX; sy = e.clientY; fired = false; cancel();
+    timer = setTimeout(() => { timer = null; fired = true; try { if (navigator.vibrate) navigator.vibrate(15); } catch (x) { /* ignore */ } S.lxMenuK = key; S.lxSheet = 'stopact'; try { render(); } catch (x) { /* ignore */ } }, 450);
+  }, { passive: true });
+  document.addEventListener('pointermove', e => { if (timer && (Math.abs(e.clientX - sx) > 10 || Math.abs(e.clientY - sy) > 10)) cancel(); }, { passive: true });
+  document.addEventListener('pointerup', cancel);
+  document.addEventListener('pointercancel', cancel);
+  document.addEventListener('click', e => { if (fired) { fired = false; e.stopPropagation(); e.preventDefault(); } }, true);
+})();
 document.addEventListener('change', e => {
   const t = e.target;
   if (t.id === 'lx-pickdate' && t.value) { S.lxPick = t.value; render(); }
   if (t.id === 'lx-hide') { S.lxHide = t.checked; render(); }
+  if (t.id === 'lx-oneday' && t.value && S.lxMenuK) {
+    const date = S.lxDate, nd = t.value, st = lxStops(date).find(s => s.k === S.lxMenuK), idx = lxIndex();
+    if (st) { st.nums.forEach(n => { const o = idx.get(n); if (ddCache) ddCache.m.delete(n); const v = o && dDateOf(o) === nd ? null : nd; if (v) S.lmove[n] = v; else delete S.lmove[n]; SYNC.put('lm', n, v); });
+      saveLS('chuster-lmove-v1', S.lmove); lxLog(date, `${st.name} moved to ${fmtShort(isoRd(nd))}`); lxLog(nd, `${st.name} moved here from ${fmtShort(isoRd(date))}`); toast(`Moved to ${fmtShort(isoRd(nd))}`); }
+    S.lxSheet = null; S.lxMenuK = null; render();
+  }
   if (t.dataset && t.dataset.lx) {
     const date = S.lxDate; if (!lxCan(date)) return;
     const v = Math.max(0, parseInt(t.value, 10) || 0); const stops = lxStops(date);
     if (t.dataset.lx === 'line') { const st = stops.find(s => s.lines.some(l => l.key === t.dataset.id)); if (st) { const l = st.lines.find(x => x.key === t.dataset.id); lxSetQ(l.key, Math.min(v, l.q)); lxSyncReady(date, st); } }
-    else { const tabS = stops.filter(s => S.lxTab === 'all' || s.type === S.lxTab); const it = lxItems(tabS).find(i => i.id === t.dataset.id);
+    else { const tabS = stops.filter(s => lxInTab(s.type, S.lxTab)); const it = lxItems(tabS).find(i => i.id === t.dataset.id);
       if (it) { let left = v; lxSort(tabS.slice()).flatMap(s => s.lines.filter(l => it.lines.includes(l))).forEach(l => { const q = Math.min(l.q, left); left -= q; lxSetQ(l.key, q); }); tabS.forEach(s => lxSyncReady(date, s)); } }
     render();
   }
