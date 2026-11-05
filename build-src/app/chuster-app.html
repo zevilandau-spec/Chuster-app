@@ -6919,7 +6919,7 @@ document.addEventListener('click', e => { const el = e.target.closest('[data-act
     lastRun = Date.now();
     // Only a brand-new published version warrants a full reload; otherwise just re-sync data in place.
     let done = false;
-    const fallback = setTimeout(() => { if (done) return; done = true; try { if (window.SYNC) SYNC.tick(); } catch (e) {} try { render(); } catch (e) {} finish('Up to date'); }, 2500);
+    const fallback = setTimeout(() => { if (done) return; done = true; try { if (window.SYNC) SYNC.tick(); } catch (e) {} try { render(); } catch (e) {} finish(''); }, 2500);
     try {
       fetch('version.json?t=' + Date.now(), { cache: 'no-store' })
         .then(r => r.ok ? r.json() : null)
@@ -6929,10 +6929,10 @@ document.addEventListener('click', e => { const el = e.target.closest('[data-act
           if (j && j.v && mine && j.v > mine) { if (bar) bar.querySelector('.ptr-t').textContent = 'New version — updating…'; setTimeout(() => location.reload(), 200); return; }
           try { if (window.SYNC) SYNC.tick(); } catch (e) {}
           try { render(); } catch (e) {}
-          finish('Up to date');
+          finish('');
         })
-        .catch(() => { if (done) return; done = true; clearTimeout(fallback); try { if (window.SYNC) SYNC.tick(); } catch (e) {} try { render(); } catch (e) {} finish('Up to date'); });
-    } catch (e) { clearTimeout(fallback); try { render(); } catch (x) {} finish('Up to date'); }
+        .catch(() => { if (done) return; done = true; clearTimeout(fallback); try { if (window.SYNC) SYNC.tick(); } catch (e) {} try { render(); } catch (e) {} finish(''); });
+    } catch (e) { clearTimeout(fallback); try { render(); } catch (x) {} finish(''); }
   }
   addEventListener('touchstart', e => { if (!refreshing && Date.now() - lastRun > COOLDOWN && e.touches.length === 1 && sc().scrollTop <= 0) { y0 = e.touches[0].clientY; t0 = Date.now(); active = true; dy = 0; } else active = false; }, { passive: true });
   addEventListener('touchmove', e => {
