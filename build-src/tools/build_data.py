@@ -239,6 +239,10 @@ LY_FROM, LY_TO = ly_center - dt.timedelta(days=30), ly_center + dt.timedelta(day
 # ---------------- customers ----------------
 cust_src = rd(one('originals/Chuster_Customers_All_*.csv'))
 cat_idx = {c['full']: i for i, c in enumerate(catalog)}
+try:
+    saved_ship = json.load(open(os.path.join(SRC, 'derived', 'ship_addresses.json'), encoding='utf-8'))
+except (OSError, ValueError):
+    saved_ship = {}
 customers = []
 late = []
 sales12 = collections.defaultdict(float); ytd_c = collections.defaultdict(float); ytd_prev_c = collections.defaultdict(float)
@@ -297,6 +301,9 @@ for r in cust_src:
         'lastOrder': ({'date': iso(last_inv[name][0]), 'num': last_inv[name][1], 'lines': [[f, q] for f, q in inv_lines[(name, last_inv[name][1])].items() if q > 0]} if name in last_inv else None),
         'open': [{'date': d, 'num': n, 'amt': r2(a), 'due': du} for d, n, a, du in sorted(ar_open_inv.get(name, []), key=lambda x: day(x[0]))]
     }
+    sv = saved_ship.get(name)
+    if sv:
+        c['saddr'] = sv
     customers.append(c)
     if is_late:
         late.append(name)

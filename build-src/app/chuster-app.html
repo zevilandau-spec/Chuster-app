@@ -864,6 +864,11 @@ main { padding-block: 14px 32px; }
 .shipbtn b { display: block; font-size: 15px; }
 .shipbtn small { display: block; color: var(--muted); font-size: 12px; }
 .shipbtn .caret { margin-left: auto; color: var(--muted); }
+.shiploc { display: flex; flex-direction: column; gap: 6px; }
+.shiploc-o { text-align: left; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 8px 12px; font: inherit; color: inherit; cursor: pointer; }
+.shiploc-o b { display: block; font-size: 14.5px; font-weight: 700; }
+.shiploc-o small { display: block; color: var(--muted); font-size: 12px; margin-top: 1px; }
+.shiploc-o.on { border-color: var(--brand, #22409A); box-shadow: inset 0 0 0 1px var(--brand, #22409A); background: var(--brand-soft, rgba(34,64,154,.07)); }
 .cal-pop { position: absolute; z-index: 40; top: calc(100% + 6px); left: 0; width: min(300px, 86vw); background: var(--surface); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 12px 30px rgba(0,0,0,.18); padding: 12px; }
 .cal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; font-size: 15px; font-weight: 800; }
 .cal-head button { width: 32px; height: 32px; border: none; background: var(--surface-2); border-radius: 8px; font-size: 16px; cursor: pointer; color: inherit; }
@@ -2145,7 +2150,17 @@ function orderRefresh() {
   const b = document.getElementById('order-bar'); if (b) b.innerHTML = orderBarHtml();
   document.querySelectorAll('[data-act="save-order"]').forEach(x => { x.disabled = !T.boxes; });
 }
-Object.assign(S, { orderShip: null, shipCalOpen: false, shipCalM: null });
+Object.assign(S, { orderShip: null, shipCalOpen: false, shipCalM: null, orderLoc: null });
+// Ship-to choices for a customer that ships to more than one place (UTA and the like).
+// Bingo is left out here on purpose — its locations are their own app stores.
+function shipOptions(cust) {
+  if (!cust || !REAL || STORE_LOCS[cust.name]) return [];
+  const out = [], seen = new Set();
+  const norm = s => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
+  (cust.saddr || []).forEach(s => { const value = s.addr ? (s.name && norm(s.name) && !norm(s.addr).includes(norm(s.name)) ? s.name + ' — ' + s.addr : s.addr) : s.name; if (!value) return; const k = norm(value); if (seen.has(k)) return; seen.add(k); out.push({ label: s.name || s.addr, sub: s.name ? s.addr : '', value }); });
+  (REAL.orders.list || []).forEach(o => { if (o.c !== cust.name || !o.ship) return; const k = norm(o.ship); if (seen.has(k)) return; seen.add(k); out.push({ label: o.ship, sub: '', value: o.ship }); });
+  return out;
+}
 window.addEventListener('scroll', () => { const b = document.getElementById('to-top'); if (b) b.classList.toggle('show', window.scrollY > 320); }, { passive: true });
 function renderOrder() {
   const T = orderTotals();
@@ -2190,6 +2205,12 @@ function renderOrder() {
       <label class="lbl" for="inv-num">Invoice #</label>
       <input class="inp" id="inv-num" inputmode="numeric" autocomplete="off" value="${esc((S.orderRef && !invUsed(S.orderRef) ? S.orderRef : '') || nextInvNum())}" placeholder="next number">
       <p class="sub" style="margin:-4px 0 0;font-size:12px">The next free number is filled in. You can change it.</p>
+      ${(() => { const opts = shipOptions(cust); if (!opts.length) return ''; return `<label class="lbl">Ship to</label>
+        <div class="shiploc">
+          <button type="button" class="shiploc-o${!S.orderLoc ? ' on' : ''}" data-act="order-loc" data-v=""><b>Main address</b><small>default for ${esc(cust.name)}</small></button>
+          ${opts.map(o => `<button type="button" class="shiploc-o${S.orderLoc === o.value ? ' on' : ''}" data-act="order-loc" data-v="${esc(o.value)}"><b>${esc(o.label)}</b>${o.sub ? `<small>${esc(o.sub)}</small>` : ''}</button>`).join('')}
+        </div>
+        <p class="sub" style="margin:0 0 2px;font-size:12px">${esc(cust.name)} ships to more than one place. Pick where this order goes — it prints on the invoice's Ship&nbsp;To.</p>`; })()}
       <label class="lbl">Ship date</label>
       ${(() => { const auto = REAL && storeName ? dDateAuto({ c: storeName, d: isoOf(TODAY) }) : isoOf(next); const val = S.orderShip || auto; return `<div class="shipwrap">
         <button type="button" class="shipbtn" data-act="ship-toggle" aria-expanded="${!!S.shipCalOpen}">
@@ -6812,7 +6833,7 @@ function nextInvNum() {
   return mx ? String(mx + 1) : '';
 }
 function sendOrder() {
-  const done = loc => { if (qwFromOrder(loc)) { const sent = S.orderStore; S.oq = {}; S.orderStore = ''; S.orderGroup = 'All'; S.orderQ = ''; S.storeOpen = false; S.storeQ = ''; S.orderRef = ''; S.orderShip = null; S.shipCalOpen = false; S.lyPick = null; S.creditOk = null; toast((sent ? sent + ': ' : '') + (SYNC.ready() ? 'sent to QuickBooks. Ready for the next order.' : 'saved. Ready for the next order.')); render(); window.scrollTo(0, 0); } };
+  const done = loc => { if (qwFromOrder(loc)) { const sent = S.orderStore; S.oq = {}; S.orderStore = ''; S.orderGroup = 'All'; S.orderQ = ''; S.storeOpen = false; S.storeQ = ''; S.orderRef = ''; S.orderShip = null; S.orderLoc = null; S.shipCalOpen = false; S.lyPick = null; S.creditOk = null; toast((sent ? sent + ': ' : '') + (SYNC.ready() ? 'sent to QuickBooks. Ready for the next order.' : 'saved. Ready for the next order.')); render(); window.scrollTo(0, 0); } };
   if (navigator.geolocation) {
     let fired = false; const once = loc => { if (!fired) { fired = true; done(loc); } };
     navigator.geolocation.getCurrentPosition(
@@ -6836,9 +6857,10 @@ function qwFromOrder(loc) {
   // A location store (Bingo Lakewood…) posts to its main QuickBooks customer with the location
   // stamped as the Ship-To; the app keeps the location name so it stays its own store/stop.
   const locMain = locMainOf(S.orderStore);
-  qwSave({ id: qwId(), kind: 'inv', st: 'ok', try: 0, c: S.orderStore, qbcust: locMain, shipto: locMain ? S.orderStore : null, d: isoOf(TODAY), ref, refAuto, lines, total: Math.round(total * 100) / 100, memo: '', by: byName(), at: nowIso(), okBy: byName(), okAt: nowIso(), loc: loc || null, ship: S.orderShip || null });
+  const shipto = locMain ? S.orderStore : (S.orderLoc || null);
+  qwSave({ id: qwId(), kind: 'inv', st: 'ok', try: 0, c: S.orderStore, qbcust: locMain, shipto, d: isoOf(TODAY), ref, refAuto, lines, total: Math.round(total * 100) / 100, memo: '', by: byName(), at: nowIso(), okBy: byName(), okAt: nowIso(), loc: loc || null, ship: S.orderShip || null });
   if (S.orderShip && ref) setLmove(ref, S.orderShip);
-  S.orderShip = null; S.shipCalOpen = false;
+  S.orderShip = null; S.orderLoc = null; S.shipCalOpen = false;
   return true;
 }
 // where the salesman was when the order was sent (owner & office only)
@@ -7245,8 +7267,9 @@ document.addEventListener('click', e => {
     case 'ship-mon': { const a = dateOf(isoRd(S.shipCalM || isoOf(TODAY))); const nm = new Date(Date.UTC(a.getFullYear(), a.getMonth() + (+d.d), 1)); S.shipCalM = isoOf(RD(nm.getUTCFullYear(), nm.getUTCMonth() + 1, 1)); keep(); break; }
     case 'ship-pick': S.orderShip = d.d; S.shipCalOpen = false; keep(); break;
     case 'ship-auto': S.orderShip = null; S.shipCalOpen = false; keep(); break;
+    case 'order-loc': S.orderLoc = d.v || null; keep(); break;
     case 'store-open': S.storeOpen = !S.storeOpen; S.storeQ = ''; keep(); break;
-    case 'store-pick': S.orderStore = d.n; S.storeOpen = false; S.storeQ = ''; S.lyPick = null; S.orderShip = null; S.shipCalOpen = false; keep(); break;
+    case 'store-pick': S.orderStore = d.n; S.storeOpen = false; S.storeQ = ''; S.lyPick = null; S.orderShip = null; S.orderLoc = null; S.shipCalOpen = false; keep(); break;
     case 'hist-tab': S.histTab = d.t; keep(); break;
     case 'ly-pick': S.lyPick = d.num; keep(); break;
     case 'ly-copy': {
@@ -7272,18 +7295,18 @@ document.addEventListener('click', e => {
       }
       break;
     }
-    case 'clear-order': { const had = Object.values(S.oq).some(q => q > 0); S.oq = {}; S.orderGroup = 'All'; S.orderStore = ''; S.orderRef = ''; S.orderShip = null; S.shipCalOpen = false; keep(); toast(had ? 'Order canceled. Nothing was sent to QuickBooks.' : 'Cleared.'); render(); break; }
+    case 'clear-order': { const had = Object.values(S.oq).some(q => q > 0); S.oq = {}; S.orderGroup = 'All'; S.orderStore = ''; S.orderRef = ''; S.orderShip = null; S.orderLoc = null; S.shipCalOpen = false; keep(); toast(had ? 'Order canceled. Nothing was sent to QuickBooks.' : 'Cleared.'); render(); break; }
     case 'save-draft': {
       if (!S.orderStore) { toast('Pick a store first.'); break; }
       const oq = {}; Object.keys(S.oq).forEach(k => { if (S.oq[k] > 0) oq[k] = S.oq[k]; });
       if (!Object.keys(oq).length) { toast('Add at least one item before saving a draft.'); break; }
       const el = document.getElementById('inv-num'); const ref = String((el ? el.value : S.orderRef) || '').trim();
       const id = 'd' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-      S.drafts[id] = { id, c: S.orderStore, oq, ship: S.orderShip || null, ref, by: byName(), ts: nowIso() };
+      S.drafts[id] = { id, c: S.orderStore, oq, ship: S.orderShip || null, loc: S.orderLoc || null, ref, by: byName(), ts: nowIso() };
       saveLS('chuster-drafts-v1', S.drafts); SYNC.put('df', id, S.drafts[id]);
-      S.oq = {}; S.orderStore = ''; S.orderGroup = 'All'; S.orderQ = ''; S.orderRef = ''; S.orderShip = null; S.shipCalOpen = false; S.storeOpen = false; S.storeQ = '';
+      S.oq = {}; S.orderStore = ''; S.orderGroup = 'All'; S.orderQ = ''; S.orderRef = ''; S.orderShip = null; S.orderLoc = null; S.shipCalOpen = false; S.storeOpen = false; S.storeQ = '';
       keep(); toast('Saved as a draft. Finish it any time from Drafts at the top of New order.'); render(); window.scrollTo(0, 0); break; }
-    case 'draft-open': { const dft = S.drafts[d.id]; if (!dft) { toast('That draft is gone.'); break; } S.orderStore = dft.c; S.oq = Object.assign({}, dft.oq || {}); S.orderShip = dft.ship || null; S.orderRef = dft.ref || ''; S.orderGroup = 'All'; S.orderQ = ''; S.storeOpen = false; S.shipCalOpen = false; delete S.drafts[d.id]; saveLS('chuster-drafts-v1', S.drafts); SYNC.put('df', d.id, null); go('order'); window.scrollTo(0, 0); toast('Draft opened. Finish it and send, or save it again.'); break; }
+    case 'draft-open': { const dft = S.drafts[d.id]; if (!dft) { toast('That draft is gone.'); break; } S.orderStore = dft.c; S.oq = Object.assign({}, dft.oq || {}); S.orderShip = dft.ship || null; S.orderLoc = dft.loc || null; S.orderRef = dft.ref || ''; S.orderGroup = 'All'; S.orderQ = ''; S.storeOpen = false; S.shipCalOpen = false; delete S.drafts[d.id]; saveLS('chuster-drafts-v1', S.drafts); SYNC.put('df', d.id, null); go('order'); window.scrollTo(0, 0); toast('Draft opened. Finish it and send, or save it again.'); break; }
     case 'draft-del': { delete S.drafts[d.id]; saveLS('chuster-drafts-v1', S.drafts); SYNC.put('df', d.id, null); keep(); toast('Draft deleted.'); break; }
     case 'save-order': { const cr = creditRisk(REAL && REAL.customers.find(c => c.name === S.orderStore)); if (cr && cr.bad && S.creditOk !== S.orderStore) { S.creditOk = S.orderStore; toast(`${S.orderStore} owes money over 90 days or is over the limit. Tap Send again to send anyway.`); break; } }
       S.creditOk = null; sendOrder(); break;

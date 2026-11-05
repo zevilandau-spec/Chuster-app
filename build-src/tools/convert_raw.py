@@ -127,6 +127,24 @@ for c in custs:
                  *b, *s, c.get('type', ''), c.get('terms', ''), c.get('rep', ''), '', '', '', '', money(c['limit']) if c.get('limit') else '', '', '', '', '', '', ''])
 write(f'originals/Chuster_Customers_All_{tag}.csv', CH, crow)
 
+# saved "Ship To" addresses QuickBooks keeps on each customer (for the order ship-location picker).
+# A separate file because a customer can have many and the fixed CSV can't hold a list.
+saddr = {}
+for c in custs:
+    if c.get('sub'):
+        continue
+    lst = []
+    for s in (c.get('shiplist') or []):
+        txt = ship_str(s)
+        if not txt and not s.get('name'):
+            continue
+        lst.append({'name': (s.get('name') or '').strip(), 'addr': txt, 'def': bool(s.get('def'))})
+    if lst:
+        saddr[c['n']] = lst
+sa_path = os.path.join(OUT, 'derived', 'ship_addresses.json')
+os.makedirs(os.path.dirname(sa_path), exist_ok=True)
+json.dump(saddr, open(sa_path, 'w', encoding='utf-8'), ensure_ascii=False)
+
 # ---------- item listing ----------
 TYPES = {'inv': 'Inventory Part', 'asm': 'Inventory Assembly', 'non': 'Non-inventory Part', 'svc': 'Service', 'oth': 'Other Charge', 'disc': 'Discount', 'sub': 'Subtotal', 'grp': 'Group', 'pay': 'Payment'}
 irow = []
