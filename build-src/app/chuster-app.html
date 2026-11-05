@@ -615,6 +615,7 @@ body:has(#ai-fab:not([hidden])) #view { padding-bottom: 72px; }
 .lx-sname { border: none; background: none; padding: 0; text-align: left; font: inherit; font-size: 16px; font-weight: 800; color: var(--fg); cursor: pointer; }
 .lx-smain > b { font-size: 16px; }
 .lx-addr { font-size: 13px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lx-shipt { font-weight: 600; color: var(--muted); font-size: 13px; }
 .lx-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 3px; }
 .lx-inv { border: 1px solid var(--line-strong); background: var(--surface); border-radius: 6px; padding: 2px 7px; font: 700 12px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--fg); cursor: pointer; }
 .lx-area { font-size: 11px; font-weight: 800; letter-spacing: .05em; color: var(--brand-text); }
@@ -5579,7 +5580,9 @@ const delivDays = () => { const s = new Set(REAL.orders.list.filter(o => o.t ===
 function truckFor(date, area) { const m = S.dsched[dow(isoRd(date))] || {}; return areaOn(dow(isoRd(date)), area, date) ? Math.min(+m[area], DTRUCKS().length - 1) : -1; }
 function dayStops(date) {
   const mv = S.lmove || {}; const raw = REAL.orders.list.filter(o => o.t === 'inv' && o.a > 0 && dDateOf(o) === date); const by = {};
-  raw.forEach(o => { const m = by[o.c]; if (!m) by[o.c] = { d: date, c: o.c, n: o.n, a: o.a, l: o.l.slice(), t: 'inv', nums: [o.n] }; else { m.a += o.a; m.l = m.l.concat(o.l); m.nums.push(o.n); } });
+  // One stop per customer — but split into separate stops when the same customer has
+  // invoices going to different ship-to addresses (same QuickBooks name, different delivery).
+  raw.forEach(o => { const gk = o.c + (o.ship ? '\u0001' + o.ship : ''); const m = by[gk]; if (!m) by[gk] = { d: date, c: o.c, ship: o.ship || '', n: o.n, a: o.a, l: o.l.slice(), t: 'inv', nums: [o.n] }; else { m.a += o.a; m.l = m.l.concat(o.l); m.nums.push(o.n); } });
   const inv = Object.values(by).map(m => Object.assign(m, { n: m.nums.sort()[0], label: m.nums.sort().join(' + ') }));
   const byT = {}; inv.forEach(o => { const c = custByName(o.c) || {}; const area = c.area || 'Other'; const k = `${date}|${o.n}`; const ls = S.lship && S.lship[k]; const t = ls && ls !== 'truck' ? -1 : S.dstat[k] && S.dstat[k].truck != null ? S.dstat[k].truck : c.rep === 'PU' ? -1 : truckFor(date, area); (byT[t] || (byT[t] = [])).push({ o, c, area, k, st: S.dstat[k] || {} }); });
   Object.keys(byT).forEach(t => { const ord = S.dorder[`${date}|${t}`] || []; byT[t].sort((x, y) => { const a = ord.indexOf(x.o.n), b = ord.indexOf(y.o.n); if (a >= 0 || b >= 0) return (a < 0 ? 999 : a) - (b < 0 ? 999 : b); return (AREA_ORDER.indexOf(x.area) - AREA_ORDER.indexOf(y.area)) || x.c.address && y.c.address && x.c.address.localeCompare(y.c.address) || x.o.c.localeCompare(y.o.c); }); });
@@ -5626,10 +5629,10 @@ async function routeBest(date, t, silent) {
   S.routeBusy = ''; render();
 }
 // Google Maps directions for one leg (origin = the phone's location)
-function navLegHref(stops) { const A = stops.filter(x => x.c.address).map(x => fixAddr(x.c.address)); if (!A.length) return ''; const dest = A[A.length - 1]; const w = A.slice(0, -1);
+function navLegHref(stops) { const A = stops.filter(x => x.c.address).map(x => dlvAddr(x)); if (!A.length) return ''; const dest = A[A.length - 1]; const w = A.slice(0, -1);
   return 'https://www.google.com/maps/dir/?api=1&travelmode=driving&destination=' + encodeURIComponent(dest) + (w.length ? '&waypoints=' + encodeURIComponent(w.join('|')) : ''); }
 // Google Maps with up to 9 stops at once (its limit); starts from where the phone is
-function navHref(list) { const A = list.filter(x => !x.st.st && x.c.address).slice(0, 10).map(x => fixAddr(x.c.address)); if (!A.length) return ''; const dest = A[A.length - 1]; const w = A.slice(0, -1);
+function navHref(list) { const A = list.filter(x => !x.st.st && x.c.address).slice(0, 10).map(x => dlvAddr(x)); if (!A.length) return ''; const dest = A[A.length - 1]; const w = A.slice(0, -1);
   return 'https://www.google.com/maps/dir/?api=1&travelmode=driving&destination=' + encodeURIComponent(dest) + (w.length ? '&waypoints=' + encodeURIComponent(w.join('|')) : ''); }
 const smsHref = (phone, txt) => { const d = String(phone || '').replace(/\D/g, ''); return d.length >= 10 ? `sms:${d.length === 10 ? '+1' + d : '+' + d}?&body=${encodeURIComponent(txt)}` : ''; };
 const onWayTxt = () => 'Hi, this is Chuster Noodle. Our truck is on the way to you now. See you soon!';
@@ -5638,6 +5641,25 @@ const mapsHref = addr => 'https://www.google.com/maps/dir/?api=1&destination=' +
 const wazeHref = addr => 'https://waze.com/ul?navigate=yes&q=' + encodeURIComponent(addr || '');
 const stTag = st => st.st === 'done' ? `<span class="tag green">✓ Delivered ${st.at ? st.at.slice(11, 16) : ''}</span>` : st.st === 'partial' ? `<span class="tag gold">Delivered, ${st.shortN || 'some'} missing</span>` : st.st === 'skip' ? `<span class="tag red">Not delivered</span>` : `<span class="tag grey">Not delivered yet</span>`;
 const fixAddr = a => String(a || '').replace(/,\s*,/g, ',');
+// Where a stop actually delivers: the invoice's ship-to address when present, else the
+// customer's default address. Accepts a loading stop (has .x), a delivery stop wrapper
+// (has .o/.c), or a raw merged order.
+function dlvAddr(x) {
+  if (!x) return '';
+  const w = x.x || x; const o = w.o || w; const c = w.c || (o && o.c && custByName(o.c)) || {};
+  const sh = o && o.ship ? String(o.ship).replace(/\s*\/\s*/g, ', ').trim() : '';
+  return sh || fixAddr((c && c.address) || '');
+}
+// A short tag that distinguishes same-name stops shipping to different addresses.
+function shipTag(x) {
+  const w = x && x.x ? x.x : x; const o = w && w.o ? w.o : w;
+  if (!o || !o.ship) return '';
+  const cn = String(o.c || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const segs = String(o.ship).split('/').map(s => s.trim()).filter(Boolean);
+  const keep = segs.filter(s => s.toLowerCase().replace(/[^a-z0-9]/g, '') !== cn && s.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 10) !== cn.slice(0, 10));
+  const t = (keep.length ? keep : segs).join(', ');
+  return t.length > 30 ? t.slice(0, 29) + '…' : t;
+}
 function pickDate() { const days = delivDays(); if (!S.dDate || !days.includes(S.dDate)) { const t = isoOf(TODAY); S.dDate = days.find(d => d <= t) || days[0]; } return days; }
 Object.assign(S, { dTruckF: null, dShow: 'todo', dQ: '', dDayPop: false, dDayCal: false });
 const SVG_CAR = '<svg viewBox="0 0 24 24"><path d="M5 11l1.5-4.5A2 2 0 0 1 8.4 5h7.2a2 2 0 0 1 1.9 1.5L19 11M4 11h16v5H4zM7 16v1.5M17 16v1.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="7.5" cy="14" r="1"/><circle cx="16.5" cy="14" r="1"/></svg>';
@@ -5674,11 +5696,11 @@ function renderDeliveries() {
   const boxes = view.reduce((s, x) => s + stopCases(x.o), 0);
   const truckOf = x => { for (const t in byT) if (byT[t].some(y => y.k === x.k)) return +t; return -1; };
   const tchip = (val, label, n) => `<button class="chip" data-act="d-truckf" data-v="${val}" aria-pressed="${(val === 'all' ? tf == null : +val === tf)}">${esc(label)}${n != null ? ' · ' + n : ''}</button>`;
-  const card = x => { const ct = dlvCounts(x.o); const dn = isDone(x); const t = truckOf(x); const addr = fixAddr(x.c.address);
+  const card = x => { const ct = dlvCounts(x.o); const dn = isDone(x); const t = truckOf(x); const addr = dlvAddr(x);
     return `<div class="dlv-card">
       <div class="dlv-main">
         <div class="dlv-tap" data-act="d-open" data-k="${esc(x.k)}" role="button" tabindex="0">
-          <div class="dlv-name">${esc(x.o.c)}</div>
+          <div class="dlv-name">${esc(x.o.c)}${shipTag(x) ? ` <span style="font-weight:600;color:var(--muted);font-size:13px">· ${esc(shipTag(x))}</span>` : ''}</div>
           ${addr ? `<div class="dlv-addr">${esc(addr)}</div>` : ''}
           <div class="dlv-row"><span class="dlv-inv">#${esc(x.o.label || x.o.n)}</span>${ct.total > 0 ? `<span class="dlv-box">▣ ${fn(ct.total)}</span>` : `<span class="dlv-box">${fm(x.o.a)}</span>`}${ct.loose > 0 ? `<span class="dlv-chip pallet">Pallet ${fn(ct.loose)}</span>` : ''}${ct.cases > 0 ? `<span class="dlv-chip">Cases ${fn(ct.cases)}</span>` : ''}<span class="dlv-area">${esc((x.area || 'Other').toUpperCase())}</span></div>
           ${dn ? '<div style="margin-top:6px">' + stTag(x.st) + '</div>' : ''}
@@ -5731,7 +5753,7 @@ function renderDriver() {
   ${legs.length > 1 ? `<p class="sub" style="margin:0">Google Maps fits about 9 stops at a time. Drive the first 9 in order, then tap <b>Continue</b> for the next 9.</p>` : ''}
   <div class="chips">${T.map((tr, n) => `<button class="chip" data-act="d-truck" data-t="${n}" aria-pressed="${t === n}">${esc(tr.name)} · ${(byT[n] || []).length}</button>`).join('')}</div>
   <div class="tiles"><div class="tile"><div class="k">Stops left</div><div class="v">${left} of ${list.length}</div><div class="s">${fn(list.reduce((s, x) => s + stopCases(x.o), 0))} cases on the truck</div></div>
-    ${next ? `<button class="tile good" data-act="d-open" data-k="${esc(next.k)}" style="text-align:left;font:inherit;cursor:pointer"><div class="k">Next stop</div><div class="v" style="font-size:20px">${esc(next.o.c)}</div><div class="s">${esc(fixAddr(next.c.address))} · tap to start</div></button>` : `<div class="tile good"><div class="k">All done</div><div class="v">🎉</div><div class="s">Send your day to the office</div></div>`}</div>
+    ${next ? `<button class="tile good" data-act="d-open" data-k="${esc(next.k)}" style="text-align:left;font:inherit;cursor:pointer"><div class="k">Next stop</div><div class="v" style="font-size:20px">${esc(next.o.c)}</div><div class="s">${esc(dlvAddr(next))} · tap to start</div></button>` : `<div class="tile good"><div class="k">All done</div><div class="v">🎉</div><div class="s">Send your day to the office</div></div>`}</div>
   ${(() => {
     const todoL = list.filter(x => !x.st.st); const doneL = list.filter(x => x.st.st);
     const view = S.drvShow === 'done' ? doneL : todoL;
@@ -5739,8 +5761,8 @@ function renderDriver() {
     const rows = view.map(x => { const k = list.indexOf(x);
       return `<div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px;border-top:1px solid var(--line);padding:10px 0">
       <span class="icode stopn" style="background:${x.st.st ? 'var(--good)' : 'var(--brand)'}">${x.st.st ? '✓' : k + 1}</span>
-      <button data-act="d-open" data-k="${esc(x.k)}" style="flex:1 1 220px;min-width:0;text-align:left;background:none;border:none;font:inherit;color:inherit;cursor:pointer;padding:0"><b>${esc(x.o.c)}</b><span style="display:block;font-size:13px;color:var(--muted)">${esc(fixAddr(x.c.address))} · ${fn(stopCases(x.o))} cases</span></button>
-      <span style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-left:auto">${stTag(x.st)}${!x.st.st && smsHref(x.c.phone, '') ? `<a class="btn ghost sm" href="${esc(smsHref(x.c.phone, onWayTxt()))}" aria-label="Text ${esc(x.o.c)} that the truck is on the way">💬</a>` : ''}${x.c.address ? `<a class="btn ghost sm" href="${esc(mapsHref(fixAddr(x.c.address)))}" target="_blank" rel="noopener">Maps</a><a class="btn ghost sm" href="${esc(wazeHref(fixAddr(x.c.address)))}" target="_blank" rel="noopener">Waze</a>` : ''}</span></div>`; }).join('');
+      <button data-act="d-open" data-k="${esc(x.k)}" style="flex:1 1 220px;min-width:0;text-align:left;background:none;border:none;font:inherit;color:inherit;cursor:pointer;padding:0"><b>${esc(x.o.c)}${shipTag(x) ? ' · ' + esc(shipTag(x)) : ''}</b><span style="display:block;font-size:13px;color:var(--muted)">${esc(dlvAddr(x))} · ${fn(stopCases(x.o))} cases</span></button>
+      <span style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-left:auto">${stTag(x.st)}${!x.st.st && smsHref(x.c.phone, '') ? `<a class="btn ghost sm" href="${esc(smsHref(x.c.phone, onWayTxt()))}" aria-label="Text ${esc(x.o.c)} that the truck is on the way">💬</a>` : ''}${x.c.address ? `<a class="btn ghost sm" href="${esc(mapsHref(dlvAddr(x)))}" target="_blank" rel="noopener">Maps</a><a class="btn ghost sm" href="${esc(wazeHref(dlvAddr(x)))}" target="_blank" rel="noopener">Waze</a>` : ''}</span></div>`; }).join('');
     return `${toggle}<section class="card" style="padding:8px 14px;margin-top:12px">${rows || `<p class="sub" style="margin:0">${S.drvShow === 'done' ? 'Nothing delivered yet.' : list.length ? 'All stops delivered. 🎉' : 'No stops for this truck today.'}</p>`}</section>`;
   })()}`;
 }
@@ -5777,8 +5799,8 @@ function driverStop(x, list) {
   const proofOk = !!(S.proof.sig && S.proof.photos.length);
   const finishLabel = proofOk ? (missN > 0 ? `Finish delivery — ${fn(missN)} missing` : 'Finish delivery — all delivered') : '🔒 Add signature + photo to finish';
   return `<div class="page-head"><div style="display:flex;align-items:center;gap:8px"><button class="icon-btn" data-act="d-back" aria-label="Back to stops" style="color:var(--fg)"><svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg></button><div><h1 style="display:block;font-size:22px">${esc(x.o.c)}</h1><p class="sub">Stop ${k + 1} of ${list.length} · invoice${(x.o.nums || []).length > 1 ? 's' : ''} #${esc(x.o.label || x.o.n)} · ${fm(x.o.a)}</p></div></div>
-    <div class="actions">${x.c.address ? `<a class="btn primary" href="${esc(mapsHref(fixAddr(x.c.address)))}" target="_blank" rel="noopener">Google Maps</a><a class="btn ghost" href="${esc(wazeHref(fixAddr(x.c.address)))}" target="_blank" rel="noopener">Waze</a>` : ''}${x.c.phone ? `<a class="btn ghost" href="${telHref(x.c.phone)}">${ic('phone')} Call</a>` : ''}</div></div>
-  <div class="note"><b>${esc(fixAddr(x.c.address) || 'No address in QuickBooks')}</b>${x.c.phone ? ' · ' + esc(x.c.phone) : ''}</div>
+    <div class="actions">${x.c.address ? `<a class="btn primary" href="${esc(mapsHref(dlvAddr(x)))}" target="_blank" rel="noopener">Google Maps</a><a class="btn ghost" href="${esc(wazeHref(dlvAddr(x)))}" target="_blank" rel="noopener">Waze</a>` : ''}${x.c.phone ? `<a class="btn ghost" href="${telHref(x.c.phone)}">${ic('phone')} Call</a>` : ''}</div></div>
+  <div class="note"><b>${esc(dlvAddr(x) || 'No address in QuickBooks')}</b>${x.c.phone ? ' · ' + esc(x.c.phone) : ''}</div>
   ${st.st ? `<div class="card stack" style="border:2px solid var(--good)"><b>${stTag(st)}</b>${st.note ? `<span>${esc(st.note)}</span>` : ''}${st.sig ? `<img src="${st.sig}" alt="Signature" style="height:80px;background:#fff;border-radius:8px;align-self:flex-start">` : ''}<button class="btn ghost sm" data-act="d-undo" data-k="${esc(x.k)}" style="align-self:flex-start">Undo, mark again</button></div>` : ''}
   ${!hasLines ? `<section class="card stack"><h2>Check off what you drop</h2><p class="sub" style="margin:0">The products on this invoice aren't in the app yet (the detail goes to ${fmtShort(isoRd(DLY ? DLY.casesTo : REAL.asOf))}). Check the paper invoice, then add a signature and photo and finish below.</p></section>` : `
   <section class="card stack" style="gap:10px">
@@ -5810,7 +5832,7 @@ function driverDayText() {
 function deliveryReportDoc() {
   const date = S.dDate; const byT = dayStops(date); const T = DTRUCKS(); const rows = [];
   T.forEach((tr, n) => { const L = byT[n] || []; if (!L.length) return; rows.push({ cls: 'ps-g gc gc-1', cells: [`<b>${esc(tr.name)}</b>`, '', '', '', ''] });
-    L.forEach((x, k) => rows.push({ cells: [String(k + 1), esc(x.o.c) + `<div style="color:#5F5A4E;font-size:11px">${esc(fixAddr(x.c.address))}</div>`, '#' + esc(x.o.n), fn(stopCases(x.o)), x.st.st === 'done' ? 'Delivered ' + (x.st.at || '').slice(11, 16) : x.st.st === 'partial' ? 'Missing: ' + esc(x.st.shortTxt || '') : x.st.st === 'skip' ? '<b style="color:#8A1C12">Not delivered</b>' : '☐'] })); });
+    L.forEach((x, k) => rows.push({ cells: [String(k + 1), esc(x.o.c) + `<div style="color:#5F5A4E;font-size:11px">${esc(dlvAddr(x))}</div>`, '#' + esc(x.o.n), fn(stopCases(x.o)), x.st.st === 'done' ? 'Delivered ' + (x.st.at || '').slice(11, 16) : x.st.st === 'partial' ? 'Missing: ' + esc(x.st.shortTxt || '') : x.st.st === 'skip' ? '<b style="color:#8A1C12">Not delivered</b>' : '☐'] })); });
   const all = Object.keys(byT).filter(k => +k >= 0).flatMap(k => byT[k]);
   return docSheet({ title: 'Delivery report', meta: [['Day', fmtLong(isoRd(date))], ['', hebStr(isoRd(date), false)]], parties: [], cols: ['#', 'Store', 'Invoice', 'Cases', 'Status'], right: 1, rows,
     totals: [['Stops', String(all.length)], ['Delivered', String(all.filter(x => x.st.st === 'done' || x.st.st === 'partial').length)], ['Cases', fn(all.reduce((s, x) => s + stopCases(x.o), 0)), true]], note: SYNC.ready() ? 'Status from the shared database.' : 'Status as marked on this device.' });
@@ -6404,8 +6426,8 @@ function renderLoad() {
       ${shown.map(s => { const c = s.x.c; const r = s.ready ? S.ready[`${date}|${s.nums[0]}`] : null; const on = sel && sel.includes(s.k);
         return `<div class="lx-stop${s.full ? ' full' : ''}${on ? ' sel' : ''}">
           ${sel ? `<button class="lx-cb${on ? ' on' : ''}" data-act="lx-pick" data-k="${esc(s.k)}" aria-pressed="${on}" aria-label="Choose ${esc(s.name)}">${on ? '✓' : ''}</button>` : ''}
-          <div class="lx-smain"><button class="lx-sname" data-act="${sel ? 'lx-pick' : 'lx-open'}" data-k="${esc(s.k)}">${esc(s.name)}</button>
-            <span class="lx-addr">${esc(fixAddr(c.address || ''))}</span>
+          <div class="lx-smain"><button class="lx-sname" data-act="${sel ? 'lx-pick' : 'lx-open'}" data-k="${esc(s.k)}">${esc(s.name)}${shipTag(s) ? ` <span class="lx-shipt">· ${esc(shipTag(s))}</span>` : ''}</button>
+            <span class="lx-addr">${esc(dlvAddr(s))}</span>
             <span class="lx-chips">${s.nums.map(n => `<button class="lx-inv" data-act="inv-print" data-n="${esc(n)}">#${esc(n)} ↗</button>`).join('')}<span class="lx-area">${esc((s.x.area || 'Other').toUpperCase())}</span>${S.lxTab === 'all' ? `<span class="lx-type">${esc(LX_TYPE_NAME(s.type))}</span>` : ''}${r && r.at ? `<span class="lx-who">✓ ${esc(r.at)}${r.by ? ' · ' + esc(r.by) : ''}</span>` : ''}</span></div>
           <div class="lx-scount"><b class="num">${fn(s.have)}<small>/${fn(s.need)}</small></b><span>boxes</span>
             <span class="lx-sbtns"><button class="lx-sq" data-act="lx-open" data-k="${esc(s.k)}" aria-label="Open ${esc(s.name)}"><svg viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="16" rx="2"/><path d="M9 9h6M9 13h6M9 17h3"/></svg></button><button class="lx-ok${s.full ? ' on' : ''}" data-act="lx-stop-all" data-k="${esc(s.k)}"${can ? '' : ' disabled'} aria-label="${s.full ? 'Unload' : 'Load all of'} ${esc(s.name)}">✓</button></span></div>
@@ -6424,7 +6446,7 @@ function renderLoad() {
 function lxStopView(date, st, can, all) {
   const c = st.x.c; const items = st.lines.map(l => ({ id: l.key, c: l.c, name: l.name, group: l.c ? l.c.group : 'Other', bulk: l.bulk, lines: [l], need: l.q, have: Math.min(l.q, +S.lq[l.key] || 0), stops: new Set([st.k]), done: 0 })).sort((a, b) => grank(a.group) - grank(b.group) || String(a.c ? a.c.code : 'zz').localeCompare(String(b.c ? b.c.code : 'zz'), 'en', { numeric: true }));
   const i = all.indexOf(st); const next = all.slice(i + 1).find(s => s.type === st.type && !s.full);
-  return `<div class="lx"><div class="lx-shead"><button class="icon-btn" data-act="lx-back" aria-label="Back to all stops"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button><div style="min-width:0;flex:1"><h1 class="lx-h1">${esc(st.name)}</h1><span class="sub" style="margin:0">${esc(fixAddr(c.address || ''))}</span></div></div>
+  return `<div class="lx"><div class="lx-shead"><button class="icon-btn" data-act="lx-back" aria-label="Back to all stops"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button><div style="min-width:0;flex:1"><h1 class="lx-h1">${esc(st.name)}</h1><span class="sub" style="margin:0">${esc(dlvAddr(st))}${shipTag(st) ? ` · <b>${esc(shipTag(st))}</b>` : ''}</span></div></div>
     <div class="lx-chips" style="margin:2px 0 8px">${st.nums.map(n => `<button class="lx-inv" data-act="inv-print" data-n="${esc(n)}">#${esc(n)} ↗</button>`).join('')}<span class="lx-area">${esc((st.x.area || 'Other').toUpperCase())}</span><button class="lx-type lx-typebtn" data-act="lx-sheet" data-s="type1">${esc(LX_TYPE_NAME(st.type))} ▾</button></div>
     <div class="lx-tiles lx-tiles3"><div><b class="num">${fn(st.need)}</b><span>Boxes</span></div><div class="lx-loaded"><b class="num">${fn(st.have)}</b><span>Loaded</span><small>${st.need - st.have > 0 ? fn(st.need - st.have) + ' to load' : st.need ? 'all loaded ✓' : ''}</small></div><div><b class="num">${items.length}</b><span>Items</span></div></div>
     ${can ? '' : `<div class="lx-lock"><span><b>Just looking.</b> Start loading ${fmtShort(isoRd(date))} to count boxes.</span><button class="btn primary sm" data-act="lx-sheet" data-s="confirm">Start loading</button></div>`}
@@ -6489,7 +6511,7 @@ function lxDoc(date, stops, title) {
     totals: [['Total boxes', fn(stops.reduce((s, x) => s + x.need, 0)), true]] });
 }
 function lxLabels(date, stops) {
-  return stops.map(s => { const c = s.x.c; return `<div class="lx-label"><div class="lx-lday">${esc(fmtLong(isoRd(date)))} · ${esc(LX_TYPE_NAME(s.type))}</div><div class="lx-lname">${esc(s.name)}</div><div class="lx-laddr">${esc(fixAddr(c.address || ''))}</div><div class="lx-lrow"><span>Invoice #${esc(s.nums.join(', #'))}</span><span>${esc(s.x.area || '')}</span></div><div class="lx-lbig">${fn(s.need)} <small>boxes</small></div><div class="lx-lfoot">Chuster Noodle${c.phone ? ' · Store ' + esc(c.phone) : ''}</div></div>`; }).join('');
+  return stops.map(s => { const c = s.x.c; return `<div class="lx-label"><div class="lx-lday">${esc(fmtLong(isoRd(date)))} · ${esc(LX_TYPE_NAME(s.type))}</div><div class="lx-lname">${esc(s.name)}${shipTag(s) ? ' · ' + esc(shipTag(s)) : ''}</div><div class="lx-laddr">${esc(dlvAddr(s))}</div><div class="lx-lrow"><span>Invoice #${esc(s.nums.join(', #'))}</span><span>${esc(s.x.area || '')}</span></div><div class="lx-lbig">${fn(s.need)} <small>boxes</small></div><div class="lx-lfoot">Chuster Noodle${c.phone ? ' · Store ' + esc(c.phone) : ''}</div></div>`; }).join('');
 }
 function lxAction(a, d, el) {
   const date = S.lxDate; const all = () => lxStops(date); const can = lxCan(date);
@@ -7363,7 +7385,7 @@ document.addEventListener('click', e => {
     case 'd-drop-grp': { const x = Object.values(dayStops(S.dDate)).flat().find(y => y.k === S.dStop); if (!x) break; const on = d.on === '1'; (d.ns || '').split(',').filter(s => s !== '').forEach(s => { const n = +s; const q = Math.round(Math.abs((x.o.l[n] || [])[1] || 0)); if (on && q) S.dDrop[n] = q; else delete S.dDrop[n]; }); keep(); break; }
     case 'd-drop-reset': S.dDrop = {}; keep(); break;
     case 'drv-show': S.drvShow = d.v; keep(); break;
-    case 'd-copy-route': { const tt = Math.min(+d.t, DTRUCKS().length - 1); const list = dayStops(S.dDate)[tt] || []; const addrs = list.filter(x => !x.st.st && x.c.address).map(x => fixAddr(x.c.address)); if (!addrs.length) { toast('No stops with an address.'); break; } const txt = addrs.join('\n'); const done = () => toast(`${addrs.length} stops copied, in order. Paste them into Circuit or RoadWarrior's "add stops".`); try { navigator.clipboard.writeText(txt).then(done, () => { const ta = document.createElement('textarea'); ta.value = txt; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); } catch (e) {} ta.remove(); done(); }); } catch (e) { const ta = document.createElement('textarea'); ta.value = txt; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); } catch (x) {} ta.remove(); done(); } break; }
+    case 'd-copy-route': { const tt = Math.min(+d.t, DTRUCKS().length - 1); const list = dayStops(S.dDate)[tt] || []; const addrs = list.filter(x => !x.st.st && x.c.address).map(x => dlvAddr(x)); if (!addrs.length) { toast('No stops with an address.'); break; } const txt = addrs.join('\n'); const done = () => toast(`${addrs.length} stops copied, in order. Paste them into Circuit or RoadWarrior's "add stops".`); try { navigator.clipboard.writeText(txt).then(done, () => { const ta = document.createElement('textarea'); ta.value = txt; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); } catch (e) {} ta.remove(); done(); }); } catch (e) { const ta = document.createElement('textarea'); ta.value = txt; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); } catch (x) {} ta.remove(); done(); } break; }
     case 'd-back': S.dStop = null; keep(); break;
     case 'd-truck': S.dTruck = +d.t; S.dStop = null; keep(); break;
     case 'd-sh': { const n = d.n; const v = Math.max(0, Math.min(+d.max || 1e9, (S.dShort[n] || 0) + +d.d)); if (v) S.dShort[n] = v; else delete S.dShort[n]; keep(); break; }

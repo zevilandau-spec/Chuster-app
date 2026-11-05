@@ -43,7 +43,11 @@ for r in flat:
     if not (start <= d <= as_of):
         continue
     amt = num(r['Debit']) if r['Type'] == 'Invoice' else -num(r['Credit'])
-    orders[(r['Customer'], r['Num'], r['Type'])] = {'d': d.isoformat(), 'n': r['Num'], 'c': r['Customer'], 't': 'cm' if r['Type'] == 'Credit Memo' else 'inv', 'a': round(amt, 2), 'l': []}
+    o = {'d': d.isoformat(), 'n': r['Num'], 'c': r['Customer'], 't': 'cm' if r['Type'] == 'Credit Memo' else 'inv', 'a': round(amt, 2), 'l': []}
+    sh = (r.get('Ship') or '').strip()
+    if sh:
+        o['ship'] = sh
+    orders[(r['Customer'], r['Num'], r['Type'])] = o
 
 for y in sorted({start.year, as_of.year}):
     for r in csv.DictReader(text(os.path.join(SRC, f'derived/Chuster_Sales_Lines_{y}.csv')).splitlines()):

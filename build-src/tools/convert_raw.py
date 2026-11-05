@@ -66,17 +66,27 @@ pay = sets('pay')
 pur = sets('pur')
 
 # ---------- transactions list by customer (flat) ----------
+def ship_str(sh):
+    # the per-invoice Ship To address, flattened to one line (Addr1..5 then city/state/zip)
+    if not isinstance(sh, dict):
+        return ''
+    parts = [str(x).strip() for x in (sh.get('a') or []) if str(x).strip()]
+    tail = ' '.join(str(x).strip() for x in [sh.get('city'), sh.get('state'), sh.get('zip')] if str(x or '').strip())
+    if tail:
+        parts.append(tail)
+    return ' / '.join(parts)
+
 flat = []
 for t in inv:
-    flat.append([t['c'], 'Invoice', mdy(t['d']), t.get('n', ''), t.get('memo', ''), 'Accounts Receivable', '', '', money(float(t.get('sub', 0)) + float(t.get('tax', 0))), ''])
+    flat.append([t['c'], 'Invoice', mdy(t['d']), t.get('n', ''), t.get('memo', ''), 'Accounts Receivable', '', '', money(float(t.get('sub', 0)) + float(t.get('tax', 0))), '', ship_str(t.get('ship'))])
 for t in cm:
-    flat.append([t['c'], 'Credit Memo', mdy(t['d']), t.get('n', ''), t.get('memo', ''), 'Accounts Receivable', '', '', '', money(t.get('tot', 0))])
+    flat.append([t['c'], 'Credit Memo', mdy(t['d']), t.get('n', ''), t.get('memo', ''), 'Accounts Receivable', '', '', '', money(t.get('tot', 0)), ''])
 for t in pay:
-    flat.append([t['c'], 'Payment', mdy(t['d']), t.get('n', ''), t.get('memo', ''), 'Undeposited Funds', '', 'Accounts Receivable', money(t.get('amt', 0)), ''])
+    flat.append([t['c'], 'Payment', mdy(t['d']), t.get('n', ''), t.get('memo', ''), 'Undeposited Funds', '', 'Accounts Receivable', money(t.get('amt', 0)), '', ''])
 for t in sr:
-    flat.append([t['c'], 'Sales Receipt', mdy(t['d']), t.get('n', ''), t.get('memo', ''), 'Undeposited Funds', '', '', money(t.get('tot', 0)), ''])
+    flat.append([t['c'], 'Sales Receipt', mdy(t['d']), t.get('n', ''), t.get('memo', ''), 'Undeposited Funds', '', '', money(t.get('tot', 0)), '', ''])
 flat.sort(key=lambda r: (r[0], r[2][6:] + r[2][:2] + r[2][3:5], r[3]))
-write(f'derived/Chuster_Customer_Transactions_Flat_{FROM}_to_{AS_OF}.csv', ['Customer', 'Type', 'Date', 'Num', 'Memo', 'Account', 'Clr', 'Split', 'Debit', 'Credit'], flat)
+write(f'derived/Chuster_Customer_Transactions_Flat_{FROM}_to_{AS_OF}.csv', ['Customer', 'Type', 'Date', 'Num', 'Memo', 'Account', 'Clr', 'Split', 'Debit', 'Credit', 'Ship'], flat)
 
 # ---------- sales lines by year ----------
 by_year = collections.defaultdict(list)
