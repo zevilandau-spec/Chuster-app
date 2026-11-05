@@ -2927,6 +2927,30 @@ function custRows() {
     </button>`;
   }).join('');
 }
+function locMainFor(name) {
+  if (STORE_LOCS[name]) return STORE_LOCS[name].main;
+  if (Object.values(STORE_LOCS).some(v => v.main === name)) return name;
+  return null;
+}
+// Sales split by ship-to location, for a customer that ships to more than one place.
+function locBreakdownHtml(c) {
+  if (!REAL || !REAL.orders || !c) return '';
+  const main = locMainFor(c.name) || c.name;
+  const asOf = REAL.asOf || isoOf(TODAY);
+  const yStart = asOf.slice(0, 4) + '-01-01';
+  const d12 = isoOf(isoRd(asOf) - 365);
+  const byShip = {};
+  REAL.orders.list.forEach(o => { if (o.t !== 'inv' || o.c !== main) return; const k = o.ship || '\u0000'; const r = byShip[k] || (byShip[k] = { ytd: 0, s12: 0, n: 0 }); if (o.d >= yStart) r.ytd += o.a; if (o.d >= d12) { r.s12 += o.a; r.n++; } });
+  const keys = Object.keys(byShip);
+  const real = keys.filter(k => k !== '\u0000');
+  // show only when there's a genuine split (2+ places, or at least one tagged location)
+  if (!(real.length >= 2 || (real.length === 1 && byShip['\u0000']))) return '';
+  const rows = keys.map(k => ({ name: k === '\u0000' ? 'No location set' : k.replace(/ \/ /g, ', '), ytd: byShip[k].ytd, s12: byShip[k].s12 })).sort((a, b) => b.s12 - a.s12);
+  const mx = Math.max(1, ...rows.map(r => r.s12));
+  return `<div><div class="eyebrow">SALES BY LOCATION${main !== c.name ? ' · ' + esc(main) : ''}</div>
+    <table class="mini-table" style="margin-top:4px">${rows.map(r => `<tr><td style="min-width:0"><div style="font-weight:700;font-size:13px">${esc(r.name)}</div><div style="height:5px;border-radius:3px;background:var(--brand-soft);overflow:hidden;margin-top:3px"><i style="display:block;height:100%;width:${(r.s12 / mx * 100).toFixed(0)}%;background:var(--brand,#22409A)"></i></div></td><td style="text-align:right;white-space:nowrap"><div style="font-weight:800">${fm(r.s12)}</div><div class="sub" style="margin:0;font-size:11px">${fm(r.ytd)} this yr</div></td></tr>`).join('')}</table>
+    <p class="sub" style="margin:4px 0 0;font-size:11px">Last 12 months, by the Ship-To on each invoice. One QuickBooks customer.</p></div>`;
+}
 function custDetail(c) {
   const pd = pastDue(c); const t = c.aging; const pos = t.reduce((s, v) => s + Math.max(v, 0), 0);
   return `<aside class="card stack detail">
@@ -2937,6 +2961,7 @@ function custDetail(c) {
       <div class="tile ${pd > 1 ? 'bad' : ''}"><div class="k">Owes</div><div class="v" style="font-size:22px">${fm(c.balance)}</div><div class="s">${pd > 1 ? fm(pd) + ' past due' : 'Nothing past due'}</div></div>
       <div class="tile"><div class="k">This year</div><div class="v" style="font-size:22px">${fm(c.ytd)}</div><div class="s">${c.ytdPrev ? sgn(pct(c.ytd, c.ytdPrev)) + ' vs same days 2025' : 'No sales same days 2025'}</div></div>
     </div>
+    ${locBreakdownHtml(c)}
     ${pos > 0 ? `<div class="aging" role="img" aria-label="Owed by age">${t.map((v, i) => v > 0 ? `<i style="width:${(v / pos * 100).toFixed(1)}%;background:${AGE_COLORS[i]}"></i>` : '').join('')}</div>
       <table class="mini-table">${t.map((v, i) => Math.abs(v) >= 1 ? `<tr><td><span style="display:inline-block;width:10px;height:10px;border-radius:3px;background:${AGE_COLORS[i]};margin-right:8px"></span>${AGE_LABELS[i]}</td><td>${money(v)}</td></tr>` : '').join('')}</table>` : ''}
     <div class="truck" style="font-size:14px;line-height:1.5">${c.last ? `Last order <strong>${fmtShort(isoRd(c.last))}</strong>. ` : 'No orders in the last 3 years. '}${c.gap ? `Usually orders every <strong>${c.gap} day${c.gap > 1 ? 's' : ''}</strong>.` : ''}${c.late ? ' <strong style="color:var(--gold-text)">Later than usual.</strong>' : ''}${c.offSeason ? ` <strong style="color:var(--brand-text)">Seasonal: usually orders ${monthsTxt(c.months)}, so it isn't counted as late now.</strong>` : ''}</div>
