@@ -1226,12 +1226,22 @@ const PK = REAL && REAL.pack ? REAL.pack : null;
 try { const v = JSON.parse(localStorage.getItem('chuster-packlog-v1') || 'null'); if (v && typeof v === 'object') S.plSaved = v; } catch (e) { /* storage blocked */ }
 function savePL() { try { localStorage.setItem('chuster-packlog-v1', JSON.stringify(S.plSaved)); } catch (e) { /* storage blocked */ } }
 function keyOf(p) { return p.full || p.name; }
+// Store locations: app-side store names that each post to ONE main QuickBooks customer, with
+// the location stamped on the invoice's Ship-To. QuickBooks keeps a single customer. (Bingo only.)
+const STORE_LOCS = {
+  'Bingo Lakewood': { main: 'Bingo Wholesale', area: 'Lakewood' },
+  'Bingo BP': { main: 'Bingo Wholesale', area: 'Boro Park' },
+  'Bingo Monsey': { main: 'Bingo Wholesale', area: 'Monsey' },
+  'Bingo Five Town': { main: 'Bingo Wholesale', area: 'Five Towns' }
+};
 let OFF_NAMES = new Set();
 if (REAL) {
   const realCat = REAL.catalog.map(c => ({ name: c.name, code: c.code || '—', pack: c.pack || '', brand: c.group, cat: c.group, price: c.price != null ? c.price.toFixed(2) : '', stock: c.stock, full: c.full }));
   S.catalog = realCat.concat(S.catalog.filter(x => !SAMPLE_CAT.has(x.name) && !realCat.some(b => b.name === x.name)));
   const realStores = REAL.customers.filter(c => c.active).map(c => ({ name: c.name, address: c.address, phone: c.phone, email: c.email, truck: '', note: '' }));
   S.stores = realStores.concat(S.stores.filter(x => !SAMPLE_STORES.has(x.name) && !realStores.some(b => b.name === x.name)));
+  // location stores (Bingo's four) — their own pickable store, one QuickBooks customer behind them
+  Object.keys(STORE_LOCS).forEach(name => { if (!S.stores.some(s => s.name === name)) { const m = REAL.customers.find(c => c.name === STORE_LOCS[name].main) || {}; S.stores.push({ name, address: '', phone: m.phone || '', email: '', truck: '', note: '', isLoc: true }); } });
   S.inv = REAL.belowZero.map(b => ({ name: b.name, code: b.code, brand: b.group, onHand: b.stock, reorderAt: b.reorderAt || 0, why: b.sold28 ? `sold ${b.sold28} in the last 4 weeks` : '' }))
     .concat(REAL.low.map(b => ({ name: b.name, code: b.code, brand: b.group, onHand: b.stock, reorderAt: b.reorderAt || 0, why: b.sold28 ? `sold ${b.sold28} in the last 4 weeks` : '' })));
   S.reorder = [];
@@ -2040,7 +2050,17 @@ function orderTotals() {
   return { boxes, total, priced, low, lines };
 }
 const AREA_ORDER = ['Boro Park', 'Williamsburg', 'Monsey', 'Monroe', 'Lakewood', 'Country', 'Catering', 'Wholesale'];
-const custByName = n => REAL ? REAL.customers.find(c => c.name === n) : null;
+const locMainOf = n => (STORE_LOCS[n] || {}).main || null;
+const custByName = n => {
+  if (!REAL) return null;
+  const direct = REAL.customers.find(c => c.name === n);
+  if (direct) return direct;
+  const loc = STORE_LOCS[n];
+  if (loc) { const m = REAL.customers.find(c => c.name === loc.main) || {}; return Object.assign({}, m, { name: n, area: loc.area, address: loc.addr || '', isLoc: true, mainCust: loc.main }); }
+  return null;
+};
+// The delivery area for an order, honoring a ship-to that maps to a known location.
+const shipAreaOf = o => { const s = o && o.ship; return s && STORE_LOCS[s] ? STORE_LOCS[s].area : null; };
 const areaOf = n => { const c = custByName(n); return c ? c.area : 'Other'; };
 const areaCls = a => { const i = AREA_ORDER.indexOf(a); return 'gc gc-' + (i < 0 ? 6 : (i % 5) + 1); };
 function storeRows() {
@@ -5584,7 +5604,7 @@ function dayStops(date) {
   // invoices going to different ship-to addresses (same QuickBooks name, different delivery).
   raw.forEach(o => { const gk = o.c + (o.ship ? '\u0001' + o.ship : ''); const m = by[gk]; if (!m) by[gk] = { d: date, c: o.c, ship: o.ship || '', n: o.n, a: o.a, l: o.l.slice(), t: 'inv', nums: [o.n] }; else { m.a += o.a; m.l = m.l.concat(o.l); m.nums.push(o.n); } });
   const inv = Object.values(by).map(m => Object.assign(m, { n: m.nums.sort()[0], label: m.nums.sort().join(' + ') }));
-  const byT = {}; inv.forEach(o => { const c = custByName(o.c) || {}; const area = c.area || 'Other'; const k = `${date}|${o.n}`; const ls = S.lship && S.lship[k]; const t = ls && ls !== 'truck' ? -1 : S.dstat[k] && S.dstat[k].truck != null ? S.dstat[k].truck : c.rep === 'PU' ? -1 : truckFor(date, area); (byT[t] || (byT[t] = [])).push({ o, c, area, k, st: S.dstat[k] || {} }); });
+  const byT = {}; inv.forEach(o => { const c = custByName(o.c) || {}; const area = shipAreaOf(o) || c.area || 'Other'; const k = `${date}|${o.n}`; const ls = S.lship && S.lship[k]; const t = ls && ls !== 'truck' ? -1 : S.dstat[k] && S.dstat[k].truck != null ? S.dstat[k].truck : c.rep === 'PU' ? -1 : truckFor(date, area); (byT[t] || (byT[t] = [])).push({ o, c, area, k, st: S.dstat[k] || {} }); });
   Object.keys(byT).forEach(t => { const ord = S.dorder[`${date}|${t}`] || []; byT[t].sort((x, y) => { const a = ord.indexOf(x.o.n), b = ord.indexOf(y.o.n); if (a >= 0 || b >= 0) return (a < 0 ? 999 : a) - (b < 0 ? 999 : b); return (AREA_ORDER.indexOf(x.area) - AREA_ORDER.indexOf(y.area)) || x.c.address && y.c.address && x.c.address.localeCompare(y.c.address) || x.o.c.localeCompare(y.o.c); }); });
   return byT;
 }
@@ -6685,7 +6705,10 @@ function qwFromOrder(loc) {
   const used = ref && invUsed(ref); const refAuto = ref === nextInvNum();
   if (used) { toast(`Invoice #${ref} is already used. Pick another number.`); return false; }
   S.orderRef = '';
-  qwSave({ id: qwId(), kind: 'inv', st: 'ok', try: 0, c: S.orderStore, d: isoOf(TODAY), ref, refAuto, lines, total: Math.round(total * 100) / 100, memo: '', by: byName(), at: nowIso(), okBy: byName(), okAt: nowIso(), loc: loc || null, ship: S.orderShip || null });
+  // A location store (Bingo Lakewood…) posts to its main QuickBooks customer with the location
+  // stamped as the Ship-To; the app keeps the location name so it stays its own store/stop.
+  const locMain = locMainOf(S.orderStore);
+  qwSave({ id: qwId(), kind: 'inv', st: 'ok', try: 0, c: S.orderStore, qbcust: locMain, shipto: locMain ? S.orderStore : null, d: isoOf(TODAY), ref, refAuto, lines, total: Math.round(total * 100) / 100, memo: '', by: byName(), at: nowIso(), okBy: byName(), okAt: nowIso(), loc: loc || null, ship: S.orderShip || null });
   if (S.orderShip && ref) setLmove(ref, S.orderShip);
   S.orderShip = null; S.shipCalOpen = false;
   return true;
