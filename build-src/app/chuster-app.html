@@ -901,6 +901,22 @@ main { padding-block: 14px 32px; }
 .plan-mo b { font-size: 15px; }
 .plan-arrow { color: var(--muted); font-weight: 800; }
 .gdot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--gt, var(--line-strong)); margin-right: 7px; vertical-align: middle; }
+.plan-pick2 { display: flex; gap: 12px; margin-bottom: 10px; }
+.plan-pick2 > div { flex: 1; min-width: 0; }
+.plan-pick2 .lbl { margin: 0 0 3px; }
+.plan-blist { display: flex; flex-direction: column; gap: 8px; }
+.plan-brow { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; background: none; border: none; font: inherit; color: inherit; cursor: pointer; padding: 11px 12px; }
+.plan-bn { flex: 1; min-width: 0; }
+.plan-bn b { display: block; font-size: 15px; }
+.plan-bn small { display: block; }
+.plan-bq { text-align: right; flex: none; }
+.plan-bq b { font-size: 15px; }
+.plan-bq small { display: block; }
+.plan-bcar { color: var(--muted); flex: none; }
+.plan-bdet { border-top: 1px solid var(--line); background: var(--surface-2); padding: 4px 12px 8px; }
+.plan-bline { display: grid; grid-template-columns: 1fr auto auto; gap: 12px; padding: 6px 0; border-top: 1px solid rgba(22,32,74,.06); font-size: 13.5px; }
+.plan-bline:first-child { border-top: none; }
+.plan-bline .num { font-variant-numeric: tabular-nums; min-width: 60px; text-align: right; }
 .cal-pop { position: absolute; z-index: 40; top: calc(100% + 6px); left: 0; width: min(300px, 86vw); background: var(--surface); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 12px 30px rgba(0,0,0,.18); padding: 12px; }
 .cal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; font-size: 15px; font-weight: 800; }
 .cal-head button { width: 32px; height: 32px; border: none; background: var(--surface-2); border-radius: 8px; font-size: 16px; cursor: pointer; color: inherit; }
@@ -7155,7 +7171,7 @@ document.addEventListener('click', e => { const el = e.target.closest('[data-act
   addEventListener('touchcancel', clear, { passive: true });
 })();
 /* ================= Books: expenses, bank & deposits, vendors & bills, sales orders & estimates, stock moves, all POs, journal, accounts ================= */
-Object.assign(S, { bkPer: 'ytd', bkFrom: null, bkTo: null, bkAcct: null, bkQ: '', bkVSort: 'owe', bkVen: null, bkSoTab: 'so', bkStTab: 'build', bkPoSt: 'open', bkVenTab: 'list', bkPoView: 'po', planFrom: 5, planTo: 6, planTab: 'make' });
+Object.assign(S, { bkPer: 'ytd', bkFrom: null, bkTo: null, bkAcct: null, bkQ: '', bkVSort: 'owe', bkVen: null, bkSoTab: 'so', bkStTab: 'build', bkPoSt: 'open', bkVenTab: 'list', bkPoView: 'po', planTab: 'make', planFromD: null, planToD: null, planOpen: null });
 const BK = () => (REAL && REAL.books) || null;
 const bkDay = d => d ? fmtShort(isoRd(d)) : '';
 function bkEmpty(title, sub) {
@@ -7302,40 +7318,41 @@ function renderPOList() {
 function renderPlan() {
   if (!REAL) return needData('Plan a season');
   const CY = +REAL.asOf.slice(0, 4), lastY = CY - 1;
-  const fromM = S.planFrom, toM = S.planTo;
-  const winTxt = fromM === toM ? MON[fromM - 1] : `${MON[fromM - 1]}–${MON[toM - 1]}`;
-  const midx = REP ? REP.months.map((ym, i) => ({ ym, i })).filter(o => +o.ym.slice(0, 4) === lastY && +o.ym.slice(5, 7) >= fromM && +o.ym.slice(5, 7) <= toM).map(o => o.i) : [];
-  const picker = `<div class="plan-pick">
-      <div class="plan-mo"><button class="icon-btn" data-act="plan-fm" data-d="-1" aria-label="Earlier">‹</button><div><small>From</small><b>${MON[fromM - 1]}</b></div><button class="icon-btn" data-act="plan-fm" data-d="1" aria-label="Later">›</button></div>
-      <span class="plan-arrow">→</span>
-      <div class="plan-mo"><button class="icon-btn" data-act="plan-tm" data-d="-1" aria-label="Earlier">‹</button><div><small>To</small><b>${MON[toM - 1]}</b></div><button class="icon-btn" data-act="plan-tm" data-d="1" aria-label="Later">›</button></div>
-    </div>`;
+  const fromD = S.planFromD || `${lastY}-05-01`, toD = S.planToD || `${lastY}-06-30`;
+  const winTxt = `${fmtShort(isoRd(fromD))}, ${fromD.slice(0, 4)} – ${fmtShort(isoRd(toD))}, ${toD.slice(0, 4)}`;
+  const ym0 = fromD.slice(0, 7), ym1 = toD.slice(0, 7);
+  const picker = `<div class="plan-pick2">
+      <div><label class="lbl" for="plan-from">From</label><input type="date" class="inp" id="plan-from" value="${fromD}"></div>
+      <div><label class="lbl" for="plan-to">To</label><input type="date" class="inp" id="plan-to" value="${toD}"></div>
+    </div>
+    <div class="chips" style="margin:-4px 0 10px">${[['After Passover', 5, 1, 6, 30], ['Pre-Rosh Hashana', 8, 1, 9, 30], ['Pre-Passover', 2, 1, 4, 15], ['Pre-Shavuos', 5, 1, 5, 31]].map(([n, m1, d1, m2, d2]) => `<button class="chip" data-act="plan-preset" data-f="${lastY}-${String(m1).padStart(2, '0')}-${String(d1).padStart(2, '0')}" data-t="${lastY}-${String(m2).padStart(2, '0')}-${String(d2).padStart(2, '0')}">${n}</button>`).join('')}</div>`;
   const tabs = `<div class="lx-seg" role="group" aria-label="View"><button data-act="plan-tab" data-t="make" aria-pressed="${S.planTab === 'make'}">📦 To make</button><button data-act="plan-tab" data-t="buy" aria-pressed="${S.planTab === 'buy'}">🛒 To buy from vendors</button></div>`;
   let body;
   if (S.planTab === 'make') {
+    const midx = REP ? REP.months.map((ym, i) => ({ ym, i })).filter(o => o.ym >= ym0 && o.ym <= ym1).map(o => o.i) : [];
     const prod = {};
     REAL.customers.forEach((c, ci) => { const h = histOf(ci); for (const ii in h) { let q = 0; midx.forEach(m => { q += h[ii][m] || 0; }); if (q) prod[ii] = (prod[ii] || 0) + q; } });
     const rows = Object.keys(prod).map(ii => ({ c: REAL.catalog[+ii], q: prod[ii] })).filter(x => x.c && x.q > 0).sort((a, b) => b.q - a.q);
     const tot = rows.reduce((s, r) => s + r.q, 0);
     body = !REP ? `<section class="card"><p class="sub" style="margin:0">Sales history isn't in this view.</p></section>`
-      : `<p class="sub" style="margin:2px 2px 8px">What you <b>sold</b> in ${esc(winTxt)} <b>${lastY}</b> — a guide for what to make this year. ${fn(tot)} boxes across ${rows.length} products.</p>
-      <section class="card" style="padding:0;overflow:hidden"><table class="bk-potable"><thead><tr><th>Product</th><th class="num">Boxes (${lastY})</th></tr></thead><tbody>
-      ${rows.map(r => `<tr><td><span class="gdot ${gcls(r.c.brand || r.c.cat || '')}"></span>${esc(r.c.name)}${r.c.pack ? ` <small class="sub">${esc(r.c.pack)}</small>` : ''}</td><td class="num"><b>${fn(r.q)}</b></td></tr>`).join('') || '<tr><td colspan="2" class="sub">No sales in that window last year.</td></tr>'}
+      : `<p class="sub" style="margin:2px 2px 8px">What you <b>sold</b> in ${esc(winTxt)} — a guide for what to make. ${fn(tot)} boxes across ${rows.length} products. <i>(by whole month)</i></p>
+      <section class="card" style="padding:0;overflow:hidden"><table class="bk-potable"><thead><tr><th>Product</th><th class="num">Boxes</th></tr></thead><tbody>
+      ${rows.map(r => `<tr><td><span class="gdot ${gcls(r.c.brand || r.c.cat || '')}"></span>${esc(r.c.name)}${r.c.pack ? ` <small class="sub">${esc(r.c.pack)}</small>` : ''}</td><td class="num"><b>${fn(r.q)}</b></td></tr>`).join('') || '<tr><td colspan="2" class="sub">No sales in that window.</td></tr>'}
       </tbody></table></section>`;
   } else {
     if (!BUY) body = `<section class="card stack"><h2>Needs your QuickBooks purchases</h2><p class="sub" style="margin:0">This uses your real purchases, so it's only in your private link.</p></section>`;
     else {
-      const agg = {};
-      BUY.lines.forEach(l => { const y = +l[0].slice(0, 4), mo = +l[0].slice(5, 7); if (y !== lastY || mo < fromM || mo > toM) return; const o = agg[l[2]] = agg[l[2]] || { it: BUY.items[l[2]], q: 0, amt: 0, v: l[1] }; o.q += l[3]; o.amt += l[5]; o.v = l[1]; });
+      const agg = {}, byItem = {};
+      BUY.lines.forEach(l => { if (l[0] < fromD || l[0] > toD) return; const o = agg[l[2]] = agg[l[2]] || { i: l[2], it: BUY.items[l[2]], q: 0, amt: 0, v: l[1] }; o.q += l[3]; o.amt += l[5]; o.v = l[1]; (byItem[l[2]] = byItem[l[2]] || []).push(l); });
       const rows = Object.values(agg).filter(r => r.q > 0).sort((a, b) => b.amt - a.amt);
       const tot = rows.reduce((s, r) => s + r.amt, 0);
-      body = `<p class="sub" style="margin:2px 2px 8px">What you <b>bought from vendors</b> in ${esc(winTxt)} <b>${lastY}</b> — a guide for what to order this year. ${money(tot)} across ${rows.length} items.</p>
-      <section class="card" style="padding:0;overflow:hidden"><table class="bk-potable"><thead><tr><th>Item</th><th class="num">Bought</th><th class="num">Spent</th></tr></thead><tbody>
-      ${rows.map(r => `<tr><td>${esc((r.it && (r.it.name || r.it.full)) || '—')}<div class="sub" style="margin:0;font-size:12px">${esc(BUY.vendors[r.v] || '')}</div></td><td class="num">${fnu(r.q)}</td><td class="num"><b>${money(r.amt)}</b></td></tr>`).join('') || '<tr><td colspan="3" class="sub">No purchases in that window last year.</td></tr>'}
-      </tbody><tfoot><tr><td><b>Total</b></td><td></td><td class="num"><b>${money(tot)}</b></td></tr></tfoot></table></section>`;
+      body = `<p class="sub" style="margin:2px 2px 8px">What you <b>bought from vendors</b> in ${esc(winTxt)} — a guide for what to order. ${money(tot)} across ${rows.length} items. <i>Tap an item to see each order.</i></p>
+      <div class="plan-blist">${rows.map(r => { const open = S.planOpen === r.i; const det = open ? `<div class="plan-bdet">${byItem[r.i].slice().sort((a, b) => b[0].localeCompare(a[0])).map(l => `<div class="plan-bline"><span>${fmtShort(isoRd(l[0]))}, ${l[0].slice(0, 4)}${l[6] ? ` · <b>#${esc(l[6])}</b>` : ''}</span><span class="num">${fnu(l[3])}</span><span class="num">${money(l[5])}</span></div>`).join('')}</div>` : '';
+        return `<section class="card" style="padding:0;overflow:hidden"><button class="plan-brow" data-act="plan-open" data-i="${r.i}"><span class="plan-bn"><b>${esc((r.it && (r.it.name || r.it.full)) || '—')}</b><small class="sub">${esc(BUY.vendors[r.v] || '')} · ${byItem[r.i].length} order${byItem[r.i].length === 1 ? '' : 's'}</small></span><span class="plan-bq"><b class="num">${money(r.amt)}</b><small class="sub">${fnu(r.q)} bought</small></span><span class="plan-bcar">${open ? '▲' : '▾'}</span></button>${det}</section>`; }).join('') || '<section class="card"><p class="sub" style="margin:0">No purchases in that window.</p></section>'}
+      <div class="orv-tot" style="margin-top:10px"><span>Total</span><strong>${money(tot)}</strong></div></div>`;
     }
   }
-  return `${head('Plan a season', `Pick a window — see what you sold and bought in it last year (${lastY})`)}
+  return `${head('Plan a season', 'Pick any dates — see what you sold and bought in that window')}
   ${picker}
   ${tabs}
   ${body}`;
@@ -7373,7 +7390,8 @@ function bkAction(a, d) {
   render();
 }
 document.addEventListener('click', e => { const el = e.target.closest('[data-act^="bk-"]'); if (!el) return; bkAction(el.dataset.act, el.dataset); });
-document.addEventListener('input', e => { if (e.target.id === 'bk-from' || e.target.id === 'bk-to') { if (e.target.id === 'bk-from') S.bkFrom = e.target.value || null; else S.bkTo = e.target.value || null; S.bkPer = 'range'; render(); return; }
+document.addEventListener('input', e => { if (e.target.id === 'plan-from' || e.target.id === 'plan-to') { if (e.target.id === 'plan-from') S.planFromD = e.target.value || null; else S.planToD = e.target.value || null; S.planOpen = null; render(); return; }
+  if (e.target.id === 'bk-from' || e.target.id === 'bk-to') { if (e.target.id === 'bk-from') S.bkFrom = e.target.value || null; else S.bkTo = e.target.value || null; S.bkPer = 'range'; render(); return; }
   if (e.target.id === 'bk-q') { S.bkQ = e.target.value; const pos = e.target.selectionStart; render(); const q = document.getElementById('bk-q'); if (q) { q.focus(); try { q.setSelectionRange(pos, pos); } catch (x) { /* ignore */ } } } });
 
 document.addEventListener('click', e => {
@@ -7399,9 +7417,9 @@ document.addEventListener('click', e => {
     case 'order-loc': S.orderLoc = d.v || null; keep(); break;
     case 'order-review': if (!orderTotals().boxes) { toast('Add at least one item first.'); break; } S.orderStep = 'review'; S.storeOpen = false; render(); window.scrollTo(0, 0); break;
     case 'order-back-build': S.orderStep = 'build'; render(); window.scrollTo(0, 0); break;
-    case 'plan-tab': S.planTab = d.t; keep(); break;
-    case 'plan-fm': S.planFrom = Math.max(1, Math.min(12, S.planFrom + (+d.d || 0))); if (S.planTo < S.planFrom) S.planTo = S.planFrom; keep(); break;
-    case 'plan-tm': S.planTo = Math.max(1, Math.min(12, S.planTo + (+d.d || 0))); if (S.planFrom > S.planTo) S.planFrom = S.planTo; keep(); break;
+    case 'plan-tab': S.planTab = d.t; S.planOpen = null; keep(); break;
+    case 'plan-preset': S.planFromD = d.f; S.planToD = d.t; S.planOpen = null; keep(); break;
+    case 'plan-open': S.planOpen = S.planOpen === +d.i ? null : +d.i; keep(); break;
     case 'store-open': S.storeOpen = !S.storeOpen; S.storeQ = ''; keep(); break;
     case 'store-pick': S.orderStore = d.n; S.storeOpen = false; S.storeQ = ''; S.lyPick = null; S.orderShip = null; S.orderLoc = null; S.shipCalOpen = false; S.orderStep = 'build'; keep(); break;
     case 'hist-tab': S.histTab = d.t; keep(); break;
