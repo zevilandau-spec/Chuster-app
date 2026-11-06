@@ -656,6 +656,10 @@ body:has(#ai-fab:not([hidden])) #view { padding-bottom: 72px; }
 .lx-cutrow { display: flex; align-items: center; gap: 8px; padding: 5px 2px; border-top: 1px solid rgba(22, 32, 74, .07); }
 .lx-cutrow:first-child { border-top: none; }
 .lx-wa { flex: none; text-decoration: none; font-size: 17px; line-height: 1; padding: 3px; border-radius: 8px; background: var(--good-soft); }
+.drv-move { display: inline-flex; flex-direction: column; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.drv-move button { background: var(--surface); border: none; color: var(--fg); font-size: 12px; line-height: 1; padding: 4px 7px; cursor: pointer; }
+.drv-move button:first-child { border-bottom: 1px solid var(--line); }
+.drv-move button:disabled { color: var(--muted); opacity: .4; }
 .lx-cutn { flex: 1; min-width: 0; font-weight: 700; font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lx-cutq { font-size: 13.5px; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .lx-cutq .tag.red { margin-left: 2px; }
@@ -1876,7 +1880,7 @@ function crashBox(e) {
   v.innerHTML = `<section class="card stack" style="border:2px solid var(--bad-text)"><h2>Something broke on this screen</h2><p class="sub" style="margin:0">Send a screenshot of this to Claude.</p><pre style="white-space:pre-wrap;font-size:12px;margin:0">${esc(String(e && (e.stack || e.message) || e)).slice(0, 1500)}</pre><div class="actions"><a class="btn primary" href="#home" onclick="setTimeout(()=>location.reload(),50)">Try again</a><button class="btn ghost" onclick="try{['chuster-qb-v1','chuster-sync-since','chuster-sync-out'].forEach(k=>localStorage.removeItem(k))}catch(x){};location.reload()">Clear saved data and reload</button></div></section>`;
 }
 window.addEventListener('error', ev => { try { if (!document.getElementById('view').innerHTML.trim()) crashBox(ev.error || ev.message); } catch (x) { /* ignore */ } });
-function render() { try { drawChrome(); } catch (e) { crashBox(e); return; } try { document.getElementById('view').innerHTML = VIEWS[S.view].r() + (typeof sigModal === 'function' ? sigModal() : ''); } catch (e) { crashBox(e); return; } document.title = 'Chuster Noodle App'; aiFab(); if (S.sigOpen) initSig(); if (S.view === 'live' && typeof geoMount === 'function') { geoMap = null; geoMount(); } }
+function render() { try { drawChrome(); } catch (e) { crashBox(e); return; } try { document.getElementById('view').innerHTML = VIEWS[S.view].r() + (typeof sigModal === 'function' ? sigModal() : ''); } catch (e) { crashBox(e); return; } document.title = 'Chuster Noodle App'; aiFab(); if (S.sigOpen) initSig(); if (S.view === 'live' && typeof geoMount === 'function') { geoMap = null; geoMount(); } if (S.view === 'stop' && S.drvMap && typeof drvMount === 'function') { drvMap = null; drvMount(); } }
 function openMenu() { document.getElementById('app').classList.add('menu-open'); document.getElementById('scrim').hidden = false; }
 function closeMenu() { document.getElementById('app').classList.remove('menu-open'); document.getElementById('scrim').hidden = true; }
 let toastTimer;
@@ -5125,6 +5129,38 @@ function geoMount() {
   if (!geoTimer) geoTimer = setInterval(() => { if (S.view === 'live' && S.geo && !document.hidden) geoRefresh(false); }, 30000);
   if (!S.geoData) geoRefresh(true);
 }
+/* ---- Driver route map (reuses Leaflet + the geocoder) ---- */
+let drvMap = null, drvLayer = null;
+function drvMount() {
+  if (S.view !== 'stop' || !S.drvMap) return;
+  const el = document.getElementById('drv-map'); if (!el) return;
+  if (!window.L) {
+    if (!document.getElementById('leaflet-js')) {
+      const css = document.createElement('link'); css.rel = 'stylesheet'; css.href = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css'; document.head.appendChild(css);
+      const js = document.createElement('script'); js.id = 'leaflet-js'; js.src = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js'; js.onload = () => { if (S.view === 'stop' && S.drvMap) drvMount(); }; js.onerror = () => { el.innerHTML = '<p class="sub" style="padding:16px;margin:0">The map needs internet. Use the Maps / Waze buttons in the list instead.</p>'; }; document.head.appendChild(js);
+    }
+    return;
+  }
+  if (!drvMap) { drvMap = L.map(el, { zoomControl: true }).setView([40.85, -74.0], 10); L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(drvMap); drvLayer = L.layerGroup().addTo(drvMap); }
+  drvPaint();
+}
+async function drvPaint() {
+  if (!drvMap || !drvLayer) return;
+  const date = S.dDate, t = Math.min(S.dTruck, DTRUCKS().length - 1), list = (dayStops(date)[t] || []);
+  const start = S.dsched && S.dsched.start;
+  try { await geoPoints((start ? [start] : []).concat(list.map(x => x.c.address))); } catch (e) { /* ignore */ }
+  if (!drvMap || !drvLayer) return;
+  drvLayer.clearLayers(); const pts = [], line = [];
+  if (start) { const sp = S.gc[gcKey(start)]; if (sp && !sp.none) { L.marker([sp.lat, sp.lng], { icon: L.divIcon({ className: '', html: '<div style="background:#16204A;color:#fff;font:800 11px Manrope,sans-serif;padding:3px 7px;border-radius:9px;border:2px solid #F4BC3A;white-space:nowrap">🏭 Shop</div>', iconAnchor: [18, 12] }) }).addTo(drvLayer); pts.push([sp.lat, sp.lng]); } }
+  list.forEach((x, i) => { const p = S.gc[gcKey(x.c.address)]; if (!p || p.none) return; const done = !!x.st.st, color = done ? '#1E7A45' : '#21409A';
+    const m = L.marker([p.lat, p.lng], { icon: L.divIcon({ className: '', html: `<div style="background:${color};color:#fff;font:800 13px Manrope,sans-serif;width:26px;height:26px;border-radius:50%;border:2px solid #F4BC3A;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,.3)">${done ? '✓' : i + 1}</div>`, iconAnchor: [13, 13] }) });
+    m.bindPopup(`<b>${esc(x.o.c)}</b><br>${esc(dlvAddr(x))}<br>${fn(stopCases(x.o))} cases<br><button class="btn primary sm" data-act="d-open" data-k="${esc(x.k)}" style="margin-top:6px">Open stop →</button>`);
+    m.addTo(drvLayer); pts.push([p.lat, p.lng]); if (!done) line.push([p.lat, p.lng]); });
+  if (line.length > 1) L.polyline(line, { color: '#21409A', weight: 3, opacity: .55, dashArray: '6 6' }).addTo(drvLayer);
+  const miss = list.filter(x => { const p = S.gc[gcKey(x.c.address)]; return !p || p.none; }).length;
+  if (pts.length && !drvMap._fit) { drvMap.fitBounds(pts, { padding: [40, 40], maxZoom: 14 }); drvMap._fit = true; }
+  setTimeout(() => { if (drvMap) drvMap.invalidateSize(); }, 120);
+}
 function renderLive() {
   if (!S.geo) return `${head('Live trucks', 'Your Geotab trucks on a map, right in the app')}
     <section class="card stack" style="max-width:560px"><h2>Connect your Geotab</h2>
@@ -5747,7 +5783,7 @@ function renderMySales() {
 // An invoice goes on the first day ON or AFTER its date when its area has the truck.
 const DSCHED_DEFAULT = { v: 3, n: 1, start: '65 Steuben St, Brooklyn, NY 11205', 0: { Monsey: 0, Monroe: 0 }, 1: { Williamsburg: 0 }, 2: { 'Boro Park': 0 }, 3: { Country: 0, 'Boro Park': 0 }, 4: { Lakewood: 0, 'Boro Park': 0 }, 5: {}, season: { Country: [7, 8] } };
 const dsFix = v => (v && v.v === 3) ? Object.assign(v, v.season ? {} : { season: { Country: [7, 8] } }, /4706 10th/.test(v.start || '') ? { start: '65 Steuben St, Brooklyn, NY 11205' } : {}) : JSON.parse(JSON.stringify(DSCHED_DEFAULT));
-Object.assign(S, { dsched: dsFix(loadLS('chuster-dsched-v1', null)), gc: loadLS('chuster-gc-v1', {}), routeBusy: '', dstat: loadLS('chuster-dstat-v1', {}), dorder: loadLS('chuster-dorder-v1', {}), dDate: null, dTruck: 0, dStop: null, dShort: {}, dDrop: {}, dStopQ: '', drvShow: 'todo', autoRoute: {}, dSigOpen: false, dPhotos: [] });
+Object.assign(S, { dsched: dsFix(loadLS('chuster-dsched-v1', null)), gc: loadLS('chuster-gc-v1', {}), routeBusy: '', dstat: loadLS('chuster-dstat-v1', {}), dorder: loadLS('chuster-dorder-v1', {}), dDate: null, dTruck: 0, dStop: null, dShort: {}, dDrop: {}, dStopQ: '', drvShow: 'todo', autoRoute: {}, dSigOpen: false, dPhotos: [], drvMap: false });
 (function prune() { const cut = isoOf(TODAY - 21); let ch = false; Object.keys(S.dstat).forEach(k => { if (k.slice(0, 10) < cut) { delete S.dstat[k]; ch = true; } }); if (ch) saveLS('chuster-dstat-v1', S.dstat); })();
 const saveDstat = () => { try { localStorage.setItem('chuster-dstat-v1', JSON.stringify(S.dstat)); } catch (e) { toast('This device is full. Old photos were not saved.'); } };
 const DTRUCKS = () => { const n = Math.max(1, Math.min(4, +S.dsched.n || 1)); const T = (S.trucks.length ? S.trucks : []).slice(0, n); while (T.length < n) T.push({ name: 'Truck ' + (T.length + 1) }); return T; };
@@ -5977,13 +6013,15 @@ function renderDriver() {
   ${(() => {
     const todoL = list.filter(x => !x.st.st); const doneL = list.filter(x => x.st.st);
     const view = S.drvShow === 'done' ? doneL : todoL;
-    const toggle = `<div class="dlv-toggle"><button class="${S.drvShow !== 'done' ? 'on' : ''}" data-act="drv-show" data-v="todo">To deliver · ${todoL.length}</button><button class="${S.drvShow === 'done' ? 'on' : ''}" data-act="drv-show" data-v="done">Delivered · ${doneL.length}</button></div>`;
-    const rows = view.map(x => { const k = list.indexOf(x);
+    const toggle = `<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:12px"><div class="dlv-toggle" style="flex:1"><button class="${S.drvShow !== 'done' ? 'on' : ''}" data-act="drv-show" data-v="todo">To deliver · ${todoL.length}</button><button class="${S.drvShow === 'done' ? 'on' : ''}" data-act="drv-show" data-v="done">Delivered · ${doneL.length}</button></div><div class="lx-seg" style="flex:none"><button data-act="drv-map" data-v="0" aria-pressed="${!S.drvMap}">☰ List</button><button data-act="drv-map" data-v="1" aria-pressed="${!!S.drvMap}">🗺 Map</button></div></div>`;
+    if (S.drvMap) return `${toggle}<section class="card" style="padding:0;overflow:hidden;margin-top:10px"><div id="drv-map" style="height:60vh;min-height:360px;width:100%;background:var(--surface-2)"></div></section><p class="sub" style="margin:6px 2px 0">Numbered pins are the stops in order. Tap a pin to open that stop.</p>`;
+    const canMove = S.drvShow !== 'done';
+    const rows = view.map((x, vi) => { const k = list.indexOf(x);
       return `<div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px;border-top:1px solid var(--line);padding:10px 0">
       <span class="icode stopn" style="background:${x.st.st ? 'var(--good)' : 'var(--brand)'}">${x.st.st ? '✓' : k + 1}</span>
-      <button data-act="d-open" data-k="${esc(x.k)}" style="flex:1 1 220px;min-width:0;text-align:left;background:none;border:none;font:inherit;color:inherit;cursor:pointer;padding:0"><b>${esc(x.o.c)}${shipTag(x) ? ' · ' + esc(shipTag(x)) : ''}</b><span style="display:block;font-size:13px;color:var(--muted)">${esc(dlvAddr(x))} · ${fn(stopCases(x.o))} cases</span></button>
-      <span style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-left:auto">${stTag(x.st)}${!x.st.st && smsHref(x.c.phone, '') ? `<a class="btn ghost sm" href="${esc(smsHref(x.c.phone, onWayTxt()))}" aria-label="Text ${esc(x.o.c)} that the truck is on the way">💬</a>` : ''}${x.c.address ? `<a class="btn ghost sm" href="${esc(mapsHref(dlvAddr(x)))}" target="_blank" rel="noopener">Maps</a><a class="btn ghost sm" href="${esc(wazeHref(dlvAddr(x)))}" target="_blank" rel="noopener">Waze</a>` : ''}</span></div>`; }).join('');
-    return `${toggle}<section class="card" style="padding:8px 14px;margin-top:12px">${rows || `<p class="sub" style="margin:0">${S.drvShow === 'done' ? 'Nothing delivered yet.' : list.length ? 'All stops delivered. 🎉' : 'No stops for this truck today.'}</p>`}</section>`;
+      <button data-act="d-open" data-k="${esc(x.k)}" style="flex:1 1 200px;min-width:0;text-align:left;background:none;border:none;font:inherit;color:inherit;cursor:pointer;padding:0"><b>${esc(x.o.c)}${shipTag(x) ? ' · ' + esc(shipTag(x)) : ''}</b><span style="display:block;font-size:13px;color:var(--muted)">${esc(dlvAddr(x))} · ${fn(stopCases(x.o))} cases</span></button>
+      <span style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-left:auto">${canMove ? `<span class="drv-move"><button data-act="d-move" data-t="${t}" data-k="${esc(x.k)}" data-dir="-1"${vi === 0 ? ' disabled' : ''} aria-label="Move ${esc(x.o.c)} up">▲</button><button data-act="d-move" data-t="${t}" data-k="${esc(x.k)}" data-dir="1"${vi === view.length - 1 ? ' disabled' : ''} aria-label="Move ${esc(x.o.c)} down">▼</button></span>` : ''}${stTag(x.st)}${!x.st.st && smsHref(x.c.phone, '') ? `<a class="btn ghost sm" href="${esc(smsHref(x.c.phone, onWayTxt()))}" aria-label="Text ${esc(x.o.c)} that the truck is on the way">💬</a>` : ''}${x.c.address ? `<a class="btn ghost sm" href="${esc(mapsHref(dlvAddr(x)))}" target="_blank" rel="noopener">Maps</a><a class="btn ghost sm" href="${esc(wazeHref(dlvAddr(x)))}" target="_blank" rel="noopener">Waze</a>` : ''}</span></div>`; }).join('');
+    return `${toggle}<section class="card" style="padding:8px 14px;margin-top:10px">${rows || `<p class="sub" style="margin:0">${S.drvShow === 'done' ? 'Nothing delivered yet.' : list.length ? 'All stops delivered. 🎉' : 'No stops for this truck today.'}</p>`}</section>`;
   })()}`;
 }
 function driverStop(x, list) {
@@ -7768,6 +7806,7 @@ document.addEventListener('click', e => {
     case 'd-setday': S.dDate = d.d; S.dDayPop = false; S.dDayCal = false; keep(); break;
     case 'd-show': S.dShow = d.v; keep(); break;
     case 'd-done-quick': { const x = Object.values(dayStops(S.dDate)).flat().find(y => y.k === d.k); if (!x) break; const now = new Date(); const at = isoOf(TODAY) + 'T' + String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0'); S.dstat[d.k] = Object.assign({}, S.dstat[d.k] || {}, { st: 'done', at, shortN: 0, shortTxt: '', shorts: [], note: '' }); saveDstat(); dsShare(d.k); toast(x.o.c + ' marked delivered.'); keep(); break; }
+    case 'drv-map': S.drvMap = d.v === '1'; keep(); break;
     case 'd-move': { const t = +d.t; const L = (dayStops(S.dDate)[t] || []).map(x => x.o.n); const k = L.indexOf(d.k.split('|')[1]); const j = k + (+d.dir); if (k < 0 || j < 0 || j >= L.length) break; [L[k], L[j]] = [L[j], L[k]]; S.dorder[`${S.dDate}|${t}`] = L; saveLS('chuster-dorder-v1', S.dorder); SYNC.put('do', `${S.dDate}|${t}`, L); keep(); break; }
     case 'd-open': { S.dStop = d.k; S.dShort = {}; S.dDrop = {}; S.dStopQ = ''; S.proof = { photos: [], sig: null }; const dd = d.k.split('|')[0]; S.dDate = dd; const bt = dayStops(dd); Object.keys(bt).forEach(t => { if (bt[t].some(x => x.k === d.k) && +t >= 0) S.dTruck = +t; }); go('stop'); break; }
     case 'd-drop': { const n = d.n; const x = Object.values(dayStops(S.dDate)).flat().find(y => y.k === S.dStop); const q = x ? Math.round(Math.abs((x.o.l[+n] || [])[1] || 0)) : 0; const v = Math.max(0, Math.min(q || +d.max || 0, (S.dDrop[n] || 0) + +d.d)); if (v) S.dDrop[n] = v; else delete S.dDrop[n]; keep(); break; }
