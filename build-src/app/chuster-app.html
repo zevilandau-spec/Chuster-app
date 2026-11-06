@@ -2034,7 +2034,7 @@ function orderItems() {
     if (p.off && !(S.oq[keyOf(p)] > 0)) return false;
     if (S.orderGroup === 'On order') { if (!(S.oq[keyOf(p)] > 0)) return false; }
     else if (S.orderGroup !== 'All' && (p.brand || p.cat) !== S.orderGroup) return false;
-    if (q && !(p.name.toLowerCase().includes(q) || (p.pack || '').toLowerCase().includes(q) || (qn && String(p.code).replace(/^0+/, '') === qn))) return false;
+    if (q && !(p.name.toLowerCase().includes(q) || (p.pack || '').toLowerCase().includes(q) || String(p.code || '').toLowerCase().includes(q) || (p.brand || p.cat || '').toLowerCase().includes(q) || (qn && String(p.code).replace(/^0+/, '').includes(qn)))) return false;
     return true;
   });
 }
@@ -2181,7 +2181,7 @@ function orderReviewHtml() {
   const inv = (S.orderRef && !invUsed(S.orderRef) ? S.orderRef : '') || nextInvNum();
   const auto = REAL && storeName ? dDateAuto({ c: storeName, d: isoOf(TODAY) }) : isoOf(TODAY);
   const shipVal = S.orderShip || auto;
-  const orvRow = p => { const q = S.oq[keyOf(p)] || 0; const price = parseFloat(p.price) || 0; return `<div class="orv-row ${gcls(p.brand || p.cat || '')}"><div class="orv-nm"><b>${esc(p.name)}</b>${p.pack ? `<span class="sub">${esc(p.pack)}</span>` : ''}</div><div class="orv-q"><b class="num">${fn(q)}</b><span class="sub">${money(q * price)}</span></div></div>`; };
+  const orvRow = p => { const q = S.oq[keyOf(p)] || 0; const price = parseFloat(p.price) || 0; const meta = [p.code ? '#' + p.code : '', p.pack || ''].filter(Boolean).join(' · '); return `<div class="orv-row ${gcls(p.brand || p.cat || '')}"><div class="orv-nm"><b>${esc(p.name)}</b>${meta ? `<span class="sub">${esc(meta)}</span>` : ''}</div><div class="orv-q"><b class="num">${fn(q)}</b><span class="sub">${money(q * price)}</span></div></div>`; };
   let lastG = null;
   const rows = onOrder.map(p => { const g = p.brand || p.cat || ''; const hdr = g !== lastG ? `<div class="ghead ${gcls(g)}" style="margin-top:${lastG === null ? 0 : 8}px"><span style="flex:1;text-align:center">${esc((GROUP_TITLE[g] || g).toUpperCase())}</span></div>` : ''; lastG = g; return hdr + orvRow(p); }).join('');
   const cr = creditRisk(cust);
@@ -2264,7 +2264,7 @@ function renderOrder() {
       </section>
       ${storeName ? `<section class="card">
         <div class="order-filter">
-          <div class="field" style="margin-bottom:8px">${ic('search')}<label for="add" class="sr">Find an item</label><input id="add" value="${esc(S.orderQ)}" placeholder="Find an item by name or number" autocomplete="off"></div>
+          <div class="field" style="margin-bottom:8px">${ic('search')}<label for="add" class="sr">Find an item</label><input id="add" value="${esc(S.orderQ)}" placeholder="Find by name, code or brand" autocomplete="off"></div>
           <div class="chips" role="group" aria-label="Brand">${groups.map(g => `<button class="chip${g === 'All' ? '' : ' ' + gcls(g)}" data-act="og" data-g="${esc(g)}" aria-pressed="${S.orderGroup === g}">${g === 'All' ? `All items · ${S.catalog.length}` : esc(g)}</button>`).join('')}<button class="chip" data-act="og" data-g="On order" aria-pressed="${S.orderGroup === 'On order'}">On this order · ${T.lines}</button><button class="of-x" data-act="order-top" aria-label="Back to the top / clear filter" title="Back to top">✕</button></div>
         </div>
         <div id="order-list" style="margin-top:10px">${orderRows()}</div>
