@@ -873,8 +873,7 @@ main { padding-block: 14px 32px; }
 .shiploc-sel { font-weight: 700; font-size: 14px; padding: 2px 0; }
 .orv { max-width: 560px; margin: 0 auto; }
 .orv-list { display: flex; flex-direction: column; }
-.orv-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 2px; border-top: 1px solid var(--line); }
-.orv-row:first-child { border-top: none; }
+.orv-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 10px; border-left: 4px solid var(--gt, var(--line-strong)); background: var(--gs, var(--surface-2)); border-radius: 0 8px 8px 0; margin-top: 4px; }
 .orv-nm { min-width: 0; }
 .orv-nm b { display: block; font-size: 15px; font-weight: 700; }
 .orv-nm .sub { margin: 0; font-size: 12px; }
@@ -2182,7 +2181,9 @@ function orderReviewHtml() {
   const inv = (S.orderRef && !invUsed(S.orderRef) ? S.orderRef : '') || nextInvNum();
   const auto = REAL && storeName ? dDateAuto({ c: storeName, d: isoOf(TODAY) }) : isoOf(TODAY);
   const shipVal = S.orderShip || auto;
-  const rows = onOrder.map(p => { const q = S.oq[keyOf(p)] || 0; const price = parseFloat(p.price) || 0; return `<div class="orv-row"><div class="orv-nm"><b>${esc(p.name)}</b>${p.pack ? `<span class="sub">${esc(p.pack)}</span>` : ''}</div><div class="orv-q"><b class="num">${fn(q)}</b><span class="sub">${money(q * price)}</span></div></div>`; }).join('');
+  const orvRow = p => { const q = S.oq[keyOf(p)] || 0; const price = parseFloat(p.price) || 0; return `<div class="orv-row ${gcls(p.brand || p.cat || '')}"><div class="orv-nm"><b>${esc(p.name)}</b>${p.pack ? `<span class="sub">${esc(p.pack)}</span>` : ''}</div><div class="orv-q"><b class="num">${fn(q)}</b><span class="sub">${money(q * price)}</span></div></div>`; };
+  let lastG = null;
+  const rows = onOrder.map(p => { const g = p.brand || p.cat || ''; const hdr = g !== lastG ? `<div class="ghead ${gcls(g)}" style="margin-top:${lastG === null ? 0 : 8}px"><span style="flex:1;text-align:center">${esc((GROUP_TITLE[g] || g).toUpperCase())}</span></div>` : ''; lastG = g; return hdr + orvRow(p); }).join('');
   const cr = creditRisk(cust);
   return `${head('Review order', 'Check it over, then send')}
   <div class="orv">
