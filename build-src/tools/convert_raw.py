@@ -145,10 +145,13 @@ sa_path = os.path.join(OUT, 'derived', 'ship_addresses.json')
 os.makedirs(os.path.dirname(sa_path), exist_ok=True)
 json.dump(saddr, open(sa_path, 'w', encoding='utf-8'), ensure_ascii=False)
 _with_sl = sum(1 for c in custs if c.get('shiplist'))
-print('SHIPDIAG raw_customers=%d with_shiplist=%d saddr_customers=%d total_addrs=%d' % (len(custs), _with_sl, len(saddr), sum(len(v) for v in saddr.values())))
+_has_key = sum(1 for c in custs if 'shiplist' in c)
+_sample_keys = sorted(custs[0].keys()) if custs else []
+print('SHIPDIAG raw_customers=%d has_shiplist_key=%d with_shiplist=%d saddr_customers=%d total_addrs=%d' % (len(custs), _has_key, _with_sl, len(saddr), sum(len(v) for v in saddr.values())))
+print('SHIPDIAG sample_customer_keys=%s' % _sample_keys)
 for _c in custs:
     if 'Talmudic Academy 82' in (_c.get('n') or ''):
-        print('SHIPDIAG UTA82 shiplist=%d' % len(_c.get('shiplist') or []))
+        print('SHIPDIAG UTA82 has_key=%s shiplist_val=%r' % ('shiplist' in _c, _c.get('shiplist')))
 
 # ---------- item listing ----------
 TYPES = {'inv': 'Inventory Part', 'asm': 'Inventory Assembly', 'non': 'Non-inventory Part', 'svc': 'Service', 'oth': 'Other Charge', 'disc': 'Discount', 'sub': 'Subtotal', 'grp': 'Group', 'pay': 'Payment'}
