@@ -871,6 +871,21 @@ main { padding-block: 14px 32px; }
 .shiploc-o.on { border-color: var(--brand, #22409A); box-shadow: inset 0 0 0 1px var(--brand, #22409A); background: var(--brand-soft, rgba(34,64,154,.07)); }
 .shiploc-box { margin-top: 2px; padding: 10px 12px; border: 1px solid var(--gold, #d9a441); border-radius: 12px; background: var(--gold-soft, rgba(217,164,65,.08)); }
 .shiploc-sel { font-weight: 700; font-size: 14px; padding: 2px 0; }
+.orv { max-width: 560px; margin: 0 auto; }
+.orv-list { display: flex; flex-direction: column; }
+.orv-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 2px; border-top: 1px solid var(--line); }
+.orv-row:first-child { border-top: none; }
+.orv-nm { min-width: 0; }
+.orv-nm b { display: block; font-size: 15px; font-weight: 700; }
+.orv-nm .sub { margin: 0; font-size: 12px; }
+.orv-q { text-align: right; flex: none; }
+.orv-q b { font-size: 17px; }
+.orv-q .sub { display: block; margin: 0; font-size: 12px; }
+.orv-tot { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px; background: var(--surface-2); border-radius: 12px; font-size: 16px; }
+.orv-tot strong { font-size: 18px; }
+.orv-meta { display: flex; gap: 10px; flex-wrap: wrap; }
+.orv-meta span { flex: 1; min-width: 120px; background: var(--surface-2); border-radius: 10px; padding: 8px 12px; font-size: 14px; }
+.orv-acts { display: flex; flex-direction: column; gap: 10px; margin-top: 4px; }
 .cal-pop { position: absolute; z-index: 40; top: calc(100% + 6px); left: 0; width: min(300px, 86vw); background: var(--surface); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 12px 30px rgba(0,0,0,.18); padding: 12px; }
 .cal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; font-size: 15px; font-weight: 800; }
 .cal-head button { width: 32px; height: 32px; border: none; background: var(--surface-2); border-radius: 8px; font-size: 16px; cursor: pointer; color: inherit; }
@@ -1806,7 +1821,7 @@ function go(v, keepScroll) { S.lxSheet = null; S.tileView = null;
   // Leaving New Order for another screen starts the next order fresh (clear the store and items).
   if (S.view === 'order' && v !== 'order') {
     S.orderStore = ''; S.oq = {}; S.orderGroup = 'All'; S.orderQ = ''; S.orderRef = '';
-    S.orderShip = null; S.orderLoc = null; S.storeOpen = false; S.storeQ = ''; S.lyPick = null; S.creditOk = null; S.shipCalOpen = false;
+    S.orderShip = null; S.orderLoc = null; S.storeOpen = false; S.storeQ = ''; S.lyPick = null; S.creditOk = null; S.shipCalOpen = false; S.orderStep = 'build';
   }
   S.view = v;
   closeMenu();
@@ -2150,14 +2165,40 @@ const orderTotalTxt = T => T.boxes ? (T.priced ? money(T.total) : T.total ? mone
 function orderSumHtml() { const T = orderTotals(); return `<div style="display:flex;justify-content:space-between"><span>Items</span><strong class="num">${T.lines}</strong></div>
       <div style="display:flex;justify-content:space-between"><span>Boxes</span><strong class="num">${T.boxes}</strong></div>
       <div style="display:flex;justify-content:space-between;gap:8px"><span>Total</span><strong style="text-align:right">${orderTotalTxt(T)}</strong></div>`; }
-function orderBarHtml() { const T = orderTotals(); return `<div><strong class="num">${T.lines} items · ${T.boxes} boxes</strong><span class="sub num" style="margin:0;display:block">${orderTotalTxt(T)}</span></div><button class="btn primary" data-act="save-order"${T.boxes ? '' : ' disabled'}>Send to QuickBooks</button>`; }
+function orderBarHtml() { const T = orderTotals(); return `<div><strong class="num">${T.lines} items · ${T.boxes} boxes</strong><span class="sub num" style="margin:0;display:block">${orderTotalTxt(T)}</span></div><button class="btn primary" data-act="order-review"${T.boxes ? '' : ' disabled'}>Review →</button>`; }
 function orderRefresh() {
   const T = orderTotals();
   const a = document.getElementById('order-sum'); if (a) a.innerHTML = orderSumHtml();
   const b = document.getElementById('order-bar'); if (b) b.innerHTML = orderBarHtml();
   document.querySelectorAll('[data-act="save-order"]').forEach(x => { x.disabled = !T.boxes; });
 }
-Object.assign(S, { orderShip: null, shipCalOpen: false, shipCalM: null, orderLoc: null });
+Object.assign(S, { orderShip: null, shipCalOpen: false, shipCalM: null, orderLoc: null, orderStep: 'build' });
+// Step 2 of a new order: a clean read-only list of what this store is getting, then Add more or Fully done.
+function orderReviewHtml() {
+  const storeName = S.orderStore, cust = storeName ? custByName(storeName) : null;
+  const T = orderTotals();
+  const onOrder = S.catalog.filter(p => (S.oq[keyOf(p)] || 0) > 0);
+  const inv = (S.orderRef && !invUsed(S.orderRef) ? S.orderRef : '') || nextInvNum();
+  const auto = REAL && storeName ? dDateAuto({ c: storeName, d: isoOf(TODAY) }) : isoOf(TODAY);
+  const shipVal = S.orderShip || auto;
+  const rows = onOrder.map(p => { const q = S.oq[keyOf(p)] || 0; const price = parseFloat(p.price) || 0; return `<div class="orv-row"><div class="orv-nm"><b>${esc(p.name)}</b>${p.pack ? `<span class="sub">${esc(p.pack)}</span>` : ''}</div><div class="orv-q"><b class="num">${fn(q)}</b><span class="sub">${money(q * price)}</span></div></div>`; }).join('');
+  const cr = creditRisk(cust);
+  return `${head('Review order', 'Check it over, then send')}
+  <div class="orv">
+    <section class="card stack" style="gap:10px">
+      <div class="card-head" style="margin:0"><div><h2 style="margin:0">${esc(storeName)}</h2><span class="sub" style="margin:0">${esc(areaOf(storeName))}${cust && cust.address ? ' · ' + esc(cust.address) : ''}</span></div><button class="btn ghost sm" data-act="order-back-build">＋ Add / change</button></div>
+      ${S.orderLoc ? `<div class="shiploc-sel">📍 Ship to: ${esc(S.orderLoc)}</div>` : ''}
+      <div class="orv-list">${rows || '<p class="sub" style="margin:0">Nothing on this order yet.</p>'}</div>
+      <div class="orv-tot"><span>${T.lines} item${T.lines === 1 ? '' : 's'} · ${T.boxes} box${T.boxes === 1 ? '' : 'es'}</span><strong>${orderTotalTxt(T)}</strong></div>
+      <div class="orv-meta"><span>Invoice <b>#${esc(inv)}</b></span><span>Ship <b>${esc(fmtShort(isoRd(shipVal)))}</b></span></div>
+      ${cr && cr.bad ? `<div class="note"><strong>Heads up:</strong> ${esc(storeName)} owes money over 90 days or is over the limit.</div>` : ''}
+      <div class="orv-acts">
+        <button class="btn ghost big full" data-act="order-back-build">＋ Add more items</button>
+        <button class="btn primary big full" data-act="save-order"${T.boxes ? '' : ' disabled'}>✓ Fully done · send #${esc(inv)} to QuickBooks</button>
+      </div>
+    </section>
+  </div>`;
+}
 // Ship-to choices for a customer that ships to more than one place (UTA and the like).
 // Bingo is left out here on purpose — its locations are their own app stores.
 function shipOptions(cust) {
@@ -2181,6 +2222,7 @@ function shipPickerHtml(cust) {
 }
 window.addEventListener('scroll', () => { const b = document.getElementById('to-top'); if (b) b.classList.toggle('show', window.scrollY > 320); }, { passive: true });
 function renderOrder() {
+  if (S.orderStep === 'review' && S.orderStore && orderTotals().boxes) return orderReviewHtml();
   const T = orderTotals();
   const next = (() => { let r = TODAY + 1; while (isClosed(r)) r++; return r; })();
   const storeName = S.orderStore;
@@ -2234,7 +2276,7 @@ function renderOrder() {
         </button>${S.shipCalOpen ? shipCal(val, auto) : ''}</div>
       <p class="sub" style="margin:0">Leave it on automatic, or tap to pick a day. Shabbos &amp; Yom Tov are greyed out.</p>`; })()}
       ${T.low ? `<div class="note"><strong>Heads up:</strong> ${T.low} item${T.low > 1 ? 's' : ''} on this order ${T.low > 1 ? 'are' : 'is'} below zero in stock.</div>` : ''}
-      <button class="btn primary big full order-send-flow" data-act="save-order"${T.boxes ? '' : ' disabled'}>Send to QuickBooks</button>
+      <button class="btn primary big full order-send-flow" data-act="order-review"${T.boxes ? '' : ' disabled'}>Review order →</button>
     </aside>
   </div>
   <div class="order-spacer"></div>
@@ -6847,7 +6889,7 @@ function nextInvNum() {
   return mx ? String(mx + 1) : '';
 }
 function sendOrder() {
-  const done = loc => { if (qwFromOrder(loc)) { const sent = S.orderStore; S.oq = {}; S.orderStore = ''; S.orderGroup = 'All'; S.orderQ = ''; S.storeOpen = false; S.storeQ = ''; S.orderRef = ''; S.orderShip = null; S.orderLoc = null; S.shipCalOpen = false; S.lyPick = null; S.creditOk = null; toast((sent ? sent + ': ' : '') + (SYNC.ready() ? 'sent to QuickBooks. Ready for the next order.' : 'saved. Ready for the next order.')); render(); window.scrollTo(0, 0); } };
+  const done = loc => { if (qwFromOrder(loc)) { const sent = S.orderStore; S.oq = {}; S.orderStore = ''; S.orderGroup = 'All'; S.orderQ = ''; S.storeOpen = false; S.storeQ = ''; S.orderRef = ''; S.orderShip = null; S.orderLoc = null; S.shipCalOpen = false; S.lyPick = null; S.creditOk = null; S.orderStep = 'build'; toast((sent ? sent + ': ' : '') + (SYNC.ready() ? 'sent to QuickBooks. Ready for the next order.' : 'saved. Ready for the next order.')); render(); window.scrollTo(0, 0); } };
   if (navigator.geolocation) {
     let fired = false; const once = loc => { if (!fired) { fired = true; done(loc); } };
     navigator.geolocation.getCurrentPosition(
@@ -7282,8 +7324,10 @@ document.addEventListener('click', e => {
     case 'ship-pick': S.orderShip = d.d; S.shipCalOpen = false; keep(); break;
     case 'ship-auto': S.orderShip = null; S.shipCalOpen = false; keep(); break;
     case 'order-loc': S.orderLoc = d.v || null; keep(); break;
+    case 'order-review': if (!orderTotals().boxes) { toast('Add at least one item first.'); break; } S.orderStep = 'review'; S.storeOpen = false; render(); window.scrollTo(0, 0); break;
+    case 'order-back-build': S.orderStep = 'build'; render(); window.scrollTo(0, 0); break;
     case 'store-open': S.storeOpen = !S.storeOpen; S.storeQ = ''; keep(); break;
-    case 'store-pick': S.orderStore = d.n; S.storeOpen = false; S.storeQ = ''; S.lyPick = null; S.orderShip = null; S.orderLoc = null; S.shipCalOpen = false; keep(); break;
+    case 'store-pick': S.orderStore = d.n; S.storeOpen = false; S.storeQ = ''; S.lyPick = null; S.orderShip = null; S.orderLoc = null; S.shipCalOpen = false; S.orderStep = 'build'; keep(); break;
     case 'hist-tab': S.histTab = d.t; keep(); break;
     case 'ly-pick': S.lyPick = d.num; keep(); break;
     case 'ly-copy': {
@@ -7309,7 +7353,7 @@ document.addEventListener('click', e => {
       }
       break;
     }
-    case 'clear-order': { const had = Object.values(S.oq).some(q => q > 0); S.oq = {}; S.orderGroup = 'All'; S.orderStore = ''; S.orderRef = ''; S.orderShip = null; S.orderLoc = null; S.shipCalOpen = false; keep(); toast(had ? 'Order canceled. Nothing was sent to QuickBooks.' : 'Cleared.'); render(); break; }
+    case 'clear-order': { const had = Object.values(S.oq).some(q => q > 0); S.oq = {}; S.orderGroup = 'All'; S.orderStore = ''; S.orderRef = ''; S.orderShip = null; S.orderLoc = null; S.shipCalOpen = false; S.orderStep = 'build'; keep(); toast(had ? 'Order canceled. Nothing was sent to QuickBooks.' : 'Cleared.'); render(); break; }
     case 'save-draft': {
       if (!S.orderStore) { toast('Pick a store first.'); break; }
       const oq = {}; Object.keys(S.oq).forEach(k => { if (S.oq[k] > 0) oq[k] = S.oq[k]; });
@@ -7318,9 +7362,9 @@ document.addEventListener('click', e => {
       const id = 'd' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
       S.drafts[id] = { id, c: S.orderStore, oq, ship: S.orderShip || null, loc: S.orderLoc || null, ref, by: byName(), ts: nowIso() };
       saveLS('chuster-drafts-v1', S.drafts); SYNC.put('df', id, S.drafts[id]);
-      S.oq = {}; S.orderStore = ''; S.orderGroup = 'All'; S.orderQ = ''; S.orderRef = ''; S.orderShip = null; S.orderLoc = null; S.shipCalOpen = false; S.storeOpen = false; S.storeQ = '';
+      S.oq = {}; S.orderStore = ''; S.orderGroup = 'All'; S.orderQ = ''; S.orderRef = ''; S.orderShip = null; S.orderLoc = null; S.shipCalOpen = false; S.storeOpen = false; S.storeQ = ''; S.orderStep = 'build';
       keep(); toast('Saved as a draft. Finish it any time from Drafts at the top of New order.'); render(); window.scrollTo(0, 0); break; }
-    case 'draft-open': { const dft = S.drafts[d.id]; if (!dft) { toast('That draft is gone.'); break; } S.orderStore = dft.c; S.oq = Object.assign({}, dft.oq || {}); S.orderShip = dft.ship || null; S.orderLoc = dft.loc || null; S.orderRef = dft.ref || ''; S.orderGroup = 'All'; S.orderQ = ''; S.storeOpen = false; S.shipCalOpen = false; delete S.drafts[d.id]; saveLS('chuster-drafts-v1', S.drafts); SYNC.put('df', d.id, null); go('order'); window.scrollTo(0, 0); toast('Draft opened. Finish it and send, or save it again.'); break; }
+    case 'draft-open': { const dft = S.drafts[d.id]; if (!dft) { toast('That draft is gone.'); break; } S.orderStore = dft.c; S.oq = Object.assign({}, dft.oq || {}); S.orderShip = dft.ship || null; S.orderLoc = dft.loc || null; S.orderRef = dft.ref || ''; S.orderStep = 'build'; S.orderGroup = 'All'; S.orderQ = ''; S.storeOpen = false; S.shipCalOpen = false; delete S.drafts[d.id]; saveLS('chuster-drafts-v1', S.drafts); SYNC.put('df', d.id, null); go('order'); window.scrollTo(0, 0); toast('Draft opened. Finish it and send, or save it again.'); break; }
     case 'draft-del': { delete S.drafts[d.id]; saveLS('chuster-drafts-v1', S.drafts); SYNC.put('df', d.id, null); keep(); toast('Draft deleted.'); break; }
     case 'save-order': { const cr = creditRisk(REAL && REAL.customers.find(c => c.name === S.orderStore)); if (cr && cr.bad && S.creditOk !== S.orderStore) { S.creditOk = S.orderStore; toast(`${S.orderStore} owes money over 90 days or is over the limit. Tap Send again to send anyway.`); break; } }
       S.creditOk = null; sendOrder(); break;
