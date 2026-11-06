@@ -894,6 +894,13 @@ main { padding-block: 14px 32px; }
 .bk-potable tfoot td { border-top: 2px solid var(--line-strong); font-size: 15px; }
 .po-vhead { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 10px 12px; background: var(--brand, #21409A); color: #fff; font-size: 15px; }
 .po-vhead .num { font-variant-numeric: tabular-nums; }
+.plan-pick { display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 12px; }
+.plan-mo { display: flex; align-items: center; gap: 4px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 4px 6px; }
+.plan-mo > div { text-align: center; min-width: 76px; }
+.plan-mo small { display: block; font-size: 11px; color: var(--muted); }
+.plan-mo b { font-size: 15px; }
+.plan-arrow { color: var(--muted); font-weight: 800; }
+.gdot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--gt, var(--line-strong)); margin-right: 7px; vertical-align: middle; }
 .cal-pop { position: absolute; z-index: 40; top: calc(100% + 6px); left: 0; width: min(300px, 86vw); background: var(--surface); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 12px 30px rgba(0,0,0,.18); padding: 12px; }
 .cal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; font-size: 15px; font-weight: 800; }
 .cal-head button { width: 32px; height: 32px; border: none; background: var(--surface-2); border-radius: 8px; font-size: 16px; cursor: pointer; color: inherit; }
@@ -1664,6 +1671,7 @@ function renderForecast() {
 const VIEWS = {
   home: { title: 'Dashboard', r: renderHome },
   order: { title: 'New order', r: renderOrder },
+  plan: { title: 'Plan a season', r: renderPlan },
   inventory: { title: 'Inventory', r: renderInventory },
   packing: { title: 'Packing plan', r: renderPacking },
   calendar: { title: 'Calendar', r: renderCalendar },
@@ -1738,7 +1746,7 @@ const NAV = [
   { h: 'PRODUCTS', items: [['prodsales', 'Product sales', 'chart'], ['winners', 'Winners & losers', 'chart'], ['items', 'Products & profit', 'chart'], ['margin', 'Margins', 'chart'], ['pricelist', 'Price list', 'order'], ['pricecheck', 'Price check', 'card'], ['pricespread', 'Price spread', 'chart']] },
   { h: 'DELIVERIES', items: [['route', 'Deliveries', 'box'], ['stop', 'Driver', 'wheel'], ['live', 'Live trucks', 'pin'], ['loading', 'Loading', 'truck'], ['dsched', 'Delivery days', 'cal'], ['delivstats', 'Delivery stats', 'chart'], ['routeprofit', 'Route profit', 'chart']] },
   { h: 'WAREHOUSE', items: [['packnext', 'What to pack', 'clip'], ['forecast', 'Week-ahead forecast', 'chart'], ['packing', 'Packing plan', 'clip'], ['stockcover', 'Stock cover', 'box'], ['packlog', 'Pack log', 'clip'], ['packrep', 'Packing report', 'chart'], ['yield', 'Yield', 'chart']] },
-  { h: 'STOCK & BUYING', items: [['inventory', 'Inventory', 'box', 'inv'], ['reorder', 'Reorder alerts', 'alert'], ['buying', 'Buying & suppliers', 'card'], ['polist', 'All purchase orders', 'clip'], ['stockmoves', 'Stock moves', 'box']] },
+  { h: 'STOCK & BUYING', items: [['inventory', 'Inventory', 'box', 'inv'], ['reorder', 'Reorder alerts', 'alert'], ['plan', 'Plan a season', 'chart'], ['buying', 'Buying & suppliers', 'card'], ['polist', 'All purchase orders', 'clip'], ['stockmoves', 'Stock moves', 'box']] },
   { h: 'BOOKS', items: [['expenses', 'Expenses', 'chart'], ['bank', 'Bank & deposits', 'card'], ['vendors', 'Vendors & bills', 'people'], ['salesorders', 'Sales orders & estimates', 'order'], ['journal', 'Journal entries', 'clip'], ['accounts', 'Chart of accounts', 'chart']] }
 ];
 const TABS = [['home', 'Home', 'home'], ['orders', 'Orders', 'order'], ['route', 'Deliveries', 'truck'], ['inventory', 'Stock', 'box']];
@@ -1750,7 +1758,7 @@ if (S.baseRole !== 'Owner') S.role = S.baseRole;
 const byName = () => S.user || S.baseRole;
 try { S.lang = localStorage.getItem('chuster-lang') || 'en'; } catch (e) { S.lang = 'en'; }
 const ROLE_VIEWS = {
-  Warehouse: ['ask', 'packnext', 'packing', 'stockcover', 'packlog', 'packrep', 'yield', 'inventory', 'reorder', 'loading', 'loadlist', 'calendar', 'stockmoves', 'polist'],
+  Warehouse: ['ask', 'packnext', 'packing', 'stockcover', 'packlog', 'packrep', 'yield', 'inventory', 'reorder', 'plan', 'loading', 'loadlist', 'calendar', 'stockmoves', 'polist'],
   Driver: ['route', 'stop', 'loading', 'loadlist', 'calendar'],
   Sales: ['ask', 'mysales', 'visits', 'coverage', 'mycomm', 'pitch', 'customers', 'collect', 'orders', 'order', 'inbox', 'toqb', 'payments', 'yomtov', 'lost', 'pricelist', 'pricecheck', 'calendar', 'salesorders', 'prodsales', 'scorecard', 'crosssell', 'atrisk', 'returns'],
   SalesDriver: ['ask', 'mysales', 'visits', 'coverage', 'mycomm', 'pitch', 'customers', 'collect', 'orders', 'order', 'inbox', 'toqb', 'payments', 'yomtov', 'lost', 'pricelist', 'pricecheck', 'calendar', 'route', 'stop', 'loading', 'loadlist', 'salesorders', 'prodsales', 'scorecard', 'crosssell', 'atrisk', 'returns']
@@ -7147,7 +7155,7 @@ document.addEventListener('click', e => { const el = e.target.closest('[data-act
   addEventListener('touchcancel', clear, { passive: true });
 })();
 /* ================= Books: expenses, bank & deposits, vendors & bills, sales orders & estimates, stock moves, all POs, journal, accounts ================= */
-Object.assign(S, { bkPer: 'ytd', bkFrom: null, bkTo: null, bkAcct: null, bkQ: '', bkVSort: 'owe', bkVen: null, bkSoTab: 'so', bkStTab: 'build', bkPoSt: 'open', bkVenTab: 'list', bkPoView: 'po' });
+Object.assign(S, { bkPer: 'ytd', bkFrom: null, bkTo: null, bkAcct: null, bkQ: '', bkVSort: 'owe', bkVen: null, bkSoTab: 'so', bkStTab: 'build', bkPoSt: 'open', bkVenTab: 'list', bkPoView: 'po', planFrom: 5, planTo: 6, planTab: 'make' });
 const BK = () => (REAL && REAL.books) || null;
 const bkDay = d => d ? fmtShort(isoRd(d)) : '';
 function bkEmpty(title, sub) {
@@ -7291,6 +7299,47 @@ function renderPOList() {
   ${bkSearch('Search vendor, PO # or item')}
   ${body}`;
 }
+function renderPlan() {
+  if (!REAL) return needData('Plan a season');
+  const CY = +REAL.asOf.slice(0, 4), lastY = CY - 1;
+  const fromM = S.planFrom, toM = S.planTo;
+  const winTxt = fromM === toM ? MON[fromM - 1] : `${MON[fromM - 1]}–${MON[toM - 1]}`;
+  const midx = REP ? REP.months.map((ym, i) => ({ ym, i })).filter(o => +o.ym.slice(0, 4) === lastY && +o.ym.slice(5, 7) >= fromM && +o.ym.slice(5, 7) <= toM).map(o => o.i) : [];
+  const picker = `<div class="plan-pick">
+      <div class="plan-mo"><button class="icon-btn" data-act="plan-fm" data-d="-1" aria-label="Earlier">‹</button><div><small>From</small><b>${MON[fromM - 1]}</b></div><button class="icon-btn" data-act="plan-fm" data-d="1" aria-label="Later">›</button></div>
+      <span class="plan-arrow">→</span>
+      <div class="plan-mo"><button class="icon-btn" data-act="plan-tm" data-d="-1" aria-label="Earlier">‹</button><div><small>To</small><b>${MON[toM - 1]}</b></div><button class="icon-btn" data-act="plan-tm" data-d="1" aria-label="Later">›</button></div>
+    </div>`;
+  const tabs = `<div class="lx-seg" role="group" aria-label="View"><button data-act="plan-tab" data-t="make" aria-pressed="${S.planTab === 'make'}">📦 To make</button><button data-act="plan-tab" data-t="buy" aria-pressed="${S.planTab === 'buy'}">🛒 To buy from vendors</button></div>`;
+  let body;
+  if (S.planTab === 'make') {
+    const prod = {};
+    REAL.customers.forEach((c, ci) => { const h = histOf(ci); for (const ii in h) { let q = 0; midx.forEach(m => { q += h[ii][m] || 0; }); if (q) prod[ii] = (prod[ii] || 0) + q; } });
+    const rows = Object.keys(prod).map(ii => ({ c: REAL.catalog[+ii], q: prod[ii] })).filter(x => x.c && x.q > 0).sort((a, b) => b.q - a.q);
+    const tot = rows.reduce((s, r) => s + r.q, 0);
+    body = !REP ? `<section class="card"><p class="sub" style="margin:0">Sales history isn't in this view.</p></section>`
+      : `<p class="sub" style="margin:2px 2px 8px">What you <b>sold</b> in ${esc(winTxt)} <b>${lastY}</b> — a guide for what to make this year. ${fn(tot)} boxes across ${rows.length} products.</p>
+      <section class="card" style="padding:0;overflow:hidden"><table class="bk-potable"><thead><tr><th>Product</th><th class="num">Boxes (${lastY})</th></tr></thead><tbody>
+      ${rows.map(r => `<tr><td><span class="gdot ${gcls(r.c.brand || r.c.cat || '')}"></span>${esc(r.c.name)}${r.c.pack ? ` <small class="sub">${esc(r.c.pack)}</small>` : ''}</td><td class="num"><b>${fn(r.q)}</b></td></tr>`).join('') || '<tr><td colspan="2" class="sub">No sales in that window last year.</td></tr>'}
+      </tbody></table></section>`;
+  } else {
+    if (!BUY) body = `<section class="card stack"><h2>Needs your QuickBooks purchases</h2><p class="sub" style="margin:0">This uses your real purchases, so it's only in your private link.</p></section>`;
+    else {
+      const agg = {};
+      BUY.lines.forEach(l => { const y = +l[0].slice(0, 4), mo = +l[0].slice(5, 7); if (y !== lastY || mo < fromM || mo > toM) return; const o = agg[l[2]] = agg[l[2]] || { it: BUY.items[l[2]], q: 0, amt: 0, v: l[1] }; o.q += l[3]; o.amt += l[5]; o.v = l[1]; });
+      const rows = Object.values(agg).filter(r => r.q > 0).sort((a, b) => b.amt - a.amt);
+      const tot = rows.reduce((s, r) => s + r.amt, 0);
+      body = `<p class="sub" style="margin:2px 2px 8px">What you <b>bought from vendors</b> in ${esc(winTxt)} <b>${lastY}</b> — a guide for what to order this year. ${money(tot)} across ${rows.length} items.</p>
+      <section class="card" style="padding:0;overflow:hidden"><table class="bk-potable"><thead><tr><th>Item</th><th class="num">Bought</th><th class="num">Spent</th></tr></thead><tbody>
+      ${rows.map(r => `<tr><td>${esc((r.it && (r.it.name || r.it.full)) || '—')}<div class="sub" style="margin:0;font-size:12px">${esc(BUY.vendors[r.v] || '')}</div></td><td class="num">${fnu(r.q)}</td><td class="num"><b>${money(r.amt)}</b></td></tr>`).join('') || '<tr><td colspan="3" class="sub">No purchases in that window last year.</td></tr>'}
+      </tbody><tfoot><tr><td><b>Total</b></td><td></td><td class="num"><b>${money(tot)}</b></td></tr></tfoot></table></section>`;
+    }
+  }
+  return `${head('Plan a season', `Pick a window — see what you sold and bought in it last year (${lastY})`)}
+  ${picker}
+  ${tabs}
+  ${body}`;
+}
 function renderJournal() {
   const B = BK(); if (!B || !B.journal) return bkEmpty('Journal entries', 'From QuickBooks');
   const L = B.journal.filter(j => bkHit(j[1], ...j[3].map(l => l[1] + ' ' + l[3] + ' ' + l[4])));
@@ -7350,6 +7399,9 @@ document.addEventListener('click', e => {
     case 'order-loc': S.orderLoc = d.v || null; keep(); break;
     case 'order-review': if (!orderTotals().boxes) { toast('Add at least one item first.'); break; } S.orderStep = 'review'; S.storeOpen = false; render(); window.scrollTo(0, 0); break;
     case 'order-back-build': S.orderStep = 'build'; render(); window.scrollTo(0, 0); break;
+    case 'plan-tab': S.planTab = d.t; keep(); break;
+    case 'plan-fm': S.planFrom = Math.max(1, Math.min(12, S.planFrom + (+d.d || 0))); if (S.planTo < S.planFrom) S.planTo = S.planFrom; keep(); break;
+    case 'plan-tm': S.planTo = Math.max(1, Math.min(12, S.planTo + (+d.d || 0))); if (S.planFrom > S.planTo) S.planFrom = S.planTo; keep(); break;
     case 'store-open': S.storeOpen = !S.storeOpen; S.storeQ = ''; keep(); break;
     case 'store-pick': S.orderStore = d.n; S.storeOpen = false; S.storeQ = ''; S.lyPick = null; S.orderShip = null; S.orderLoc = null; S.shipCalOpen = false; S.orderStep = 'build'; keep(); break;
     case 'hist-tab': S.histTab = d.t; keep(); break;
