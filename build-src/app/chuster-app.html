@@ -886,6 +886,12 @@ main { padding-block: 14px 32px; }
 .orv-fields > div { flex: 1; min-width: 150px; }
 .orv-fields .lbl { margin: 0 0 3px; }
 .orv-acts { display: flex; flex-direction: column; gap: 10px; margin-top: 4px; }
+.bk-potable { width: 100%; border-collapse: collapse; font-size: 14px; }
+.bk-potable th, .bk-potable td { padding: 9px 12px; text-align: left; border-top: 1px solid var(--line); }
+.bk-potable th.num, .bk-potable td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.bk-potable thead th { border-top: none; font-size: 12px; font-weight: 800; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+.bk-potable tbody tr:nth-child(odd) { background: var(--surface-2); }
+.bk-potable tfoot td { border-top: 2px solid var(--line-strong); font-size: 15px; }
 .cal-pop { position: absolute; z-index: 40; top: calc(100% + 6px); left: 0; width: min(300px, 86vw); background: var(--surface); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 12px 30px rgba(0,0,0,.18); padding: 12px; }
 .cal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; font-size: 15px; font-weight: 800; }
 .cal-head button { width: 32px; height: 32px; border: none; background: var(--surface-2); border-radius: 8px; font-size: 16px; cursor: pointer; color: inherit; }
@@ -7139,7 +7145,7 @@ document.addEventListener('click', e => { const el = e.target.closest('[data-act
   addEventListener('touchcancel', clear, { passive: true });
 })();
 /* ================= Books: expenses, bank & deposits, vendors & bills, sales orders & estimates, stock moves, all POs, journal, accounts ================= */
-Object.assign(S, { bkPer: 'ytd', bkFrom: null, bkTo: null, bkAcct: null, bkQ: '', bkVSort: 'owe', bkVen: null, bkSoTab: 'so', bkStTab: 'build', bkPoSt: 'open', bkVenTab: 'list' });
+Object.assign(S, { bkPer: 'ytd', bkFrom: null, bkTo: null, bkAcct: null, bkQ: '', bkVSort: 'owe', bkVen: null, bkSoTab: 'so', bkStTab: 'build', bkPoSt: 'open', bkVenTab: 'list', bkPoView: 'po' });
 const BK = () => (REAL && REAL.books) || null;
 const bkDay = d => d ? fmtShort(isoRd(d)) : '';
 function bkEmpty(title, sub) {
@@ -7259,12 +7265,27 @@ function renderPOList() {
   const B = BK(); if (!B || !B.po) return bkEmpty('All purchase orders', 'Open, partly received, received and closed');
   const ST = { open: ['Open', 'gold'], part: ['Part received', 'blue'], received: ['Received', 'green'], closed: ['Closed', 'grey'] };
   const L = B.po.filter(p => (S.bkPoSt === 'all' || p[4] === S.bkPoSt) && bkHit(p[2], p[1], ...p[7].map(l => l[0])));
+  const byItem = S.bkPoView === 'item';
+  let body;
+  if (byItem) {
+    const items = {};
+    L.forEach(p => p[7].forEach(l => { const o = items[l[0]] = items[l[0]] || { name: nameOfFull(l[0]), ord: 0, rec: 0, pos: new Set() }; o.ord += +l[1] || 0; o.rec += +l[2] || 0; o.pos.add(p[1]); }));
+    const rows = Object.values(items).map(o => ({ name: o.name, ord: o.ord, rec: o.rec, out: Math.max(0, o.ord - o.rec), pos: o.pos.size })).sort((a, b) => b.out - a.out || b.ord - a.ord);
+    const totOut = rows.reduce((s, r) => s + r.out, 0);
+    body = `<p class="sub" style="margin:2px 2px 8px">Every item across these POs, added up. <b>Still coming</b> is what's ordered but not yet received.</p>
+      <section class="card" style="padding:0;overflow:hidden"><table class="bk-potable"><thead><tr><th>Item</th><th class="num">Ordered</th><th class="num">Received</th><th class="num">Still coming</th><th class="num">POs</th></tr></thead><tbody>
+      ${rows.map(r => `<tr><td>${esc(r.name)}</td><td class="num">${fnu(r.ord)}</td><td class="num">${fnu(r.rec)}</td><td class="num"><b${r.out ? ' style="color:var(--gold-text)"' : ''}>${r.out ? fnu(r.out) : '—'}</b></td><td class="num">${r.pos}</td></tr>`).join('') || '<tr><td colspan="5" class="sub">Nothing here.</td></tr>'}
+      </tbody><tfoot><tr><td><b>Total still coming</b></td><td></td><td></td><td class="num"><b>${fnu(totOut)}</b></td><td></td></tr></tfoot></table></section>`;
+  } else {
+    body = L.slice(0, 150).map(p => `<article class="card stack" style="gap:6px"><div class="qw-head"><b>${esc(p[2])}</b><b class="num">${money(p[3])}</b></div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center"><span class="tag ${ST[p[4]][1]}">${ST[p[4]][0]}${p[4] === 'part' ? ' · ' + p[6] + '%' : ''}</span><span class="sub" style="margin:0">PO #${esc(p[1])} · ${bkDay(p[0])}${p[5] ? ' · expected ' + bkDay(p[5]) : ''}</span></div>
+    <div class="qw-lines">${p[7].map(l => `<div class="qw-line"><span class="num">${fnu(l[1])}</span><span>${esc(nameOfFull(l[0]))}</span><span class="num">${l[2] ? fnu(l[2]) + ' in' : ''}</span></div>`).join('')}</div></article>`).join('') || '<section class="card"><p class="sub" style="margin:0">Nothing here.</p></section>';
+  }
   return `${head('All purchase orders', 'Every PO of the last two years from QuickBooks')}
+  <div class="lx-seg" role="group" aria-label="View" style="margin-bottom:10px"><button data-act="bk-set" data-k="bkPoView" data-v="po" aria-pressed="${!byItem}">By PO</button><button data-act="bk-set" data-k="bkPoView" data-v="item" aria-pressed="${byItem}">By product</button></div>
   <div class="chips">${[['open', 'Open'], ['part', 'Part received'], ['received', 'Received'], ['closed', 'Closed'], ['all', 'All']].map(([k, n]) => `<button class="chip" data-act="bk-set" data-k="bkPoSt" data-v="${k}" aria-pressed="${S.bkPoSt === k}">${n} · ${k === 'all' ? B.po.length : B.po.filter(p => p[4] === k).length}</button>`).join('')}</div>
   ${bkSearch('Search vendor, PO # or item')}
-  ${L.slice(0, 150).map(p => `<article class="card stack" style="gap:6px"><div class="qw-head"><b>${esc(p[2])}</b><b class="num">${money(p[3])}</b></div>
-    <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center"><span class="tag ${ST[p[4]][1]}">${ST[p[4]][0]}${p[4] === 'part' ? ' · ' + p[6] + '%' : ''}</span><span class="sub" style="margin:0">PO #${esc(p[1])} · ${bkDay(p[0])}${p[5] ? ' · expected ' + bkDay(p[5]) : ''}</span></div>
-    <div class="qw-lines">${p[7].map(l => `<div class="qw-line"><span class="num">${fnu(l[1])}</span><span>${esc(nameOfFull(l[0]))}</span><span class="num">${l[2] ? fnu(l[2]) + ' in' : ''}</span></div>`).join('')}</div></article>`).join('') || '<section class="card"><p class="sub" style="margin:0">Nothing here.</p></section>'}`;
+  ${body}`;
 }
 function renderJournal() {
   const B = BK(); if (!B || !B.journal) return bkEmpty('Journal entries', 'From QuickBooks');
