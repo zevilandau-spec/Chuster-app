@@ -1803,6 +1803,11 @@ function go(v, keepScroll) { S.lxSheet = null; S.tileView = null;
   if (!VIEWS[v]) v = 'home';
   if (v === 'tools' && S.role !== 'Owner') v = 'home';
   if (!allowed(v)) v = roleHome();
+  // Leaving New Order for another screen starts the next order fresh (clear the store and items).
+  if (S.view === 'order' && v !== 'order') {
+    S.orderStore = ''; S.oq = {}; S.orderGroup = 'All'; S.orderQ = ''; S.orderRef = '';
+    S.orderShip = null; S.orderLoc = null; S.storeOpen = false; S.storeQ = ''; S.lyPick = null; S.creditOk = null; S.shipCalOpen = false;
+  }
   S.view = v;
   closeMenu();
   render();
