@@ -655,6 +655,7 @@ body:has(#ai-fab:not([hidden])) #view { padding-bottom: 72px; }
 .lx-cutwrap { margin-top: 4px; border: 1px solid var(--line); border-radius: 12px; padding: 6px 8px; background: var(--surface-2); }
 .lx-cutrow { display: flex; align-items: center; gap: 8px; padding: 5px 2px; border-top: 1px solid rgba(22, 32, 74, .07); }
 .lx-cutrow:first-child { border-top: none; }
+.lx-wa { flex: none; text-decoration: none; font-size: 17px; line-height: 1; padding: 3px; border-radius: 8px; background: var(--good-soft); }
 .lx-cutn { flex: 1; min-width: 0; font-weight: 700; font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lx-cutq { font-size: 13.5px; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .lx-cutq .tag.red { margin-left: 2px; }
@@ -1688,6 +1689,9 @@ const VIEWS = {
   home: { title: 'Dashboard', r: renderHome },
   order: { title: 'New order', r: renderOrder },
   plan: { title: 'Plan a season', r: renderPlan },
+  ordernow: { title: 'Order now', r: renderOrderNow },
+  prodplan: { title: 'Make today', r: renderProdPlan },
+  margin: { title: 'Margin watch', r: renderMargin },
   inventory: { title: 'Inventory', r: renderInventory },
   packing: { title: 'Packing plan', r: renderPacking },
   calendar: { title: 'Calendar', r: renderCalendar },
@@ -1762,7 +1766,7 @@ const NAV = [
   { h: 'PRODUCTS', items: [['prodsales', 'Product sales', 'chart'], ['winners', 'Winners & losers', 'chart'], ['items', 'Products & profit', 'chart'], ['margin', 'Margins', 'chart'], ['pricelist', 'Price list', 'order'], ['pricecheck', 'Price check', 'card'], ['pricespread', 'Price spread', 'chart']] },
   { h: 'DELIVERIES', items: [['route', 'Deliveries', 'box'], ['stop', 'Driver', 'wheel'], ['live', 'Live trucks', 'pin'], ['loading', 'Loading', 'truck'], ['dsched', 'Delivery days', 'cal'], ['delivstats', 'Delivery stats', 'chart'], ['routeprofit', 'Route profit', 'chart']] },
   { h: 'WAREHOUSE', items: [['packnext', 'What to pack', 'clip'], ['forecast', 'Week-ahead forecast', 'chart'], ['packing', 'Packing plan', 'clip'], ['stockcover', 'Stock cover', 'box'], ['packlog', 'Pack log', 'clip'], ['packrep', 'Packing report', 'chart'], ['yield', 'Yield', 'chart']] },
-  { h: 'STOCK & BUYING', items: [['inventory', 'Inventory', 'box', 'inv'], ['reorder', 'Reorder alerts', 'alert'], ['plan', 'Plan a season', 'chart'], ['buying', 'Buying & suppliers', 'card'], ['polist', 'All purchase orders', 'clip'], ['stockmoves', 'Stock moves', 'box']] },
+  { h: 'STOCK & BUYING', items: [['inventory', 'Inventory', 'box', 'inv'], ['prodplan', 'Make today', 'box'], ['ordernow', 'Order now', 'alert'], ['reorder', 'Reorder alerts', 'alert'], ['plan', 'Plan a season', 'chart'], ['margin', 'Margin watch', 'chart'], ['buying', 'Buying & suppliers', 'card'], ['polist', 'All purchase orders', 'clip'], ['stockmoves', 'Stock moves', 'box']] },
   { h: 'BOOKS', items: [['expenses', 'Expenses', 'chart'], ['bank', 'Bank & deposits', 'card'], ['vendors', 'Vendors & bills', 'people'], ['salesorders', 'Sales orders & estimates', 'order'], ['journal', 'Journal entries', 'clip'], ['accounts', 'Chart of accounts', 'chart']] }
 ];
 const TABS = [['home', 'Home', 'home'], ['orders', 'Orders', 'order'], ['route', 'Deliveries', 'truck'], ['inventory', 'Stock', 'box']];
@@ -1774,7 +1778,7 @@ if (S.baseRole !== 'Owner') S.role = S.baseRole;
 const byName = () => S.user || S.baseRole;
 try { S.lang = localStorage.getItem('chuster-lang') || 'en'; } catch (e) { S.lang = 'en'; }
 const ROLE_VIEWS = {
-  Warehouse: ['ask', 'packnext', 'packing', 'stockcover', 'packlog', 'packrep', 'yield', 'inventory', 'reorder', 'plan', 'loading', 'loadlist', 'calendar', 'stockmoves', 'polist'],
+  Warehouse: ['ask', 'packnext', 'packing', 'stockcover', 'packlog', 'packrep', 'yield', 'inventory', 'prodplan', 'ordernow', 'reorder', 'plan', 'margin', 'loading', 'loadlist', 'calendar', 'stockmoves', 'polist'],
   Driver: ['route', 'stop', 'loading', 'loadlist', 'calendar'],
   Sales: ['ask', 'mysales', 'visits', 'coverage', 'mycomm', 'pitch', 'customers', 'collect', 'orders', 'order', 'inbox', 'toqb', 'payments', 'yomtov', 'lost', 'pricelist', 'pricecheck', 'calendar', 'salesorders', 'prodsales', 'scorecard', 'crosssell', 'atrisk', 'returns'],
   SalesDriver: ['ask', 'mysales', 'visits', 'coverage', 'mycomm', 'pitch', 'customers', 'collect', 'orders', 'order', 'inbox', 'toqb', 'payments', 'yomtov', 'lost', 'pricelist', 'pricecheck', 'calendar', 'route', 'stop', 'loading', 'loadlist', 'salesorders', 'prodsales', 'scorecard', 'crosssell', 'atrisk', 'returns']
@@ -2234,6 +2238,7 @@ function orderReviewHtml() {
           </button>${S.shipCalOpen ? shipCal(shipVal, auto) : ''}</div></div>
       </div>
       ${cr && cr.bad ? `<div class="note"><strong>Heads up:</strong> ${esc(storeName)} owes money over 90 days or is over the limit.</div>` : ''}
+      ${(() => { const pf = priceFlags(cust); if (!pf.length) return ''; return `<div class="note" style="background:var(--gold-soft);border-color:var(--gold)"><strong>⚠ Price check:</strong> ${pf.length} item${pf.length === 1 ? '' : 's'} priced differently than ${esc(storeName)} usually pays.<div style="margin-top:4px;display:flex;flex-direction:column;gap:2px">${pf.slice(0, 8).map(f => `<span style="font-size:12.5px">${esc(f.name)}: usually <b>${money(f.usual)}</b> → now <b style="color:${f.up ? 'var(--bad-text)' : 'var(--good-text)'}">${money(f.now)}</b></span>`).join('')}</div></div>`; })()}
       <div class="orv-acts">
         <button class="btn ghost big full" data-act="order-back-build">＋ Add more items</button>
         <button class="btn primary big full" data-act="save-order"${T.boxes ? '' : ' disabled'}>✓ Fully done · send #${esc(inv)} to QuickBooks</button>
@@ -2249,6 +2254,15 @@ function shipOptions(cust) {
   const norm = s => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
   (cust.saddr || []).forEach(s => { const value = s.addr ? (s.name && norm(s.name) && !norm(s.addr).includes(norm(s.name)) ? s.name + ' — ' + s.addr : s.addr) : s.name; if (!value) return; const k = norm(value); if (seen.has(k)) return; seen.add(k); out.push({ label: s.name || s.addr, sub: s.name ? s.addr : '', value }); });
   (REAL.orders.list || []).forEach(o => { if (o.c !== cust.name || !o.ship) return; const k = norm(o.ship); if (seen.has(k)) return; seen.add(k); out.push({ label: o.ship, sub: '', value: o.ship }); });
+  return out;
+}
+// Items on this order priced differently than this customer usually pays (from their invoice history).
+function priceFlags(cust) {
+  if (!cust || !REAL) return [];
+  const paid = {};
+  (REAL.orders.list || []).forEach(o => { if (o.c !== cust.name || o.t !== 'inv' || !o.l) return; rowsOf(o.l).forEach(([ref, q, a]) => { if (typeof ref !== 'number' || !(q > 0) || !(a > 0)) return; const u = a / q; const b = paid[ref]; if (!b || o.d > b.d) paid[ref] = { d: o.d, u }; }); });
+  const out = [];
+  S.catalog.forEach((p, ref) => { const q = S.oq[keyOf(p)] || 0; if (!q) return; const price = parseFloat(p.price); const b = paid[ref]; if (!b || !(price > 0)) return; if (Math.abs(price - b.u) / b.u >= 0.02) out.push({ name: p.name, usual: b.u, now: price, up: price > b.u }); });
   return out;
 }
 function shipPickerHtml(cust) {
@@ -6575,7 +6589,7 @@ function lxItemRow(it, can, mode) {
   const nameEl = mode === 'items'
     ? `<button class="lx-iname lx-inamebtn" data-act="lx-openitem" data-id="${esc(it.id)}">${esc(it.name)}${c && c.pack ? ` <span class="lx-pack">${esc(c.pack)}</span>` : ''} <span class="lx-cv">${open ? '▲ close' : '▾ take down'}</span></button>`
     : `<div class="lx-iname">${esc(it.name)}${c && c.pack ? ` <span class="lx-pack">${esc(c.pack)}</span>` : ''}</div>`;
-  const expand = open ? `<div class="lx-cutwrap">${it.lines.slice().sort((a, b) => b.q0 - a.q0).map(l => `<div class="lx-cutrow"><span class="lx-cutn">${esc(l.stopName || '')}</span><span class="lx-cutq">${l.cut ? `<s style="color:var(--muted)">${fn(l.q0)}</s> <b>${fn(l.q)}</b> <span class="tag red">−${fn(l.cut)}</span>` : `<b>${fn(l.q0)}</b>`}</span><span class="lx-step"><button class="lx-sb" data-act="lx-cut" data-k="${esc(l.key)}" data-d="1"${can && l.q > 0 ? '' : ' disabled'} aria-label="Take one down from ${esc(l.stopName)}">−</button><button class="lx-sb" data-act="lx-cut" data-k="${esc(l.key)}" data-d="-1"${can && l.cut ? '' : ' disabled'} aria-label="Give one back to ${esc(l.stopName)}">+</button></span></div>`).join('')}<p class="sub" style="margin:4px 2px 0;font-size:11px">Tap − to take boxes down from a store. The office is told and the invoice is lined up to change.</p></div>` : '';
+  const expand = open ? `<div class="lx-cutwrap">${it.lines.slice().sort((a, b) => b.q0 - a.q0).map(l => `<div class="lx-cutrow"><span class="lx-cutn">${esc(l.stopName || '')}</span><span class="lx-cutq">${l.cut ? `<s style="color:var(--muted)">${fn(l.q0)}</s> <b>${fn(l.q)}</b> <span class="tag red">−${fn(l.cut)}</span>` : `<b>${fn(l.q0)}</b>`}</span><span class="lx-step"><button class="lx-sb" data-act="lx-cut" data-k="${esc(l.key)}" data-d="1"${can && l.q > 0 ? '' : ' disabled'} aria-label="Take one down from ${esc(l.stopName)}">−</button><button class="lx-sb" data-act="lx-cut" data-k="${esc(l.key)}" data-d="-1"${can && l.cut ? '' : ' disabled'} aria-label="Give one back to ${esc(l.stopName)}">+</button></span>${(() => { if (!l.cut) return ''; const cc = custByName(l.stopName); return cc && cc.phone ? `<a class="lx-wa" href="${esc(waHref(waNum(cc.phone), `Hi, it's Chuster. We're a little short on ${it.name} today — sending ${fn(l.q)} instead of ${fn(l.q0)}. Sorry about that!`))}" target="_blank" rel="noopener" aria-label="Tell ${esc(l.stopName)} on WhatsApp" onclick="event.stopPropagation()">💬</a>` : ''; })()}</div>`).join('')}<p class="sub" style="margin:4px 2px 0;font-size:11px">Tap − to take boxes down from a store. The office is told, the invoice is lined up to change, and 💬 texts the store.</p></div>` : '';
   return `<div class="lx-item${it.have >= it.need ? ' done' : ''}">
     ${nameEl}
     <div class="lx-irow">
@@ -7314,6 +7328,45 @@ function renderPOList() {
   <div class="chips">${[['open', 'Open'], ['part', 'Part received'], ['received', 'Received'], ['closed', 'Closed'], ['all', 'All']].map(([k, n]) => `<button class="chip" data-act="bk-set" data-k="bkPoSt" data-v="${k}" aria-pressed="${S.bkPoSt === k}">${n} · ${k === 'all' ? B.po.length : B.po.filter(p => p[4] === k).length}</button>`).join('')}</div>
   ${bkSearch('Search vendor, PO # or item')}
   ${body}`;
+}
+function renderMargin() {
+  if (!REAL || !IT) return needData('Margin watch');
+  const rows = REAL.catalog.map((c, i) => { const o = IT.list[i]; if (!o || c.off) return null; const sell = o.common || o.list || parseFloat(c.price) || 0; const cost = o.cost || 0; if (!(sell > 0) || !(cost > 0)) return null; return { c, sell, cost, m: (sell - cost) / sell, q12: o.q12 || 0 }; }).filter(Boolean).sort((a, b) => a.m - b.m);
+  const low = rows.filter(r => r.m < 0.2 && r.q12 > 0);
+  const mcls = m => m < 0.1 ? 'red' : m < 0.2 ? 'gold' : 'green';
+  return `${head('Margin watch', 'Your margin on each product — sell price vs what it costs you. Lowest first.')}
+  ${low.length ? `<div class="note" style="background:var(--gold-soft);border-color:var(--gold)"><strong>${low.length} product${low.length === 1 ? '' : 's'}</strong> you're actively selling are under 20% margin — a squeeze worth a look.</div>` : ''}
+  <section class="card" style="padding:0;overflow:hidden"><table class="bk-potable"><thead><tr><th>Product</th><th class="num">Sell</th><th class="num">Cost</th><th class="num">Margin</th></tr></thead><tbody>
+  ${rows.map(r => `<tr><td><span class="gdot ${gcls(r.c.brand || r.c.cat || '')}"></span>${esc(r.c.name)}${r.c.pack ? ` <small class="sub">${esc(r.c.pack)}</small>` : ''}</td><td class="num">${money(r.sell)}</td><td class="num">${money(r.cost)}</td><td class="num"><span class="tag ${mcls(r.m)}">${Math.round(r.m * 100)}%</span></td></tr>`).join('') || '<tr><td colspan="4" class="sub">No cost data.</td></tr>'}
+  </tbody></table></section>`;
+}
+function renderOrderNow() {
+  if (!REAL || !REAL.orders) return needData('Order now');
+  const f = TODAY - 27;
+  const dem = {};
+  (REAL.orders.list || []).forEach(o => { if (o.t !== 'inv' || !o.l) return; const r = isoRd(o.d); if (r < f || r > TODAY) return; rowsOf(o.l).forEach(([ref, q]) => { if (typeof ref !== 'number' || !(q > 0)) return; dem[ref] = (dem[ref] || 0) + q; }); });
+  const rows = Object.keys(dem).map(ref => { const c = REAL.catalog[+ref]; if (!c || c.off) return null; const stock = c.stock || 0; const d = dem[ref]; const sugg = Math.max(0, Math.ceil(d - stock)); return { c, stock, d, sugg }; }).filter(Boolean).filter(r => r.sugg > 0).sort((a, b) => b.sugg - a.sugg);
+  const tot = rows.reduce((s, r) => s + r.sugg, 0);
+  return `${head('Order now', 'What to restock: 4 weeks of sales minus what you have on hand')}
+  <div class="note" style="background:var(--brand-soft);border-color:var(--brand)"><strong>${rows.length} product${rows.length === 1 ? '' : 's'}</strong> are below 4 weeks of cover — about <b>${fn(tot)} boxes</b> to make or order to catch up.</div>
+  <section class="card" style="padding:0;overflow:hidden"><table class="bk-potable"><thead><tr><th>Product</th><th class="num">In stock</th><th class="num">Sold 4 wks</th><th class="num">Order</th></tr></thead><tbody>
+  ${rows.map(r => `<tr><td><span class="gdot ${gcls(r.c.brand || r.c.cat || '')}"></span>${esc(r.c.name)}${r.c.pack ? ` <small class="sub">${esc(r.c.pack)}</small>` : ''}</td><td class="num"${r.stock < 0 ? ' style="color:var(--bad-text)"' : ''}>${fn(r.stock)}</td><td class="num">${fn(r.d)}</td><td class="num"><b style="color:var(--brand-text)">${fn(r.sugg)}</b></td></tr>`).join('') || '<tr><td colspan="4" class="sub">Everything is covered for the next 4 weeks. 👍</td></tr>'}
+  </tbody></table></section>`;
+}
+function renderProdPlan() {
+  if (!REAL) return needData('Make today');
+  const date = (S.lday && S.lday.d) || isoOf(TODAY);
+  const stops = (typeof lxStops === 'function') ? lxStops(date) : [];
+  const need = {};
+  stops.forEach(s => (s.lines || []).forEach(l => { if (!l.c) return; const ref = l.ref; if (typeof ref !== 'number') return; need[ref] = (need[ref] || 0) + (l.q || 0); }));
+  const rows = Object.keys(need).map(ref => { const c = REAL.catalog[+ref]; if (!c) return null; const stock = c.stock || 0; const n = need[ref]; return { c, stock, need: n, make: Math.max(0, Math.ceil(n - stock)) }; }).filter(Boolean).sort((a, b) => b.make - a.make || b.need - a.need);
+  const totMake = rows.reduce((s, r) => s + r.make, 0);
+  return `${head('Make today', `What the orders loading ${fmtShort(isoRd(date))} need — minus what's in stock`)}
+  ${!stops.length ? '<section class="card"><p class="sub" style="margin:0">No orders loading for that day yet.</p></section>' : `
+  <div class="note" style="background:var(--good-soft);border-color:var(--good)"><strong>${fn(totMake)} boxes</strong> to make across ${rows.filter(r => r.make > 0).length} products to cover ${fmtShort(isoRd(date))}'s loads.</div>
+  <section class="card" style="padding:0;overflow:hidden"><table class="bk-potable"><thead><tr><th>Product</th><th class="num">Needed</th><th class="num">In stock</th><th class="num">Make</th></tr></thead><tbody>
+  ${rows.map(r => `<tr><td><span class="gdot ${gcls(r.c.brand || r.c.cat || '')}"></span>${esc(r.c.name)}${r.c.pack ? ` <small class="sub">${esc(r.c.pack)}</small>` : ''}</td><td class="num">${fn(r.need)}</td><td class="num"${r.stock < 0 ? ' style="color:var(--bad-text)"' : ''}>${fn(r.stock)}</td><td class="num"><b${r.make ? ' style="color:var(--good-text)"' : ''}>${r.make ? fn(r.make) : '—'}</b></td></tr>`).join('')}
+  </tbody></table></section>`}`;
 }
 function renderPlan() {
   if (!REAL) return needData('Plan a season');
