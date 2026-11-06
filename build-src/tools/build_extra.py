@@ -124,7 +124,7 @@ for t in poall:
     q = sum(float(l[2] or 0) for l in t['l']); rc = sum(min(float(l[3] or 0), float(l[2] or 0)) for l in t['l'])
     tot = t.get('tot') or sum(float(l[2] or 0) * float(l[4] or 0) for l in t['l'])
     st = 'closed' if t.get('closed') else 'received' if t.get('rcv') else 'part' if rc > 0 else 'open'
-    pos.append([t['d'], t.get('n', ''), t.get('v', ''), r2(tot), st, t.get('deliv', ''), round(rc / q * 100) if q else 0, [[l[0], l[2], l[3]] for l in t['l']][:12]])
+    pos.append([t['d'], t.get('n', ''), t.get('v', ''), r2(tot), st, t.get('deliv', ''), round(rc / q * 100) if q else 0, [[l[0], l[2], l[3], r2(float(l[4] or 0))] for l in t['l']][:12]])
 pos.sort(key=lambda x: x[0], reverse=True)
 
 # ---- journal entries and chart of accounts

@@ -892,6 +892,8 @@ main { padding-block: 14px 32px; }
 .bk-potable thead th { border-top: none; font-size: 12px; font-weight: 800; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
 .bk-potable tbody tr:nth-child(odd) { background: var(--surface-2); }
 .bk-potable tfoot td { border-top: 2px solid var(--line-strong); font-size: 15px; }
+.po-vhead { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 10px 12px; background: var(--brand, #21409A); color: #fff; font-size: 15px; }
+.po-vhead .num { font-variant-numeric: tabular-nums; }
 .cal-pop { position: absolute; z-index: 40; top: calc(100% + 6px); left: 0; width: min(300px, 86vw); background: var(--surface); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 12px 30px rgba(0,0,0,.18); padding: 12px; }
 .cal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; font-size: 15px; font-weight: 800; }
 .cal-head button { width: 32px; height: 32px; border: none; background: var(--surface-2); border-radius: 8px; font-size: 16px; cursor: pointer; color: inherit; }
@@ -7268,14 +7270,16 @@ function renderPOList() {
   const byItem = S.bkPoView === 'item';
   let body;
   if (byItem) {
-    const items = {};
-    L.forEach(p => p[7].forEach(l => { const o = items[l[0]] = items[l[0]] || { name: nameOfFull(l[0]), ord: 0, rec: 0, pos: new Set() }; o.ord += +l[1] || 0; o.rec += +l[2] || 0; o.pos.add(p[1]); }));
-    const rows = Object.values(items).map(o => ({ name: o.name, ord: o.ord, rec: o.rec, out: Math.max(0, o.ord - o.rec), pos: o.pos.size })).sort((a, b) => b.out - a.out || b.ord - a.ord);
-    const totOut = rows.reduce((s, r) => s + r.out, 0);
-    body = `<p class="sub" style="margin:2px 2px 8px">Every item across these POs, added up. <b>Still coming</b> is what's ordered but not yet received.</p>
-      <section class="card" style="padding:0;overflow:hidden"><table class="bk-potable"><thead><tr><th>Item</th><th class="num">Ordered</th><th class="num">Received</th><th class="num">Still coming</th><th class="num">POs</th></tr></thead><tbody>
-      ${rows.map(r => `<tr><td>${esc(r.name)}</td><td class="num">${fnu(r.ord)}</td><td class="num">${fnu(r.rec)}</td><td class="num"><b${r.out ? ' style="color:var(--gold-text)"' : ''}>${r.out ? fnu(r.out) : '—'}</b></td><td class="num">${r.pos}</td></tr>`).join('') || '<tr><td colspan="5" class="sub">Nothing here.</td></tr>'}
-      </tbody><tfoot><tr><td><b>Total still coming</b></td><td></td><td></td><td class="num"><b>${fnu(totOut)}</b></td><td></td></tr></tfoot></table></section>`;
+    const vends = {};
+    L.forEach(p => { const v = vends[p[2]] = vends[p[2]] || { name: p[2], items: {} }; p[7].forEach(l => { const q = +l[1] || 0, rc = Math.min(+l[2] || 0, q), rate = +l[3] || 0; const o = v.items[l[0]] = v.items[l[0]] || { name: nameOfFull(l[0]), ord: 0, rec: 0, amt: 0, open: 0 }; o.ord += q; o.rec += rc; o.amt += q * rate; o.open += Math.max(0, q - rc) * rate; }); });
+    const vlist = Object.values(vends).map(v => { const items = Object.values(v.items).map(o => ({ name: o.name, ord: o.ord, rec: o.rec, out: Math.max(0, o.ord - o.rec), amt: o.amt, open: o.open })).sort((a, b) => b.open - a.open || b.out - a.out); const sub = items.reduce((s, r) => ({ ord: s.ord + r.ord, rec: s.rec + r.rec, out: s.out + r.out, amt: s.amt + r.amt, open: s.open + r.open }), { ord: 0, rec: 0, out: 0, amt: 0, open: 0 }); return { name: v.name, items, sub }; }).sort((a, b) => b.sub.open - a.sub.open);
+    const grand = vlist.reduce((s, v) => s + v.sub.open, 0);
+    body = `<p class="sub" style="margin:2px 2px 8px">Open POs by vendor, each item added up. <b>Still coming</b> is what's ordered but not received; <b>Open $</b> is its value.</p>
+      <div class="qw-head" style="padding:0 2px 6px"><b>Total still owed to vendors</b><b class="num">${money(grand)}</b></div>
+      ${vlist.map(v => `<section class="card" style="padding:0;overflow:hidden;margin-bottom:12px"><div class="po-vhead"><b>${esc(v.name)}</b><b class="num">${money(v.sub.open)}</b></div>
+        <table class="bk-potable"><thead><tr><th>Item</th><th class="num">Ordered</th><th class="num">Rcv'd</th><th class="num">Still coming</th><th class="num">Open $</th></tr></thead><tbody>
+        ${v.items.map(r => `<tr><td>${esc(r.name)}</td><td class="num">${fnu(r.ord)}</td><td class="num">${fnu(r.rec)}</td><td class="num"><b${r.out ? ' style="color:var(--gold-text)"' : ''}>${r.out ? fnu(r.out) : '—'}</b></td><td class="num">${r.open ? money(r.open) : '—'}</td></tr>`).join('')}
+        </tbody><tfoot><tr><td><b>Total</b></td><td class="num"><b>${fnu(v.sub.ord)}</b></td><td class="num"><b>${fnu(v.sub.rec)}</b></td><td class="num"><b>${fnu(v.sub.out)}</b></td><td class="num"><b>${money(v.sub.open)}</b></td></tr></tfoot></table></section>`).join('') || '<section class="card"><p class="sub" style="margin:0">Nothing here.</p></section>'}`;
   } else {
     body = L.slice(0, 150).map(p => `<article class="card stack" style="gap:6px"><div class="qw-head"><b>${esc(p[2])}</b><b class="num">${money(p[3])}</b></div>
     <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center"><span class="tag ${ST[p[4]][1]}">${ST[p[4]][0]}${p[4] === 'part' ? ' · ' + p[6] + '%' : ''}</span><span class="sub" style="margin:0">PO #${esc(p[1])} · ${bkDay(p[0])}${p[5] ? ' · expected ' + bkDay(p[5]) : ''}</span></div>
