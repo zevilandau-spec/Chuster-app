@@ -883,8 +883,9 @@ main { padding-block: 14px 32px; }
 .orv-q .sub { display: block; margin: 0; font-size: 12px; }
 .orv-tot { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px; background: var(--surface-2); border-radius: 12px; font-size: 16px; }
 .orv-tot strong { font-size: 18px; }
-.orv-meta { display: flex; gap: 10px; flex-wrap: wrap; }
-.orv-meta span { flex: 1; min-width: 120px; background: var(--surface-2); border-radius: 10px; padding: 8px 12px; font-size: 14px; }
+.orv-fields { display: flex; gap: 12px; flex-wrap: wrap; }
+.orv-fields > div { flex: 1; min-width: 150px; }
+.orv-fields .lbl { margin: 0 0 3px; }
 .orv-acts { display: flex; flex-direction: column; gap: 10px; margin-top: 4px; }
 .cal-pop { position: absolute; z-index: 40; top: calc(100% + 6px); left: 0; width: min(300px, 86vw); background: var(--surface); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 12px 30px rgba(0,0,0,.18); padding: 12px; }
 .cal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; font-size: 15px; font-weight: 800; }
@@ -2190,7 +2191,15 @@ function orderReviewHtml() {
       ${S.orderLoc ? `<div class="shiploc-sel">📍 Ship to: ${esc(S.orderLoc)}</div>` : ''}
       <div class="orv-list">${rows || '<p class="sub" style="margin:0">Nothing on this order yet.</p>'}</div>
       <div class="orv-tot"><span>${T.lines} item${T.lines === 1 ? '' : 's'} · ${T.boxes} box${T.boxes === 1 ? '' : 'es'}</span><strong>${orderTotalTxt(T)}</strong></div>
-      <div class="orv-meta"><span>Invoice <b>#${esc(inv)}</b></span><span>Ship <b>${esc(fmtShort(isoRd(shipVal)))}</b></span></div>
+      <div class="orv-fields">
+        <div><label class="lbl" for="inv-num">Invoice #</label><input class="inp" id="inv-num" inputmode="numeric" autocomplete="off" value="${esc(inv)}" placeholder="next number"></div>
+        <div><label class="lbl">Ship date</label><div class="shipwrap">
+          <button type="button" class="shipbtn" data-act="ship-toggle" aria-expanded="${!!S.shipCalOpen}">
+            <svg viewBox="0 0 24 24"><rect x="3" y="4.5" width="18" height="16" rx="2"/><path d="M3 9h18M8 2.5v4M16 2.5v4"/></svg>
+            <span><b>${fmtShort(isoRd(shipVal))}</b><small>${S.orderShip ? 'you picked this date' : 'automatic — next delivery day'}</small></span>
+            <span class="caret" aria-hidden="true">▾</span>
+          </button>${S.shipCalOpen ? shipCal(shipVal, auto) : ''}</div></div>
+      </div>
       ${cr && cr.bad ? `<div class="note"><strong>Heads up:</strong> ${esc(storeName)} owes money over 90 days or is over the limit.</div>` : ''}
       <div class="orv-acts">
         <button class="btn ghost big full" data-act="order-back-build">＋ Add more items</button>
@@ -2263,18 +2272,7 @@ function renderOrder() {
     <aside class="card stack" style="position:sticky;top:calc(80px + env(safe-area-inset-top, 0px))">
       <h2>Summary</h2>
       <div id="order-sum" class="stack" style="gap:6px">${orderSumHtml()}</div>
-      <label class="lbl" for="inv-num">Invoice #</label>
-      <input class="inp" id="inv-num" inputmode="numeric" autocomplete="off" value="${esc((S.orderRef && !invUsed(S.orderRef) ? S.orderRef : '') || nextInvNum())}" placeholder="next number">
-      <p class="sub" style="margin:-4px 0 0;font-size:12px">The next free number is filled in. You can change it.</p>
-      ${S.orderLoc ? `<label class="lbl">Ship to</label><div class="shiploc-sel">📍 ${esc(S.orderLoc)}</div>` : ''}
-      <label class="lbl">Ship date</label>
-      ${(() => { const auto = REAL && storeName ? dDateAuto({ c: storeName, d: isoOf(TODAY) }) : isoOf(next); const val = S.orderShip || auto; return `<div class="shipwrap">
-        <button type="button" class="shipbtn" data-act="ship-toggle" aria-expanded="${!!S.shipCalOpen}">
-          <svg viewBox="0 0 24 24"><rect x="3" y="4.5" width="18" height="16" rx="2"/><path d="M3 9h18M8 2.5v4M16 2.5v4"/></svg>
-          <span><b>${fmtShort(isoRd(val))}</b><small>${S.orderShip ? 'you picked this date' : 'automatic — next delivery day'}</small></span>
-          <span class="caret" aria-hidden="true">▾</span>
-        </button>${S.shipCalOpen ? shipCal(val, auto) : ''}</div>
-      <p class="sub" style="margin:0">Leave it on automatic, or tap to pick a day. Shabbos &amp; Yom Tov are greyed out.</p>`; })()}
+      <p class="sub" style="margin:0;font-size:12px">You set the invoice number and ship date on the next step.</p>
       ${T.low ? `<div class="note"><strong>Heads up:</strong> ${T.low} item${T.low > 1 ? 's' : ''} on this order ${T.low > 1 ? 'are' : 'is'} below zero in stock.</div>` : ''}
       <button class="btn primary big full order-send-flow" data-act="order-review"${T.boxes ? '' : ' disabled'}>Review order →</button>
     </aside>
