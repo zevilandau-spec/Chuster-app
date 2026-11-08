@@ -1933,7 +1933,10 @@ function go(v, keepScroll) { S.lxSheet = null; S.tileView = null;
   S.view = v;
   closeMenu();
   render();
-  try { history.replaceState(null, '', '#' + v); } catch (e) { /* hash not available */ }
+  // Add a history entry per screen so the phone's back-swipe / back button returns to the
+  // previous screen. When we're navigating because the user hit Back (the hash already
+  // matches v), don't push again — just render.
+  try { if (('#' + v) !== location.hash) history.pushState(null, '', '#' + v); } catch (e) { /* hash not available */ }
   if (!keepScroll) window.scrollTo(0, 0);
 }
 function aiFab() {
