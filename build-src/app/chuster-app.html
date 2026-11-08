@@ -2950,7 +2950,9 @@ function renderHomeReal() {
   const bars = yrs.map(([y, v, cls], i) => { const h = v / ymax * 186, x = 10 + i * slot + (slot - bw) / 2, cx = x + bw / 2; return `<rect class="${cls}" x="${x.toFixed(1)}" y="${(230 - h).toFixed(1)}" width="${bw.toFixed(1)}" height="${h.toFixed(1)}" rx="5"/><text class="lbl-strong" x="${cx.toFixed(1)}" y="${(222 - h).toFixed(1)}" text-anchor="middle" style="font-size:${fs}px">${fm(v)}</text><text x="${cx.toFixed(1)}" y="250" text-anchor="middle" style="font-size:${fs}px">${y === String(CY) && yrs.length <= 4 ? CY + ' so far' : y}</text>`; }).join('');
   const agingBar = `<div class="aging" role="img" aria-label="Money owed by age">${t.map((v, i) => v > 0 ? `<i style="width:${(v / t.reduce((s, x) => s + Math.max(x, 0), 0) * 100).toFixed(1)}%;background:${AGE_COLORS[i]}"></i>` : '').join('')}</div>`;
   return `
-  ${head('Dashboard', todayLine(), `${qbTag()}${SYNC.has() ? '<button class="btn ghost" data-act="sync-now" title="Pull everything from QuickBooks now">⟳ Sync now</button>' : ''}<button class="btn gold" data-act="sum-open">Send morning summary</button><a class="btn ghost" href="#customers" data-go="customers">Customers</a><a class="btn primary" href="#order" data-go="order">+ New order</a>`)}
+  ${head('Dashboard', todayLine(), `${qbTag()}${SYNC.has() ? '<button class="btn ghost" data-act="sync-now" title="Pull everything from QuickBooks now">⟳ Sync now</button>' : ''}<button class="btn gold" data-act="sum-open">Send morning summary</button><button class="btn ghost" data-act="wk-open">📊 Weekly digest</button><a class="btn ghost" href="#customers" data-go="customers">Customers</a><a class="btn primary" href="#order" data-go="order">+ New order</a>`)}
+  ${(() => { const dow = new Date(isoOf(TODAY) + 'T12:00:00').getDay(); return dow === 5 && !S.wkOpen ? `<div class="attn blue" style="cursor:pointer" data-act="wk-open"><span style="font-size:20px">📊</span><span class="main"><strong>Your weekly digest is ready</strong><small>Sales, top movers, who's growing, cash — send it to yourself for Shabbos</small></span><strong>Open →</strong></div>` : ''; })()}
+  ${S.wkOpen ? weeklyCard() : ''}
   ${S.sumOpen ? summaryCard() : ''}
   ${homeTrucks()}
   <!--@brief--><div class="brief"><strong>${greet}, Zevi.</strong> On ${fmtShort(prevRd)}: <a href="#orders" data-go="orders"><strong>${fm(D.prevDay.amount)} in ${D.prevDay.count} invoices</strong></a>. This year so far: <strong>${fm(D.ytd)}</strong>, ${sgn(g)} vs the same days last year. Stores owe <strong>${fm(D.ar.total)}</strong>, and <a href="#customers" data-act="go-cust" data-f="owe" class="red">${fm(past)} of it is past due</a>. <a href="#inventory" data-act="go-inv" data-f="zero" class="red">${D.counts.belowZero} items are below zero</a>${D.counts.low ? `, <a href="#inventory" data-act="go-inv" data-f="low">${D.counts.low} are under their reorder point</a>` : ''}, and <a href="#customers" data-act="go-cust" data-f="late">${D.counts.late} stores are later than usual to reorder</a>.</div>
@@ -4500,7 +4502,7 @@ function aiEntryInner(x) {
 function loadLS(k, d) { try { const v = JSON.parse(localStorage.getItem(k) || 'null'); return v && typeof v === 'object' ? v : d; } catch (e) { return d; } }
 function saveLS(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* storage blocked */ } }
 Object.assign(S, { col: loadLS('chuster-collect-v1', {}), colF: 'all', colOpen: null, ytName: null, ytOpen: null, ytDone: loadLS('chuster-yt-v1', {}), lostOpen: null, cpSort: 'profit', pcOpen: null,
-  supplies: loadLS('chuster-supplies-v1', {}), llDate: null, llTruck: 0, llDone: {}, areaTruck: loadLS('chuster-areatruck-v1', {}), sumOpen: false, proof: { photos: [], sig: null }, sigOpen: false,
+  supplies: loadLS('chuster-supplies-v1', {}), llDate: null, llTruck: 0, llDone: {}, areaTruck: loadLS('chuster-areatruck-v1', {}), sumOpen: false, wkOpen: false, proof: { photos: [], sig: null }, sigOpen: false,
   visit: loadLS('chuster-visit-v1', {}), vsArea: 'All', vsQ: '',
   pitch: loadLS('chuster-pitch-v1', {}), pitchSetup: false, pitchQ: '', pitchOpen: null, pitchArea: 'All',
   cover: loadLS('chuster-cover-v1', { freq: { 'Boro Park': 'w', 'Williamsburg': 'w', 'Monroe': 'w', 'Monsey': 'w', 'Lakewood': '2a', 'Flatbush': '2b' } }), coverTag: loadLS('chuster-covertag-v1', {}), coverSetup: false, coverQ: '', coverShowCov: {},
@@ -5009,6 +5011,32 @@ function morningText() {
     `${D.counts.belowZero} items below zero`,
     late.length ? `Late to order: ${late.map(c => c.name).join(', ')}` : '',
     low.length ? `Loose running out: ${low.map(f => f.name).join(', ')}` : ''].filter((x, i) => x || i === 2).join('\n');
+}
+function weeklyText() {
+  const D = REAL;
+  const wk = (from, to) => { let amt = 0, n = 0; (D.orders.list || []).forEach(o => { if (o.t !== 'inv') return; const r = isoRd(o.d); if (r >= from && r <= to) { amt += o.a; n++; } }); return { amt, n }; };
+  const tw = wk(TODAY - 6, TODAY), lw = wk(TODAY - 13, TODAY - 7);
+  const wg = lw.amt ? Math.round((tw.amt - lw.amt) / lw.amt * 100) : 0;
+  const g = D.ytdPrev ? Math.round((D.ytd - D.ytdPrev) / D.ytdPrev * 100) : 0;
+  const prod = {}; (D.orders.list || []).forEach(o => { if (o.t !== 'inv') return; const r = isoRd(o.d); if (r < TODAY - 6 || r > TODAY) return; rowsOf(o.l).forEach(([ref, q, a]) => { if (typeof ref !== 'number' || !(a > 0)) return; prod[ref] = (prod[ref] || 0) + a; }); });
+  const top = Object.keys(prod).map(ref => ({ c: D.catalog[+ref], a: prod[ref] })).filter(x => x.c).sort((a, b) => b.a - a.a).slice(0, 3);
+  const movers = D.customers.filter(c => c.active && (c.ytdPrev || 0) > 2000 && (c.ytd || 0) > 0).map(c => ({ c, pct: (c.ytd - c.ytdPrev) / c.ytdPrev }));
+  const grow = movers.slice().sort((a, b) => b.pct - a.pct)[0];
+  const slip = movers.slice().sort((a, b) => a.pct - b.pct)[0];
+  const past = D.customers.reduce((s, c) => s + pastDue(c), 0);
+  return [`📊 Chuster — week of ${fmtShort(TODAY)}`, '',
+    `This week: ${money(tw.amt)} · ${tw.n} invoices (${wg >= 0 ? '+' : ''}${wg}% vs last week)`,
+    `This year: ${money(D.ytd)} (${g >= 0 ? '+' : ''}${g}% vs last year)`,
+    top.length ? `Top sellers: ${top.map(x => x.c.name).join(', ')}` : '',
+    grow && grow.pct > 0.02 ? `📈 Growing: ${grow.c.name} (+${Math.round(grow.pct * 100)}% yr/yr)` : '',
+    slip && slip.pct < -0.02 ? `📉 Slipping: ${slip.c.name} (${Math.round(slip.pct * 100)}% yr/yr)` : '',
+    `💰 Owed: ${money(D.ar.total)} · past due ${money(past)}`].filter((x, i) => x || i === 1).join('\n');
+}
+function weeklyCard() {
+  const t = weeklyText();
+  return `<section class="card stack" style="border:2px solid var(--brand)"><div class="card-head" style="margin:0"><h2>📊 Weekly digest</h2><button class="btn ghost sm" data-act="wk-open">Close</button></div>
+    <textarea id="wk-text" rows="9" style="width:100%;border-radius:10px;border:1px solid var(--line-strong);padding:10px;font:500 14px/1.5 var(--font);background:var(--surface);color:var(--fg)">${esc(t)}</textarea>
+    <div class="actions"><a class="btn good" href="https://wa.me/?text=${encodeURIComponent(t)}" target="_blank" rel="noopener">Send on WhatsApp</a><a class="btn ghost" href="mailto:?subject=${encodeURIComponent('Chuster weekly digest')}&body=${encodeURIComponent(t)}">Email</a><button class="btn ghost" data-act="wk-copy">Copy</button></div></section>`;
 }
 function summaryCard() {
   const t = morningText();
@@ -7787,6 +7815,8 @@ document.addEventListener('click', e => {
     case 'll-print': printDoc(loadListDoc(), `Chuster loading list ${S.llDate}`); break;
     case 'sum-open': S.sumOpen = !S.sumOpen; keep(); break;
     case 'sum-copy': { const t = document.getElementById('sum-text'); try { navigator.clipboard.writeText(t.value).then(() => toast('Copied. Paste it anywhere.')); } catch (err) { t.select(); toast('Selected. Copy it now.'); } break; }
+    case 'wk-open': S.wkOpen = !S.wkOpen; keep(); break;
+    case 'wk-copy': { const t = document.getElementById('wk-text'); try { navigator.clipboard.writeText(t.value).then(() => toast('Copied. Paste it anywhere.')); } catch (err) { t.select(); toast('Selected. Copy it now.'); } break; }
     case 'sig-open': S.sigOpen = true; keep(); break;
     case 'sig-cancel': S.sigOpen = false; keep(); break;
     case 'sig-clear': { const cv = document.getElementById('sig-pad'); if (cv) cv.getContext('2d').clearRect(0, 0, cv.width, cv.height); break; }
