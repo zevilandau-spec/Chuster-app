@@ -1947,7 +1947,7 @@ function crashBox(e) {
   v.innerHTML = `<section class="card stack" style="border:2px solid var(--bad-text)"><h2>Something broke on this screen</h2><p class="sub" style="margin:0">Send a screenshot of this to Claude.</p><pre style="white-space:pre-wrap;font-size:12px;margin:0">${esc(String(e && (e.stack || e.message) || e)).slice(0, 1500)}</pre><div class="actions"><a class="btn primary" href="#home" onclick="setTimeout(()=>location.reload(),50)">Try again</a><button class="btn ghost" onclick="try{['chuster-qb-v1','chuster-sync-since','chuster-sync-out'].forEach(k=>localStorage.removeItem(k))}catch(x){};location.reload()">Clear saved data and reload</button></div></section>`;
 }
 window.addEventListener('error', ev => { try { if (!document.getElementById('view').innerHTML.trim()) crashBox(ev.error || ev.message); } catch (x) { /* ignore */ } });
-function render() { try { drawChrome(); } catch (e) { crashBox(e); return; } try { document.getElementById('view').innerHTML = VIEWS[S.view].r() + (typeof sigModal === 'function' ? sigModal() : ''); } catch (e) { crashBox(e); return; } document.title = 'Chuster Noodle App'; aiFab(); if (S.sigOpen) initSig(); if (S.view === 'live' && typeof geoMount === 'function') { geoMap = null; geoMount(); } if (S.view === 'stop' && S.drvMap && typeof drvMount === 'function') { drvMap = null; drvMount(); } }
+function render() { try { drawChrome(); } catch (e) { crashBox(e); return; } try { document.getElementById('view').innerHTML = VIEWS[S.view].r() + (typeof sigModal === 'function' ? sigModal() : ''); } catch (e) { crashBox(e); return; } document.title = 'Chuster Noodle App'; aiFab(); if (S.sigOpen) initSig(); if (S.view === 'live' && typeof geoMount === 'function') { geoMap = null; gGeoMap = null; geoMount(); } if (S.view === 'stop' && S.drvMap && typeof drvMount === 'function') { drvMap = null; gDrvMap = null; drvMount(); } }
 function openMenu() { document.getElementById('app').classList.add('menu-open'); document.getElementById('scrim').hidden = false; }
 function closeMenu() { document.getElementById('app').classList.remove('menu-open'); document.getElementById('scrim').hidden = true; }
 let toastTimer;
@@ -5186,6 +5186,7 @@ function geoPaint() {
   const box = document.getElementById('geo-list'); if (box) box.innerHTML = geoListHtml();
   const up = document.getElementById('geo-up'); if (up && S.geoData) up.textContent = 'Updated ' + new Date(S.geoData.at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', second: '2-digit' });
   const tl = document.getElementById('geo-tiles'); if (tl) { const T0 = geoTrucks(); tl.innerHTML = `<div class="tile"><div class="k">Trucks</div><div class="v">${T0.length}</div><div class="s">${S.geoData ? 'Updated ' + new Date(S.geoData.at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : 'loading…'}</div></div><div class="tile"><div class="k">Driving now</div><div class="v">${T0.filter(t => t.moving).length}</div><div class="s">green on the map</div></div><div class="tile"><div class="k">Stopped</div><div class="v">${T0.filter(t => !t.moving).length}</div><div class="s">blue on the map</div></div>`; }
+  if (gGeoMap) return gGeoPaint();
   if (geoSimple) { simpleMap(); return; }
   if (!window.L || !geoMap) return;
   geoLayer.clearLayers(); const T = geoTrucks(); const pts = [];
@@ -5216,7 +5217,10 @@ function geoMount() {
   if (S.view !== 'live' || !S.geo) return;
   const el = document.getElementById('geo-map'); if (!el) return;
   const go2 = () => { geoMap = L.map(el, { zoomControl: true }).setView([40.85, -74.0], 9); L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(geoMap); geoLayer = L.layerGroup().addTo(geoMap); geoPaint(); };
-  if (geoSimple) simpleMap();
+  if (GMAPS_KEY && gmaps !== 3 && !geoMap && !geoSimple) {
+    loadGmaps(() => { try { if (!gGeoMap) gGeoMap = new google.maps.Map(el, { center: { lat: 40.85, lng: -74.0 }, zoom: 9, mapTypeControl: false, streetViewControl: false, fullscreenControl: false, clickableIcons: false }); gGeoPaint(); } catch (e) { gGeoMap = null; gmaps = 3; if (window.L) go2(); } }, () => { if (window.L) go2(); else { geoSimple = true; simpleMap(); } });
+  }
+  else if (geoSimple) simpleMap();
   else if (window.L) go2();
   else if (!document.getElementById('leaflet-js')) {
     const css = document.createElement('link'); css.rel = 'stylesheet'; css.href = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css'; document.head.appendChild(css);
@@ -5225,11 +5229,67 @@ function geoMount() {
   if (!geoTimer) geoTimer = setInterval(() => { if (S.view === 'live' && S.geo && !document.hidden) geoRefresh(false); }, 30000);
   if (!S.geoData) geoRefresh(true);
 }
-/* ---- Driver route map (reuses Leaflet + the geocoder) ---- */
+/* ================= Real Google Maps (with Leaflet/OSM as automatic fallback) ================= */
+const GMAPS_KEY = 'AIzaSyDmdj6cp_SK34Bjv8K_IOXMDXG0YcxyQQM';
+let gmaps = 0; const gmapsCbs = []; // 0 idle, 1 loading, 2 ready, 3 failed
+let gDrvMap = null, gGeoMap = null, gDrvMarks = [], gGeoMarks = [], gDrvLine = null, gInfo = null;
+function loadGmaps(ok, fail) {
+  if (window.google && google.maps) { ok(); return; }
+  if (gmaps === 3) { if (fail) fail(); return; }
+  gmapsCbs.push({ ok, fail }); if (gmaps >= 1) return; gmaps = 1;
+  window.__gmReady = () => { gmaps = 2; gmapsCbs.splice(0).forEach(c => { try { c.ok(); } catch (e) { } }); };
+  const s = document.createElement('script');
+  s.src = 'https://maps.googleapis.com/maps/api/js?key=' + GMAPS_KEY + '&loading=async&callback=__gmReady';
+  s.async = true; s.onerror = () => { gmaps = 3; gmapsCbs.splice(0).forEach(c => c.fail && c.fail()); };
+  document.head.appendChild(s);
+}
+function gMark(map, lat, lng, label, color, html) {
+  const m = new google.maps.Marker({ position: { lat, lng }, map,
+    label: { text: label, color: '#fff', fontWeight: '800', fontSize: '12px' },
+    icon: { path: google.maps.SymbolPath.CIRCLE, scale: 13, fillColor: color, fillOpacity: 1, strokeColor: '#F4BC3A', strokeWeight: 2 } });
+  if (html) m.addListener('click', () => { if (!gInfo) gInfo = new google.maps.InfoWindow(); gInfo.setContent('<div style="font:400 13px Manrope,sans-serif;color:#16204A;line-height:1.4">' + html + '</div>'); gInfo.open(map, m); });
+  return m;
+}
+async function gDrvPaint() {
+  try {
+    const date = S.dDate, t = Math.min(S.dTruck, DTRUCKS().length - 1), list = (dayStops(date)[t] || []);
+    const start = S.dsched && S.dsched.start;
+    try { await geoPoints((start ? [start] : []).concat(list.map(x => x.c.address))); } catch (e) { }
+    if (!gDrvMap) return;
+    gDrvMarks.forEach(m => m.setMap(null)); gDrvMarks = []; if (gDrvLine) { gDrvLine.setMap(null); gDrvLine = null; }
+    const bounds = new google.maps.LatLngBounds(); let any = false; const line = [];
+    if (start) { const sp = S.gc[gcKey(start)]; if (sp && !sp.none) { gDrvMarks.push(gMark(gDrvMap, sp.lat, sp.lng, '🏭', '#16204A', '<b>Shop</b>')); bounds.extend({ lat: sp.lat, lng: sp.lng }); any = true; } }
+    list.forEach((x, i) => { const p = S.gc[gcKey(x.c.address)]; if (!p || p.none) return; const done = !!x.st.st; const color = done ? '#1E7A45' : '#21409A';
+      gDrvMarks.push(gMark(gDrvMap, p.lat, p.lng, done ? '✓' : String(i + 1), color, `<b>${esc(x.o.c)}</b><br>${esc(dlvAddr(x))}<br>${fn(stopCases(x.o))} cases<br><button class="btn primary sm" data-act="d-open" data-k="${esc(x.k)}" style="margin-top:6px">Open stop →</button>`));
+      bounds.extend({ lat: p.lat, lng: p.lng }); any = true; if (!done) line.push({ lat: p.lat, lng: p.lng }); });
+    if (line.length > 1) gDrvLine = new google.maps.Polyline({ path: line, map: gDrvMap, strokeColor: '#21409A', strokeOpacity: .6, strokeWeight: 3 });
+    if (any && !gDrvMap._fit) { gDrvMap.fitBounds(bounds, 48); gDrvMap._fit = true; google.maps.event.addListenerOnce(gDrvMap, 'idle', () => { if (gDrvMap.getZoom() > 15) gDrvMap.setZoom(15); }); }
+  } catch (e) { gDrvMap = null; gmaps = 3; const el = document.getElementById('drv-map'); if (el) drvMountLeaflet(el); }
+}
+async function gGeoPaint() {
+  try {
+    if (!gGeoMap) return;
+    gGeoMarks.forEach(m => m.setMap(null)); gGeoMarks = [];
+    const T = geoTrucks(); const bounds = new google.maps.LatLngBounds(); let any = false;
+    T.forEach(t => { const color = t.moving ? '#1E7A45' : '#21409A';
+      const m = gMark(gGeoMap, t.lat, t.lng, t.moving ? '▲' : '■', color, `<b>${esc(t.name)}</b>${t.driver ? '<br>' + esc(t.driver) : ''}<br>${t.moving ? 'Driving ' + t.speed + ' mph' : 'Stopped'}<br>${agoTxt(t.at)}`);
+      gGeoMarks.push(m); bounds.extend({ lat: t.lat, lng: t.lng }); any = true;
+      if (S.geoSel === t.id) { gGeoMap.setCenter({ lat: t.lat, lng: t.lng }); gGeoMap.setZoom(14); } });
+    if (!S.geoSel && any && !gGeoMap._fit) { gGeoMap.fitBounds(bounds, 48); gGeoMap._fit = true; }
+  } catch (e) { gGeoMap = null; gmaps = 3; geoSimple = false; geoMount(); }
+}
+/* ---- Driver route map (real Google Maps, Leaflet/OSM fallback) ---- */
 let drvMap = null, drvLayer = null;
 function drvMount() {
   if (S.view !== 'stop' || !S.drvMap) return;
   const el = document.getElementById('drv-map'); if (!el) return;
+  if (GMAPS_KEY && gmaps !== 3 && !drvMap) {
+    loadGmaps(() => { try { if (!gDrvMap) gDrvMap = new google.maps.Map(el, { center: { lat: 40.85, lng: -74.0 }, zoom: 10, mapTypeControl: false, streetViewControl: false, fullscreenControl: false, clickableIcons: false }); gDrvPaint(); } catch (e) { gDrvMap = null; gmaps = 3; drvMountLeaflet(el); } }, () => drvMountLeaflet(el));
+    return;
+  }
+  drvMountLeaflet(el);
+}
+function drvMountLeaflet(el) {
   if (!window.L) {
     if (!document.getElementById('leaflet-js')) {
       const css = document.createElement('link'); css.rel = 'stylesheet'; css.href = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css'; document.head.appendChild(css);
@@ -5241,6 +5301,7 @@ function drvMount() {
   drvPaint();
 }
 async function drvPaint() {
+  if (gDrvMap) return gDrvPaint();
   if (!drvMap || !drvLayer) return;
   const date = S.dDate, t = Math.min(S.dTruck, DTRUCKS().length - 1), list = (dayStops(date)[t] || []);
   const start = S.dsched && S.dsched.start;
