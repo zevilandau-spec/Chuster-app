@@ -1,15 +1,15 @@
 {
  "result": "ok",
  "history": "2026-11-05T23:54:56",
- "at": "2026-11-08T01:11Z",
+ "at": "2026-11-08T01:41Z",
  "last": [
-  "customers 308 | cells 250623 | bytes 2255597",
-  "balance lines 69 | open PO lines 83 open $ 887122 | reps {'MH': 'Mordche Hersh', 'PU': 'Pick Up', 'WH': 'Wholsale', 'WHC': 'Wholsale Country'}",
-  "daily 333 days 8226 invoices | cases known to 2026-11-05 | bytes 157077",
-  "books 505272 bytes | expenses 25727 deposits 2986 bill payments 2825 open sales orders 0 estimates 0 adjustments 0 builds 0 POs 1231 journal 33 accounts 140",
-  "sync added; url = https://chuster-afb77-default-rtdb.firebaseio.com",
-  "locked 1180043 bytes for Owner:Zevi, Office:Office, Warehouse:Warehouse, Driver:Driver, Sales:Dudi, SalesDriver:Motty, Owner:Ben, Owner:Moses | round trip ok: true",
-  "locked page 2491375 bytes; zip 1616267",
+  "  File \"/home/runner/work/Chuster-app/Chuster-app/build-src/tools/build_locked.py\", line 118, in <module>",
+  "    assert 'window.CHUSTER_DATA=' not in doc and 'ROSENFELD' not in doc and 'Aron' not in doc and 'WINLAND' not in doc",
+  "           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^",
+  "AssertionError",
+  "lock/build-locked guard tripped, retry 1",
+  "locked 1180049 bytes for Owner:Zevi, Office:Office, Warehouse:Warehouse, Driver:Driver, Sales:Dudi, SalesDriver:Motty, Owner:Ben, Owner:Moses | round trip ok: true",
+  "locked page 2705442 bytes; zip 1760225",
   "built from QuickBooks history 2020-01-01 to 2026-11-05"
  ]
 }
