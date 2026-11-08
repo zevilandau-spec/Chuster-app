@@ -1694,14 +1694,19 @@ const SHEET={"1":{"name":"Chuster Fine","upc":"744596100019","case":"$49.50","pa
 
 /* ===== Item-sheet catalog: photos, prices, UPCs (Oct 18 2026) ===== */
 const C2S={"001":"1","002":"3","003":"40","004":"5","005":"7","006":"62","007":"9","008":"11","009":"13","010":"15","011":"19","012":"21","013":"25","014":"27","015":"28","016":"44","018":"29","019":"31","020":"33","021":"38","022":"35","023":"37","024":"39","025":"81","027":"58","028":"61","029":"45","030":"46","031":"47","032":"48","033":"17","035":"67","036":"67","037":"67","038":"57","039":"57","040":"57","041":"66","042":"66","043":"66","044":"68","045":"68","046":"68","047":"82","048":"82","049":"73","050":"74","051":"85","052":"86","053":"87","101":"1","102":"3","103":"40","104":"5","105":"7","106":"9","107":"11","108":"15","109":"29","110":"31","111":"33","112":"38","113":"39","114":"35","115":"37","116":"19","117":"21","118":"25","119":"25","120":"27","121":"28","122":"44","124":"35","125":"61","129":"17","130":"67","131":"57","132":"66","133":"68","134":"82","135":"85","136":"87","137":"86","148":"66","149":"68"};
-function resolveCode(code){ const c = String(code); return C2S[c] || C2S[c.replace(/^0+/,'')] || c.replace(/^0+/,'') || c; }
-function sheetOf(code){ const s = resolveCode(code); return SHEET[s] || SHEET[String(s).replace(/^0+/,'')] || null; }
+// APP (QuickBooks) code -> item-sheet code: ONLY the confirmed Chuster matches.
+// No raw fallback — otherwise a Landau code like 062 would strip to "62" and collide
+// with a sheet code (62 = Chuster Garlic Farfel) and show the wrong photo.
+function resolveCode(code){ const c = String(code); return C2S[c] || C2S[c.replace(/^0+/,'')] || null; }
+function sheetOf(code){ const s = resolveCode(code); return s ? (SHEET[s] || null) : null; }
 function sheetUpc(code){ const s = sheetOf(code); return s ? s.upc : ''; }
-function photoData(code){ const s = resolveCode(code); return PHOTOS[s] || PHOTOS[String(s).replace(/^0+/,'')] || null; }
+function photoData(code){ const s = resolveCode(code); return s ? (PHOTOS[s] || null) : null; }
+// direct item-sheet-code lookup, for the Catalog screen (which iterates sheet codes)
+function photoSheet(sc){ return PHOTOS[sc] || PHOTOS[String(sc).replace(/^0+/,'')] || null; }
 function photoThumb(code, sz){ sz = sz || 40; const d = photoData(code);
   return d ? `<img src="${d}" alt="" loading="lazy" style="width:${sz}px;height:${sz}px;object-fit:contain;border-radius:8px;background:#fff;flex:none;border:1px solid var(--border)">`
            : `<span style="width:${sz}px;height:${sz}px;border-radius:8px;background:var(--surface-2);flex:none;display:inline-flex;align-items:center;justify-content:center;font-size:${Math.round(sz*0.5)}px;opacity:.4">📦</span>`; }
-function photoBig(code){ const d = photoData(code);
+function photoBig(code){ const d = photoSheet(code);
   return d ? `<img src="${d}" alt="" loading="lazy">` : `<span style="font-size:34px;opacity:.3">📦</span>`; }
 function renderCatalog(){
   const q = (S.catQ || '').trim().toLowerCase();
