@@ -5218,7 +5218,7 @@ function geoMount() {
   const el = document.getElementById('geo-map'); if (!el) return;
   const go2 = () => { geoMap = L.map(el, { zoomControl: true }).setView([40.85, -74.0], 9); L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(geoMap); geoLayer = L.layerGroup().addTo(geoMap); geoPaint(); };
   if (GMAPS_KEY && gmaps !== 3 && !geoMap && !geoSimple) {
-    loadGmaps(() => { try { if (!gGeoMap) gGeoMap = new google.maps.Map(el, { center: { lat: 40.85, lng: -74.0 }, zoom: 9, mapTypeControl: false, streetViewControl: false, fullscreenControl: false, clickableIcons: false }); gGeoPaint(); } catch (e) { gGeoMap = null; gmaps = 3; if (window.L) go2(); } }, () => { if (window.L) go2(); else { geoSimple = true; simpleMap(); } });
+    loadGmaps(() => { const e2 = document.getElementById('geo-map'); if (!e2 || S.view !== 'live') return; try { if (!gGeoMap) gGeoMap = new google.maps.Map(e2, { center: { lat: 40.85, lng: -74.0 }, zoom: 9, mapTypeControl: false, streetViewControl: false, fullscreenControl: false, clickableIcons: false }); gGeoPaint(); } catch (e) { gGeoMap = null; gmaps = 3; if (window.L) go2(); } }, () => { if (window.L) go2(); else { geoSimple = true; simpleMap(); } });
   }
   else if (geoSimple) simpleMap();
   else if (window.L) go2();
@@ -5243,6 +5243,13 @@ function loadGmaps(ok, fail) {
   s.async = true; s.onerror = () => { gmaps = 3; gmapsCbs.splice(0).forEach(c => c.fail && c.fail()); };
   document.head.appendChild(s);
 }
+// Google calls this if the key is rejected (bad referrer, billing off, API not enabled).
+// Don't leave a blank box — drop to the OpenStreetMap map so the driver still has a map.
+window.gm_authFailure = function () {
+  gmaps = 3; gDrvMap = null; gGeoMap = null;
+  try { if (S.view === 'stop' && S.drvMap) { drvMap = null; const el = document.getElementById('drv-map'); if (el) drvMountLeaflet(el); } } catch (e) { }
+  try { if (S.view === 'live') { geoMap = null; geoMount(); } } catch (e) { }
+};
 function gMark(map, lat, lng, label, color, html) {
   const m = new google.maps.Marker({ position: { lat, lng }, map,
     label: { text: label, color: '#fff', fontWeight: '800', fontSize: '12px' },
@@ -5284,7 +5291,8 @@ function drvMount() {
   if (S.view !== 'stop' || !S.drvMap) return;
   const el = document.getElementById('drv-map'); if (!el) return;
   if (GMAPS_KEY && gmaps !== 3 && !drvMap) {
-    loadGmaps(() => { try { if (!gDrvMap) gDrvMap = new google.maps.Map(el, { center: { lat: 40.85, lng: -74.0 }, zoom: 10, mapTypeControl: false, streetViewControl: false, fullscreenControl: false, clickableIcons: false }); gDrvPaint(); } catch (e) { gDrvMap = null; gmaps = 3; drvMountLeaflet(el); } }, () => drvMountLeaflet(el));
+    loadGmaps(() => { const e2 = document.getElementById('drv-map'); if (!e2 || S.view !== 'stop' || !S.drvMap) return; try { if (!gDrvMap) gDrvMap = new google.maps.Map(e2, { center: { lat: 40.85, lng: -74.0 }, zoom: 10, mapTypeControl: false, streetViewControl: false, fullscreenControl: false, clickableIcons: false }); gDrvPaint(); } catch (e) { gDrvMap = null; gmaps = 3; drvMountLeaflet(e2); } },
+      () => { const e2 = document.getElementById('drv-map'); if (e2) drvMountLeaflet(e2); });
     return;
   }
   drvMountLeaflet(el);
