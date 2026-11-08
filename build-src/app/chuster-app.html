@@ -1286,7 +1286,7 @@ function save() {
 
 /* ================= real QuickBooks numbers (private build only) ================= */
 const REAL = window.CHUSTER_DATA || null;
-Object.assign(S, { custQ: '', custF: 'all', custSel: null, custSort: 'ytd', custArea: 'All', oq: {}, orderQ: '', orderGroup: 'All', storeOpen: false, storeQ: '', histTab: 'last', lyPick: null, stmtFor: null, stmtDraft: {}, stmtSent: {}, invBrand: 'All',
+Object.assign(S, { custQ: '', custF: 'all', custSel: null, custSort: 'ytd', custArea: 'All', oq: {}, orderQ: '', orderGroup: 'All', storeOpen: false, storeQ: '', pasteOpen: false, pasteText: '', histTab: 'last', lyPick: null, stmtFor: null, stmtDraft: {}, stmtSent: {}, invBrand: 'All',
   dashAllStores: false, dashAllItems: false, ordQ: '', ordType: 'all', ordOpen: null, ordDays: 10, ordFrom: null, ordArea: 'All', ordSort: 'new', buyPeriod: 'all', buyVendor: null, buyTab: 'up', buyItem: null, pkPeriod: '30', pkDay: null, plDate: null, plTab: 'loose', plQ: '', pl: { loose: {}, made: {} }, plSaved: {} });
 const PK = REAL && REAL.pack ? REAL.pack : null;
 try { const v = JSON.parse(localStorage.getItem('chuster-packlog-v1') || 'null'); if (v && typeof v === 'object') S.plSaved = v; } catch (e) { /* storage blocked */ }
@@ -2284,6 +2284,27 @@ function orderRefresh() {
   document.querySelectorAll('[data-act="save-order"]').forEach(x => { x.disabled = !T.boxes; });
 }
 Object.assign(S, { orderShip: null, shipCalOpen: false, shipCalM: null, orderLoc: null, orderStep: 'build' });
+// Paste / type an order: turn a customer's free-text message into matched catalog items.
+function pasteNorm(s) {
+  const syn = { lg: 'large', sm: 'small', med: 'medium', sd: 'sourdough', stix: 'sticks', penny: 'penne', toasted: 'toast', farfalie: 'farfalle', totilla: 'tortilla', fetuccine: 'fettuccine' };
+  const stop = new Set(['chuster', 'case', 'cases', 'cs', 'box', 'boxes', 'ct', 'x', 'of', 'the', 'a', 'an', 'please', 'pls', 'and', 'for', 'send', 'need', 'want', 'order', 'qty', 'each', 'pk', 'pack', 'packs', 'noodle', 'noodles']);
+  return (s || '').toLowerCase().replace(/[^a-z0-9 ]/g, ' ').split(/\s+/).map(w => syn[w] || w).filter(w => w && !stop.has(w) && !/^\d+$/.test(w));
+}
+function pasteMatch(text) {
+  const at = pasteNorm(text); if (!at.length) return -1; const a = new Set(at);
+  let best = -1, bj = 0;
+  S.catalog.forEach((p, i) => { if (p.off) return; const b = new Set(pasteNorm(p.name)); if (!b.size) return; let inter = 0; a.forEach(w => { if (b.has(w)) inter++; }); if (!inter) return; const j = inter / (a.size + b.size - inter); if (j > bj) { bj = j; best = i; } });
+  return bj >= 0.34 ? best : -1;
+}
+function pasteParse(text) {
+  const out = [], miss = [];
+  (text || '').split(/[\n;]+/).map(s => s.trim()).filter(Boolean).forEach(ln => {
+    const m = ln.match(/\d+/); if (!m) return; const qty = parseInt(m[0], 10); if (!qty || qty > 9999) return;
+    const prod = ln.replace(/\d+\s*(cs|cases?|boxes?|pk|packs?|x)?\b/i, ' ').replace(/[#]/g, ' ').trim();
+    const idx = pasteMatch(prod); if (idx >= 0) out.push({ idx, qty }); else if (prod && pasteNorm(prod).length) miss.push(ln);
+  });
+  return { out, miss };
+}
 // Step 2 of a new order: a clean read-only list of what this store is getting, then Add more or Fully done.
 function orderReviewHtml() {
   const storeName = S.orderStore, cust = storeName ? custByName(storeName) : null;
@@ -2381,7 +2402,13 @@ function renderOrder() {
         })() : ''}` : ''}
         ${!storeName || S.storeOpen ? `<div class="field">${ic('search')}<label class="sr" for="store-q">Find a store</label><input id="store-q" value="${esc(S.storeQ)}" placeholder="Find a store by name, area or phone" autocomplete="off"></div>
         <div id="store-list" style="max-height:440px;overflow-y:auto;padding-right:2px">${storeRows()}</div>` : ''}
-        ${storeName && !S.storeOpen ? `<div class="actions"><button class="btn gold" data-act="repeat">Repeat last order</button><button class="btn ghost" data-act="save-draft">💾 Save as draft</button><button class="btn ghost" data-act="soon" data-name="Say an order">Say an order</button><button class="btn ghost" data-act="soon" data-name="Upload PDF or photo">Upload PDF / photo</button><button class="btn ghost" data-act="clear-order" style="color:var(--bad-text)">✕ Cancel order</button></div>` : ''}
+        ${storeName && !S.storeOpen ? `<div class="actions"><button class="btn gold" data-act="repeat">Repeat last order</button><button class="btn ${S.pasteOpen ? 'primary' : 'ghost'}" data-act="paste-open">📋 ${S.pasteOpen ? 'Close' : 'Paste / type order'}</button><button class="btn ghost" data-act="save-draft">💾 Save as draft</button><button class="btn ghost" data-act="soon" data-name="Upload PDF or photo">Upload PDF / photo</button><button class="btn ghost" data-act="clear-order" style="color:var(--bad-text)">✕ Cancel order</button></div>` : ''}
+        ${storeName && !S.storeOpen && S.pasteOpen ? `<div class="stack" style="gap:8px;background:var(--surface-2);border-radius:12px;padding:12px;margin-top:4px">
+          <div style="font-weight:800">📋 Paste or type the order</div>
+          <div class="sub" style="margin:0">One item per line with the amount — e.g. <b>10 fine</b>, <b>6 garlic farfel</b>, <b>5 sm flakes</b>. I’ll match them to your products and add them below.</div>
+          <textarea id="paste-order" rows="6" placeholder="10 fine&#10;6 medium&#10;5 garlic farfel&#10;4 pretzel crunchies" style="width:100%;box-sizing:border-box;border:1px solid var(--line);border-radius:10px;padding:10px;font-size:15px;font-family:inherit;resize:vertical">${esc(S.pasteText || '')}</textarea>
+          <div class="actions"><button class="btn primary" data-act="paste-read">Add these items →</button><button class="btn ghost" data-act="paste-open">Cancel</button></div>
+        </div>` : ''}
       </section>
       ${storeName ? `<section class="card">
         <div class="order-filter">
@@ -7680,6 +7707,17 @@ document.addEventListener('click', e => {
     case 'plan-preset': S.planFromD = d.f; S.planToD = d.t; S.planOpen = null; keep(); break;
     case 'plan-open': S.planOpen = S.planOpen === +d.i ? null : +d.i; keep(); break;
     case 'store-open': S.storeOpen = !S.storeOpen; S.storeQ = ''; keep(); break;
+    case 'paste-open': S.pasteOpen = !S.pasteOpen; if (!S.pasteOpen) S.pasteText = ''; keep(); break;
+    case 'paste-read': {
+      const txt = (S.pasteText || '').trim(); if (!txt) { toast('Type or paste the order first.'); break; }
+      const { out, miss } = pasteParse(txt);
+      if (!out.length) { toast('Couldn’t find any products. Put one item per line with the amount, like “10 fine”.'); break; }
+      out.forEach(x => { const k = keyOf(S.catalog[x.idx]); S.oq[k] = (S.oq[k] || 0) + x.qty; });
+      S.pasteOpen = false; S.pasteText = ''; S.orderGroup = 'On order';
+      render(); window.scrollTo(0, 0);
+      toast(`Added ${out.length} item${out.length === 1 ? '' : 's'}.` + (miss.length ? ` Couldn’t match ${miss.length}: ${miss.slice(0, 3).map(s => '“' + s + '”').join(', ')}${miss.length > 3 ? '…' : ''} — add those by hand.` : ''));
+      break;
+    }
     case 'store-pick': S.orderStore = d.n; S.storeOpen = false; S.storeQ = ''; S.lyPick = null; S.orderShip = null; S.orderLoc = null; S.shipCalOpen = false; S.orderStep = 'build'; keep(); break;
     case 'hist-tab': S.histTab = d.t; keep(); break;
     case 'ly-pick': S.lyPick = d.num; keep(); break;
@@ -8120,6 +8158,7 @@ document.addEventListener('input', e => {
   if (e.target.id === 'pk-ai-t') { S.pkAiT = e.target.value; return; }
   if (e.target.id === 'pk-set-q') { S.pkSetQ = e.target.value; const el = document.getElementById('pk-set-list'); if (el) { const h = pkSettings(); const m = h.match(/<div id="pk-set-list">([\s\S]*)<\/div>\s*<\/section>/); if (m) el.innerHTML = m[1]; } return; }
   if (e.target.id === 'inv-num') { S.orderRef = e.target.value; return; }
+  if (e.target.id === 'paste-order') { S.pasteText = e.target.value; return; }
   if (e.target.id === 'ord-q') { S.ordQ = e.target.value; const ol = document.getElementById('ord-list'); if (ol) ol.innerHTML = ordList(); return; }
   if (e.target.id === 'cust-q') { S.custQ = e.target.value; const box = document.getElementById('cust-list'); if (box) box.innerHTML = custRows(); return; }
   if (e.target.id === 'vs-q') { S.vsQ = e.target.value; const pos = e.target.selectionStart; render(); const q = document.getElementById('vs-q'); if (q) { q.focus(); try { q.setSelectionRange(pos, pos); } catch (x) { /* ignore */ } } return; }
