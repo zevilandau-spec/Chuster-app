@@ -6307,7 +6307,7 @@ function renderDeliveries() {
 /* ---- driver ---- */
 function renderDriver() {
   if (!REAL) return renderStop();
-  pickDate(); const date = S.dDate; const byT = dayStops(date); const T = DTRUCKS(); const t = Math.min(S.dTruck, T.length - 1); const list = byT[t] || [];
+  const days = pickDate(); const date = S.dDate; const i = days.indexOf(date); const byT = dayStops(date); const T = DTRUCKS(); const t = Math.min(S.dTruck, T.length - 1); const list = byT[t] || [];
   if (S.dStop) { const x = Object.values(byT).flat().find(y => y.k === S.dStop); if (x) return driverStop(x, list); S.dStop = null; }
   // auto best order once per truck/day (instant when addresses are already on the map)
   const dk = `${date}|${t}`;
@@ -6319,7 +6319,12 @@ function renderDriver() {
   const legs = []; for (let i = 0; i < undel.length; i += 9) legs.push(undel.slice(i, i + 9));
   const legBtns = legs.map((leg, g) => { const from = g * 9 + 1, to = g * 9 + leg.length; const href = navLegHref(leg);
     return `<a class="btn ${g === 0 ? 'primary' : 'ghost'}" href="${esc(href)}" target="_blank" rel="noopener">${g === 0 ? '▶ Start in Google Maps' : '→ Continue'}${legs.length > 1 ? ` · stops ${from}-${to}` : ''}</a>`; }).join('');
-  return `${head('Driver', `${fmtLong(isoRd(date))} · ${esc(T[t].name)}`, `<button class="btn good" data-act="d-send">Send my day to the office</button>`)}
+  const dayPop = S.dDayPop ? `<div class="dday-back" data-act="d-daypop" data-v="close"><div class="dday-box" data-act="dday-noop"><h2>Delivery day</h2>
+    <div class="dday-opts"><button class="${date === isoOf(TODAY) ? 'on' : ''}" data-act="d-setday" data-d="${isoOf(TODAY)}">Today</button><button class="${date === isoOf(TODAY + 1) ? 'on' : ''}" data-act="d-setday" data-d="${isoOf(TODAY + 1)}">Tomorrow</button><button data-act="d-daycal">${ic('cal')} Pick</button></div>
+    ${S.dDayCal ? dayGrid(date) : ''}
+    <button class="dday-cancel" data-act="d-daypop" data-v="close">Cancel</button></div></div>` : '';
+  return `${head('Driver', `${esc(T[t].name)}`, `<button class="btn good" data-act="d-send">Send my day to the office</button>`)}${dayPop}
+  <div class="dlv-head" style="margin-bottom:10px"><button class="dlv-date" data-act="d-daypop" data-v="open">${fmtLong(isoRd(date))} <span aria-hidden="true">▾</span></button><button class="btn ghost sm" data-act="d-day" data-d="${days[i + 1] || ''}"${days[i + 1] ? '' : ' disabled'} aria-label="Day before">‹</button><button class="btn ghost sm" data-act="d-day" data-d="${days[i - 1] || ''}"${i > 0 ? '' : ' disabled'} aria-label="Next day">›</button></div>
   <section class="card" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:10px 14px">
     ${legBtns || '<span class="sub" style="margin:0">No stops with an address to navigate.</span>'}
     ${nsms ? `<a class="btn gold" href="${esc(nsms)}">💬 Text ${esc(next.o.c)}: on the way</a>` : ''}
