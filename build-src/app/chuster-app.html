@@ -6106,7 +6106,24 @@ const dsFix = v => (v && v.v === 3) ? Object.assign(v, v.season ? {} : { season:
 Object.assign(S, { dsched: dsFix(loadLS('chuster-dsched-v1', null)), gc: loadLS('chuster-gc-v1', {}), routeBusy: '', dstat: loadLS('chuster-dstat-v1', {}), dorder: loadLS('chuster-dorder-v1', {}), dDate: null, dTruck: 0, dStop: null, dShort: {}, dDrop: {}, dStopQ: '', drvShow: 'todo', autoRoute: {}, dSigOpen: false, dPhotos: [], drvMap: false });
 (function prune() { const cut = isoOf(TODAY - 21); let ch = false; Object.keys(S.dstat).forEach(k => { if (k.slice(0, 10) < cut) { delete S.dstat[k]; ch = true; } }); if (ch) saveLS('chuster-dstat-v1', S.dstat); })();
 const saveDstat = () => { try { localStorage.setItem('chuster-dstat-v1', JSON.stringify(S.dstat)); } catch (e) { toast('This device is full. Old photos were not saved.'); } };
-Object.assign(S, { clock: loadLS('chuster-clock-v1', {}), dcheck: loadLS('chuster-dcheck-v1', {}), dcheckOpen: false, backhaul: loadLS('chuster-backhaul-v1', {}), bhEdit: false });
+Object.assign(S, { clock: loadLS('chuster-clock-v1', {}), dcheck: loadLS('chuster-dcheck-v1', {}), dcheckOpen: false, backhaul: loadLS('chuster-backhaul-v1', {}), bhEdit: false, driveMode: false });
+function driveModeView(list, Tname) {
+  const undone = list.filter(x => !x.st.st && x.c.address); const cur = undone[0], nxt = undone[1];
+  const doneCount = list.filter(x => x.st.st).length;
+  return `<div style="min-height:70vh">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px"><div><div class="eyebrow">${esc(Tname)} · Driving mode</div><div style="font-weight:800;font-size:18px">${doneCount} of ${list.length} done</div></div><button class="btn ghost" data-act="d-drive">✕ Exit</button></div>
+    ${cur ? `<section class="card" style="text-align:center;padding:26px 18px">
+      <div style="font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em">Next stop</div>
+      <h1 style="font-size:32px;line-height:1.1;margin:8px 0">${esc(cur.o.c)}${shipTag(cur) ? '<br><span style="font-size:18px;color:var(--muted)">' + esc(shipTag(cur)) + '</span>' : ''}</h1>
+      <p style="font-size:18px;color:var(--muted);margin:0 0 4px">${esc(dlvAddr(cur))}</p>
+      <p style="font-size:16px;font-weight:700;margin:0 0 18px">${fn(stopCases(cur.o))} cases${cur.c.phone ? ' · ' + esc(cur.c.phone) : ''}</p>
+      <a class="btn primary big full" href="${esc(mapsHref(dlvAddr(cur)))}" target="_blank" rel="noopener" style="font-size:20px;padding:18px">🧭 Navigate</a>
+      <div style="display:flex;gap:8px;margin-top:10px">${cur.c.phone ? `<a class="btn ghost big" href="${telHref(cur.c.phone)}" style="flex:1;font-size:17px;padding:16px">📞 Call</a>` : ''}<button class="btn gold big" data-act="d-open" data-k="${esc(cur.k)}" style="flex:2;font-size:19px;padding:16px">📦 I'm here — deliver</button></div>
+    </section>
+    ${nxt ? `<p class="sub" style="text-align:center;margin-top:14px">Then: <b>${esc(nxt.o.c)}</b> · ${esc(dlvAddr(nxt))}</p>` : '<p class="sub" style="text-align:center;margin-top:14px">This is your last stop.</p>'}`
+      : `<section class="card" style="text-align:center;padding:40px 18px"><div style="font-size:48px">🎉</div><h1 style="font-size:28px">All done!</h1><p class="sub">Every stop delivered.</p><button class="btn good big" data-act="d-send">Send my day to the office</button></section>`}
+  </div>`;
+}
 const PRETRIP = ['Tires', 'Lights', 'Oil / fuel', 'Brakes', 'Load tied down'];
 const nowClock = () => { const d = new Date(); let h = d.getHours(), m = d.getMinutes(); const ap = h >= 12 ? 'PM' : 'AM'; h = h % 12 || 12; return h + ':' + String(m).padStart(2, '0') + ' ' + ap; };
 const DTRUCKS = () => { const n = Math.max(1, Math.min(4, +S.dsched.n || 1)); const T = (S.trucks.length ? S.trucks : []).slice(0, n); while (T.length < n) T.push({ name: 'Truck ' + (T.length + 1) }); return T; };
@@ -6311,6 +6328,7 @@ function renderDeliveries() {
 function renderDriver() {
   if (!REAL) return renderStop();
   const days = pickDate(); const date = S.dDate; const i = days.indexOf(date); const byT = dayStops(date); const T = DTRUCKS(); const t = Math.min(S.dTruck, T.length - 1); const list = byT[t] || [];
+  if (S.driveMode) return driveModeView(list, T[t].name);
   if (S.dStop) { const x = Object.values(byT).flat().find(y => y.k === S.dStop); if (x) return driverStop(x, list); S.dStop = null; }
   // auto best order once per truck/day (instant when addresses are already on the map)
   const dk = `${date}|${t}`;
@@ -6349,7 +6367,7 @@ function renderDriver() {
     : `<span class="tag grey" style="font-size:13px">🕐 ${esc(ck.in)} – ${esc(ck.out)}</span>`;
   const checkBtn = `<button class="btn ${chkDone ? 'ghost' : 'gold'} sm" data-act="d-check-open">${chkDone ? '✅ Truck checked' : '🛻 Pre-trip check'}</button>`;
   const checkBox = S.dcheckOpen ? `<div class="card stack" style="gap:6px;padding:10px 14px;margin-top:8px">${PRETRIP.map(it => `<label style="display:flex;gap:10px;align-items:center;font-size:15px;cursor:pointer"><input type="checkbox" ${chk[it] ? 'checked' : ''} data-act="d-check" data-i="${esc(it)}" style="width:20px;height:20px">${esc(it)}</label>`).join('')}<p class="sub" style="margin:2px 0 0">${chkDone ? 'All good — truck is checked. ✅' : 'Tick each before you roll.'}</p></div>` : '';
-  return `${head('Driver', `${esc(T[t].name)}`, `<button class="btn good" data-act="d-send">Send my day to the office</button>`)}${dayPop}
+  return `${head('Driver', `${esc(T[t].name)}`, `${list.some(x => !x.st.st) ? '<button class="btn primary" data-act="d-drive">🚗 Driving mode</button>' : ''}<button class="btn good" data-act="d-send">Send my day to the office</button>`)}${dayPop}
   <div class="dlv-head" style="margin-bottom:10px"><button class="dlv-date" data-act="d-daypop" data-v="open">${fmtLong(isoRd(date))} <span aria-hidden="true">▾</span></button><button class="btn ghost sm" data-act="d-day" data-d="${days[i + 1] || ''}"${days[i + 1] ? '' : ' disabled'} aria-label="Day before">‹</button><button class="btn ghost sm" data-act="d-day" data-d="${days[i - 1] || ''}"${i > 0 ? '' : ' disabled'} aria-label="Next day">›</button><span style="flex:1"></span>${clockBtn}${checkBtn}</div>${checkBox}
   ${(() => { const bh = S.backhaul[date] || ''; if (S.bhEdit) return `<div class="card stack" style="gap:6px;padding:10px 14px;margin-bottom:8px"><label class="lbl" for="bh-note">🔁 Backhaul / pickup on the way back</label><input class="inp" id="bh-note" value="${esc(bh)}" placeholder="e.g. pick up empty pallets from Gefen"><button class="btn primary sm" data-act="d-bh" style="align-self:flex-start">Done</button></div>`; if (bh) return `<div class="note" style="margin-bottom:8px;display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap"><span>🔁 <b>Backhaul:</b> ${esc(bh)}</span><button class="btn ghost sm" data-act="d-bh">Edit</button></div>`; return `<button class="btn ghost sm" data-act="d-bh" style="margin-bottom:8px">🔁 Add a backhaul pickup</button>`; })()}
   <section class="card" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:10px 14px">
@@ -6360,7 +6378,7 @@ function renderDriver() {
   </section>
   ${estHtml}
   ${legs.length > 1 ? `<p class="sub" style="margin:0">Google Maps fits about 9 stops at a time. Drive the first 9 in order, then tap <b>Continue</b> for the next 9.</p>` : ''}
-  <div class="chips">${T.map((tr, n) => `<button class="chip" data-act="d-truck" data-t="${n}" aria-pressed="${t === n}">${esc(tr.name)} · ${(byT[n] || []).length}</button>`).join('')}</div>
+  <div class="chips" style="align-items:center">${T.map((tr, n) => `<button class="chip" data-act="d-truck" data-t="${n}" aria-pressed="${t === n}">${esc(tr.name)} · ${(byT[n] || []).length}</button>`).join('')}${T.length > 1 ? `<button class="btn ghost sm" data-act="d-balance" data-date="${date}">⚖️ Even out trucks</button>${Object.keys(S.dstat).some(k => k.startsWith(date + '|') && S.dstat[k].truck != null) ? `<button class="btn ghost sm" data-act="d-balance-reset" data-date="${date}">↺ Reset</button>` : ''}` : ''}</div>
   <div class="tiles"><div class="tile${over ? ' bad' : ''}"><div class="k">Stops left</div><div class="v">${left} of ${list.length}</div><div class="s">${fn(truckCases)} cases on the truck${capNote}</div></div>
     ${next ? `<button class="tile good" data-act="d-open" data-k="${esc(next.k)}" style="text-align:left;font:inherit;cursor:pointer"><div class="k">Next stop</div><div class="v" style="font-size:20px">${esc(next.o.c)}</div><div class="s">${esc(dlvAddr(next))} · tap to start</div></button>` : `<div class="tile good"><div class="k">All done</div><div class="v">🎉</div><div class="s">Send your day to the office</div></div>`}</div>
   ${(() => {
@@ -8198,6 +8216,19 @@ document.addEventListener('click', e => {
       go('stop'); break; }
     case 'd-low': { const o = Object.assign({}, S.dstat[d.k] || {}); o.low = !o.low; S.dstat[d.k] = o; saveDstat(); dsShare(d.k); toast(o.low ? 'Flagged: store running low.' : 'Low flag removed.'); keep(); break; }
     case 'd-bh': { S.bhEdit = !S.bhEdit; keep(); break; }
+    case 'd-drive': S.driveMode = !S.driveMode; window.scrollTo(0, 0); keep(); break;
+    case 'd-balance': {
+      const dt = d.date; const bT = dayStops(dt); const TT = DTRUCKS(); const nT = TT.length;
+      const stops = []; Object.keys(bT).forEach(k => { if (+k >= 0) bT[k].forEach(x => stops.push(x)); });
+      const areas = {}; stops.forEach(x => { const a = x.area || 'Other'; (areas[a] || (areas[a] = { cases: 0 })); areas[a].cases += stopCases(x.o); });
+      const load = new Array(nT).fill(0); const assign = {};
+      Object.entries(areas).sort((a, b) => b[1].cases - a[1].cases).forEach(([a, info]) => { let mi = 0; for (let j = 1; j < nT; j++) if (load[j] < load[mi]) mi = j; assign[a] = mi; load[mi] += info.cases; });
+      stops.forEach(x => { const tr = assign[x.area || 'Other']; S.dstat[x.k] = Object.assign({}, S.dstat[x.k] || {}, { truck: tr }); dsShare(x.k); });
+      saveDstat(); render(); toast(`Evened out: ${TT.map((tr, n) => `${tr.name} ${fn(load[n])}cs`).join(' · ')}`); break;
+    }
+    case 'd-balance-reset': {
+      const dt = d.date; Object.keys(S.dstat).forEach(k => { if (k.indexOf(dt + '|') === 0 && S.dstat[k].truck != null) { const o = Object.assign({}, S.dstat[k]); delete o.truck; S.dstat[k] = o; dsShare(k); } }); saveDstat(); render(); toast('Reset to the usual truck split.'); break;
+    }
     case 'd-drop': { const n = d.n; const x = Object.values(dayStops(S.dDate)).flat().find(y => y.k === S.dStop); const q = x ? Math.round(Math.abs((x.o.l[+n] || [])[1] || 0)) : 0; const v = Math.max(0, Math.min(q || +d.max || 0, (S.dDrop[n] || 0) + +d.d)); if (v) S.dDrop[n] = v; else delete S.dDrop[n]; keep(); break; }
     case 'd-drop-all': { const n = d.n; const q = +d.q || 0; if ((S.dDrop[n] || 0) >= q) delete S.dDrop[n]; else S.dDrop[n] = q; keep(); break; }
     case 'd-drop-grp': { const x = Object.values(dayStops(S.dDate)).flat().find(y => y.k === S.dStop); if (!x) break; const on = d.on === '1'; (d.ns || '').split(',').filter(s => s !== '').forEach(s => { const n = +s; const q = Math.round(Math.abs((x.o.l[n] || [])[1] || 0)); if (on && q) S.dDrop[n] = q; else delete S.dDrop[n]; }); keep(); break; }
