@@ -5418,11 +5418,12 @@ async function gDrvPaint() {
     try { await geoPoints((start ? [start] : []).concat(list.map(x => x.c.address))); } catch (e) { }
     if (!gDrvMap) return;
     gDrvMarks.forEach(m => m.setMap(null)); gDrvMarks = []; if (gDrvLine) { gDrvLine.setMap(null); gDrvLine = null; }
-    const bounds = new google.maps.LatLngBounds(); let any = false; const line = [];
-    if (start) { const sp = S.gc[gcKey(start)]; if (sp && !sp.none) { gDrvMarks.push(gMark(gDrvMap, sp.lat, sp.lng, '🏭', '#16204A', '<b>Shop</b>')); bounds.extend({ lat: sp.lat, lng: sp.lng }); any = true; } }
+    const bounds = new google.maps.LatLngBounds(); let any = false; const line = []; let shopPt = null;
+    if (start) { const sp = S.gc[gcKey(start)]; if (sp && !sp.none) { gDrvMarks.push(gMark(gDrvMap, sp.lat, sp.lng, '🏭', '#16204A', '<b>Shop</b><br>' + esc(start))); shopPt = { lat: sp.lat, lng: sp.lng }; bounds.extend(shopPt); any = true; } }
     list.forEach((x, i) => { const p = S.gc[gcKey(x.c.address)]; if (!p || p.none) return; const done = !!x.st.st; const color = done ? '#1E7A45' : '#21409A';
       gDrvMarks.push(gMark(gDrvMap, p.lat, p.lng, done ? '✓' : String(i + 1), color, `<b>${esc(x.o.c)}</b><br>${esc(dlvAddr(x))}<br>${fn(stopCases(x.o))} cases<br><button class="btn primary sm" data-act="d-open" data-k="${esc(x.k)}" style="margin-top:6px">Open stop →</button>`));
       bounds.extend({ lat: p.lat, lng: p.lng }); any = true; if (!done) line.push({ lat: p.lat, lng: p.lng }); });
+    if (shopPt && line.length) line.unshift(shopPt);
     if (line.length > 1) gDrvLine = new google.maps.Polyline({ path: line, map: gDrvMap, strokeColor: '#21409A', strokeOpacity: .6, strokeWeight: 3 });
     if (any && !gDrvMap._fit) { gDrvMap.fitBounds(bounds, 48); gDrvMap._fit = true; google.maps.event.addListenerOnce(gDrvMap, 'idle', () => { if (gDrvMap.getZoom() > 15) gDrvMap.setZoom(15); }); }
   } catch (e) { gDrvMap = null; gmaps = 3; const el = document.getElementById('drv-map'); if (el) drvMountLeaflet(el); }
