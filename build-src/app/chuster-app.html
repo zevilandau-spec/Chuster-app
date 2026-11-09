@@ -1148,7 +1148,7 @@ const S = {
     { name: 'Sourdough Pretzel Crunchies', code: 66, pack: '84 x 1oz', stock: 40, qty: 8 }
   ],
   lastOrder: [12, 6, 6, 8, 10],
-  invFilter: 'zero', invEdit: null, invQ: '', reorder: ['Chuster Sm. Flakes', 'Chuster Barley'],
+  invFilter: 'zero', invEdit: null, invQ: '', invGroupBy: 'brand', reorder: ['Chuster Sm. Flakes', 'Chuster Barley'],
   inv: [
     { name: 'Chuster Sm. Flakes', brand: 'Chuster', onHand: -12, reorderAt: 40, why: 'Sold before a delivery was received' },
     { name: 'Chuster Barley', brand: 'Chuster', onHand: -4, reorderAt: 40, why: 'Not counted in 3 weeks' },
@@ -2539,6 +2539,9 @@ function renderInventory() {
   const GO = ['Chuster', 'Landaus', 'Chuster Snacks', 'Chuster Loose', 'Landaus Loose'];
   const rankG = g => { const i = GO.indexOf(g); return i < 0 ? 99 : i; };
   const allMode = S.invFilter === 'allprod';
+  const byProd = S.invGroupBy === 'product';
+  const baseProd = n => String(n || '').replace(/^(Chuster|Landaus|Zerega|Wege|Natural|Mishpacha|Shibolim)\s+/i, '').replace(/\bloose\b/ig, '').replace(/\s+/g, ' ').trim() || String(n || '');
+  const codeNum = p => { const n = parseInt(p.code, 10); return isNaN(n) ? 9999 : n; };
   let allRows = '';
   if (allMode) {
     const q = (S.invQ || '').trim().toLowerCase();
@@ -2546,24 +2549,29 @@ function renderInventory() {
     let items = S.catalog.filter(p => !p.off && !OFF_NAMES.has(p.name) && typeof p.stock === 'number')
       .filter(p => { const k = (p.code || '') + '|' + p.name; if (seen[k]) return false; seen[k] = 1; return true; });
     if (q) items = items.filter(p => (p.name + ' ' + (p.code || '') + ' ' + (p.brand || '')).toLowerCase().includes(q));
-    items.sort((a, b) => rankG(a.brand) - rankG(b.brand) || String(a.brand || '').localeCompare(String(b.brand || '')) || (a.stock - b.stock));
-    const cnts = {}; items.forEach(p => { cnts[p.brand] = (cnts[p.brand] || 0) + 1; });
-    let lg = null;
-    allRows = items.map(p => {
+    const row = p => {
       const st = p.stock < 0 ? 'zero' : p.stock === 0 ? 'low' : 'ok';
       const invI = S.inv.findIndex(r => r.name === p.name && String(r.code) === String(p.code));
       const editing = invI >= 0 && S.invEdit === invI;
       const inList = S.reorder.includes(p.name);
-      const hdr = p.brand !== lg ? `<div class="ghead ${gcls(p.brand)}" style="margin-top:${lg === null ? 0 : 14}px"><span>${esc(String(p.brand || 'Other').toUpperCase())}</span><span>${cnts[p.brand]} item${cnts[p.brand] > 1 ? 's' : ''}</span></div>` : '';
-      lg = p.brand;
-      return hdr + `<div class="irow ${gcls(p.brand)}${st === 'zero' ? ' on' : ''}">
+      const sub = byProd ? (p.brand || '') : (p.pack || '');
+      const nm = byProd ? esc(p.name) : esc(p.name);
+      return `<div class="irow ${gcls(p.brand)}${st === 'zero' ? ' on' : ''}">
         <span class="icode">${p.code && p.code !== '—' ? esc(p.code) : '·'}</span>
-        <div class="main"><div class="name">${esc(p.name)}</div><div class="meta">${esc(p.pack || '')}</div></div>
+        <div class="main"><div class="name">${nm}</div><div class="meta">${esc(sub)}</div></div>
         ${editing ? `<label class="sr" for="cnt">New count for ${esc(p.name)}</label><input class="inp num" id="cnt" type="number" inputmode="numeric" value="${Math.max(p.stock, 0)}" style="width:110px"><button class="btn primary sm" data-act="inv-save" data-i="${invI}">Save count</button>`
           : `<span class="tag ${st === 'zero' ? 'red' : st === 'low' ? 'gold' : 'green'} num" style="font-size:14px">${fn(p.stock)} on hand</span>
              <div class="actions"><button class="btn ghost sm" data-act="inv-fix-cat" data-full="${esc(p.full || p.name)}">Fix count</button><button class="btn ${inList ? 'ghost' : 'gold'} sm" data-act="inv-reorder-name" data-n="${esc(p.name)}"${inList ? ' disabled' : ''}>${inList ? 'On reorder list' : 'Reorder'}</button></div>`}
       </div>`;
-    }).join('') || `<p class="sub" style="text-align:center;padding:24px 0">No products match${q ? ' “' + esc(q) + '”' : ''}.</p>`;
+    };
+    const gmap = {}; items.forEach(p => { const k = byProd ? baseProd(p.name) : (p.brand || 'Other'); (gmap[k] = gmap[k] || []).push(p); });
+    const gkeys = Object.keys(gmap).sort((a, b) => byProd
+      ? (Math.min(...gmap[a].map(codeNum)) - Math.min(...gmap[b].map(codeNum)) || a.localeCompare(b))
+      : (rankG(a) - rankG(b) || a.localeCompare(b)));
+    gkeys.forEach(k => gmap[k].sort((a, b) => byProd ? (rankG(a.brand) - rankG(b.brand) || codeNum(a) - codeNum(b)) : (a.stock - b.stock)));
+    allRows = gkeys.map((k, gi) => { const list = gmap[k]; const tot = list.reduce((s, p) => s + p.stock, 0);
+      const hdr = `<div class="ghead ${byProd ? '' : gcls(k)}" style="margin-top:${gi === 0 ? 0 : 14}px"><span>${esc(String(k || 'Other').toUpperCase())}</span><span>${byProd && list.length > 1 ? fn(tot) + ' total · ' : ''}${list.length} item${list.length > 1 ? 's' : ''}</span></div>`;
+      return hdr + list.map(row).join(''); }).join('') || `<p class="sub" style="text-align:center;padding:24px 0">No products match${q ? ' “' + esc(q) + '”' : ''}.</p>`;
   }
   const byStatus = S.inv.filter(r => !OFF_NAMES.has(r.name)).filter(r => S.invFilter === 'all' || invStatus(r) === S.invFilter);
   const brands = [...new Set(S.inv.map(r => r.brand))].sort((a, b) => rankG(a) - rankG(b) || a.localeCompare(b));
@@ -2600,7 +2608,8 @@ function renderInventory() {
         <button class="chip" data-act="inv-filter" data-f="all" aria-pressed="${S.invFilter === 'all'}">Needs attention</button>
         <button class="chip" data-act="inv-filter" data-f="allprod" aria-pressed="${S.invFilter === 'allprod'}">All products</button>
       </div>
-      ${allMode ? `<div class="field" style="margin-top:8px">${ic('search')}<label class="sr" for="inv-q">Search products</label><input id="inv-q" value="${esc(S.invQ || '')}" placeholder="Search by name, code or brand" autocomplete="off"></div>`
+      ${allMode ? `<div class="chips" role="group" aria-label="Group by" style="margin-top:8px"><span class="eyebrow" style="align-self:center;margin-right:2px">Group by</span><button class="chip" data-act="inv-groupby" data-g="brand" aria-pressed="${!byProd}">Brand</button><button class="chip" data-act="inv-groupby" data-g="product" aria-pressed="${byProd}">Product</button></div>
+        <div class="field" style="margin-top:8px">${ic('search')}<label class="sr" for="inv-q">Search products</label><input id="inv-q" value="${esc(S.invQ || '')}" placeholder="Search by name, code or brand" autocomplete="off"></div>`
         : `<div class="chips" role="group" aria-label="Brand" style="margin-top:8px"><button class="chip" data-act="inv-brand" data-b="All" aria-pressed="${S.invBrand === 'All'}">All brands</button>${brands.map(b => `<button class="chip ${gcls(b)}" data-act="inv-brand" data-b="${esc(b)}" aria-pressed="${S.invBrand === b}">${esc(b)} · ${byStatus.filter(r => r.brand === b).length}</button>`).join('')}</div>`}
       <div style="margin-top:10px">${allMode ? allRows : rows}</div>
       <p class="sample" style="margin:10px 0 0">${REAL ? `Stock counts from your QuickBooks export of ${REAL.snapAsOf ? fmtShort(isoRd(REAL.snapAsOf)) : 'Oct 23'}. For now, Fix count only changes this screen, not QuickBooks.` : 'Showing example items. The real list will have all 46.'}</p>
@@ -6091,8 +6100,8 @@ function renderMySales() {
 // Usual pattern from your invoices: Sun Williamsburg · Mon Boro Park + Williamsburg · Tue Boro Park + Country · Wed Lakewood + Boro Park · Thu Monsey + Monroe · Fri Monsey
 // The salesman takes orders in an area one day, the truck delivers there the next: Sun orders Williamsburg -> Mon delivery, Mon orders Boro Park -> Tue, ...
 // An invoice goes on the first day ON or AFTER its date when its area has the truck.
-const DSCHED_DEFAULT = { v: 3, n: 1, start: '65 Steuben St, Brooklyn, NY 11205', 0: { Monsey: 0, Monroe: 0 }, 1: { Williamsburg: 0 }, 2: { 'Boro Park': 0 }, 3: { Country: 0, 'Boro Park': 0 }, 4: { Lakewood: 0, 'Boro Park': 0 }, 5: {}, season: { Country: [7, 8] } };
-const dsFix = v => (v && v.v === 3) ? Object.assign(v, v.season ? {} : { season: { Country: [7, 8] } }, /4706 10th/.test(v.start || '') ? { start: '65 Steuben St, Brooklyn, NY 11205' } : {}) : JSON.parse(JSON.stringify(DSCHED_DEFAULT));
+const DSCHED_DEFAULT = { v: 3, n: 1, start: '65 Steuben St, Brooklyn, NY 11249', 0: { Monsey: 0, Monroe: 0 }, 1: { Williamsburg: 0 }, 2: { 'Boro Park': 0 }, 3: { Country: 0, 'Boro Park': 0 }, 4: { Lakewood: 0, 'Boro Park': 0 }, 5: {}, season: { Country: [7, 8] } };
+const dsFix = v => (v && v.v === 3) ? Object.assign(v, v.season ? {} : { season: { Country: [7, 8] } }, (/4706 10th/.test(v.start || '') || /11205/.test(v.start || '')) ? { start: '65 Steuben St, Brooklyn, NY 11249' } : {}) : JSON.parse(JSON.stringify(DSCHED_DEFAULT));
 Object.assign(S, { dsched: dsFix(loadLS('chuster-dsched-v1', null)), gc: loadLS('chuster-gc-v1', {}), routeBusy: '', dstat: loadLS('chuster-dstat-v1', {}), dorder: loadLS('chuster-dorder-v1', {}), dDate: null, dTruck: 0, dStop: null, dShort: {}, dDrop: {}, dStopQ: '', drvShow: 'todo', autoRoute: {}, dSigOpen: false, dPhotos: [], drvMap: false });
 (function prune() { const cut = isoOf(TODAY - 21); let ch = false; Object.keys(S.dstat).forEach(k => { if (k.slice(0, 10) < cut) { delete S.dstat[k]; ch = true; } }); if (ch) saveLS('chuster-dstat-v1', S.dstat); })();
 const saveDstat = () => { try { localStorage.setItem('chuster-dstat-v1', JSON.stringify(S.dstat)); } catch (e) { toast('This device is full. Old photos were not saved.'); } };
@@ -7945,6 +7954,7 @@ document.addEventListener('click', e => {
     case 'inv-save': { const v = parseInt(document.getElementById('cnt').value, 10); if (!isNaN(v)) { S.inv[+d.i].onHand = v; toast(`Count saved: ${S.inv[+d.i].name} is now ${v}.`); } S.invEdit = null; keep(); break; }
     case 'inv-reorder': S.reorder.push(S.inv[+d.i].name); keep(); break;
     case 'inv-reorder-name': if (d.n && !S.reorder.includes(d.n)) S.reorder.push(d.n); keep(); break;
+    case 'inv-groupby': S.invGroupBy = d.g; keep(); break;
     case 'inv-fix-cat': {
       const p = S.catalog.find(c => (c.full || c.name) === d.full) || S.catalog.find(c => c.name === d.full);
       if (!p) break;
