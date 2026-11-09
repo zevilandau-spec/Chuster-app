@@ -1286,7 +1286,7 @@ function save() {
 
 /* ================= real QuickBooks numbers (private build only) ================= */
 const REAL = window.CHUSTER_DATA || null;
-Object.assign(S, { custQ: '', custF: 'all', custSel: null, custSort: 'ytd', custArea: 'All', oq: {}, orderQ: '', orderGroup: 'All', storeOpen: false, storeQ: '', pasteOpen: false, pasteText: '', histTab: 'last', lyPick: null, stmtFor: null, stmtDraft: {}, stmtSent: {}, invBrand: 'All',
+Object.assign(S, { custQ: '', custF: 'all', custSel: null, custSort: 'ytd', custArea: 'All', oq: {}, orderQ: '', orderGroup: 'All', storeOpen: false, storeQ: '', pasteOpen: false, pasteText: '', rpTab: 'rep', rpPreset: 'tw', rpFrom: null, rpTo: null, rpRepOpen: null, rpItemClosed: {}, histTab: 'last', lyPick: null, stmtFor: null, stmtDraft: {}, stmtSent: {}, invBrand: 'All',
   dashAllStores: false, dashAllItems: false, ordQ: '', ordType: 'all', ordOpen: null, ordDays: 10, ordFrom: null, ordArea: 'All', ordSort: 'new', buyPeriod: 'all', buyVendor: null, buyTab: 'up', buyItem: null, pkPeriod: '30', pkDay: null, plDate: null, plTab: 'loose', plQ: '', pl: { loose: {}, made: {} }, plSaved: {} });
 const PK = REAL && REAL.pack ? REAL.pack : null;
 try { const v = JSON.parse(localStorage.getItem('chuster-packlog-v1') || 'null'); if (v && typeof v === 'object') S.plSaved = v; } catch (e) { /* storage blocked */ }
@@ -1755,6 +1755,90 @@ function renderCatalog(){
 `; try { const st = document.createElement('style'); st.textContent = css; document.head.appendChild(st); } catch(e){} })();
 
 
+
+/* ============ Sales report: By rep / By item, QuickBooks-style date ranges ============ */
+function rptRange() {
+  const t = TODAY, iso = isoOf(t), Y = +iso.slice(0, 4), M = +iso.slice(5, 7);
+  const mkrd = (y, m, d) => isoRd(`${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`);
+  const ws = t - dow(t);
+  switch (S.rpPreset) {
+    case 'lw': return { from: ws - 7, to: ws - 1, label: 'Last week' };
+    case 'tm': return { from: mkrd(Y, M, 1), to: t, label: 'This month' };
+    case 'lm': { const lm = M === 1 ? 12 : M - 1, ly = M === 1 ? Y - 1 : Y; return { from: mkrd(ly, lm, 1), to: mkrd(Y, M, 1) - 1, label: 'Last month' }; }
+    case 'ty': return { from: mkrd(Y, 1, 1), to: t, label: 'This year' };
+    case 'ly': return { from: mkrd(Y - 1, 1, 1), to: mkrd(Y - 1, 12, 31), label: 'Last year' };
+    case 'custom': return { from: S.rpFrom || (ws), to: S.rpTo || t, label: 'Custom' };
+    default: return { from: ws, to: ws + 6, label: 'This week' };
+  }
+}
+function rptDatesBar() {
+  const presets = [['tw', 'This week'], ['lw', 'Last week'], ['tm', 'This month'], ['lm', 'Last month'], ['ty', 'This year'], ['ly', 'Last year'], ['custom', 'Custom']];
+  const r = rptRange();
+  return `<div class="chips" role="group" aria-label="Date range" style="margin-bottom:8px">${presets.map(([k, lab]) => `<button class="chip" data-act="rp-preset" data-p="${k}" aria-pressed="${S.rpPreset === k || (!S.rpPreset && k === 'tw')}">${lab}</button>`).join('')}</div>
+  ${S.rpPreset === 'custom' ? `<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:end;margin-bottom:8px">
+    <label class="stack" style="gap:3px"><span class="eyebrow">From</span><input type="date" id="rp-from" value="${isoOf(r.from)}" style="border:1px solid var(--line);border-radius:8px;padding:7px"></label>
+    <label class="stack" style="gap:3px"><span class="eyebrow">To</span><input type="date" id="rp-to" value="${isoOf(r.to)}" style="border:1px solid var(--line);border-radius:8px;padding:7px"></label>
+  </div>` : ''}
+  <p class="sub" style="margin:0 0 6px">${fmtLong(r.from)} – ${fmtLong(r.to)} · accrual, all sites</p>`;
+}
+function rptRepData(from, to) {
+  const custRep = {}; REAL.customers.forEach(c => { custRep[c.name] = c.rep || '—'; });
+  const by = {}; let total = 0;
+  REAL.orders.list.forEach(o => { if (o.a == null) return; const r = isoRd(o.d); if (r < from || r > to) return;
+    const rep = custRep[o.c] || '—'; const x = by[rep] || (by[rep] = { rep, amt: 0, n: 0, cust: {} });
+    x.amt += o.a; if (o.t === 'inv') x.n++; total += o.a; x.cust[o.c] = (x.cust[o.c] || 0) + o.a; });
+  return { reps: Object.values(by).sort((a, b) => b.amt - a.amt), total };
+}
+function rptItemData(from, to) {
+  const groups = {}; let total = 0, totQ = 0;
+  REAL.orders.list.forEach(o => { if (!o.l) return; const r = isoRd(o.d); if (r < from || r > to) return;
+    rowsOf(o.l).forEach(([ref, q, a]) => { const item = typeof ref === 'number' ? REAL.catalog[ref] : null;
+      const g = item ? (item.group || 'Other') : 'Other'; const key = item ? item.full : ('x' + ref);
+      const G = groups[g] || (groups[g] = { g, items: {}, q: 0, amt: 0 });
+      const it = G.items[key] || (G.items[key] = { name: item ? item.name : ('' + ref), code: item ? item.code : '', q: 0, amt: 0 });
+      it.q += q; it.amt += a; G.q += q; G.amt += a; total += a; totQ += q; }); });
+  const list = Object.values(groups).map(G => ({ g: G.g, q: G.q, amt: G.amt, items: Object.values(G.items).sort((a, b) => b.amt - a.amt) })).sort((a, b) => b.amt - a.amt);
+  return { groups: list, total, totQ };
+}
+function renderSalesReport() {
+  if (S.role !== 'Owner' && S.role !== 'Office') return head('Sales report', '') + '<section class="card"><p class="sub" style="margin:0">Only the owner and office see this.</p></section>';
+  if (!REAL) return needData('Sales report');
+  const r = rptRange();
+  const tab = S.rpTab || 'rep';
+  const tabs = `<div class="chips" role="group" aria-label="Report" style="margin-bottom:10px">
+    <button class="chip" data-act="rp-tab" data-t="rep" aria-pressed="${tab === 'rep'}">By rep</button>
+    <button class="chip" data-act="rp-tab" data-t="item" aria-pressed="${tab === 'item'}">By item</button></div>`;
+  let body;
+  if (tab === 'rep') {
+    const { reps, total } = rptRepData(r.from, r.to);
+    body = `<section class="card"><div style="overflow-x:auto"><table class="rpt"><thead><tr><th>Rep</th><th class="num">Invoices</th><th class="num">Sales</th><th class="num">% of sales</th></tr></thead><tbody>
+      ${reps.map(x => { const open = S.rpRepOpen === x.rep; const cust = Object.entries(x.cust).sort((a, b) => b[1] - a[1]).slice(0, 12);
+        return `<tr data-act="rp-rep" data-r="${esc(x.rep)}" style="cursor:pointer"><td><b>${esc(codeName(x.rep))}</b> <span class="sub">${open ? '▾' : '▸'}</span></td><td class="num">${fn(x.n)}</td><td class="num"><b>${money(x.amt)}</b></td><td class="num">${total ? (x.amt / total * 100).toFixed(1) : '0.0'}%</td></tr>
+        ${open ? cust.map(([c, a]) => `<tr class="rpt-sub"><td style="padding-left:22px">${esc(c)}</td><td></td><td class="num">${money(a)}</td><td class="num">${total ? (a / total * 100).toFixed(1) : '0.0'}%</td></tr>`).join('') : ''}`; }).join('') || '<tr><td colspan="4" class="sub">No sales in this range.</td></tr>'}
+      </tbody><tfoot><tr><th>TOTAL</th><th class="num">${fn(reps.reduce((s, x) => s + x.n, 0))}</th><th class="num">${money(total)}</th><th class="num">100%</th></tr></tfoot></table></div>
+      <p class="sub" style="margin:8px 0 0">Tap a rep to see their stores. Sales net of credit memos.</p></section>`;
+  } else {
+    const { groups, total, totQ } = rptItemData(r.from, r.to);
+    body = `<section class="card"><div style="overflow-x:auto"><table class="rpt"><thead><tr><th>Item</th><th class="num">Qty</th><th class="num">Sales</th><th class="num">% of sales</th><th class="num">Avg price</th></tr></thead><tbody>
+      ${groups.map(G => { const collapsed = S.rpItemClosed && S.rpItemClosed[G.g]; return `<tr data-act="rp-grp" data-g="${esc(G.g)}" class="rpt-grp" style="cursor:pointer"><td><b>${collapsed ? '▸' : '▾'} ${esc(GROUP_TITLE[G.g] || G.g)}</b></td><td class="num"><b>${fn(G.q)}</b></td><td class="num"><b>${money(G.amt)}</b></td><td class="num">${total ? (G.amt / total * 100).toFixed(1) : '0.0'}%</td><td class="num">${G.q ? money(G.amt / G.q) : '—'}</td></tr>
+        ${collapsed ? '' : G.items.map(it => `<tr class="rpt-sub"><td style="padding-left:22px">${esc(it.name)}${it.code ? ` <span class="sub">#${esc(it.code)}</span>` : ''}</td><td class="num">${fn(it.q)}</td><td class="num">${money(it.amt)}</td><td class="num">${total ? (it.amt / total * 100).toFixed(1) : '0.0'}%</td><td class="num">${it.q ? money(it.amt / it.q) : '—'}</td></tr>`).join('')}`; }).join('') || '<tr><td colspan="5" class="sub">No sales in this range.</td></tr>'}
+      </tbody><tfoot><tr><th>TOTAL</th><th class="num">${fn(totQ)}</th><th class="num">${money(total)}</th><th class="num">100%</th><th class="num">${totQ ? money(total / totQ) : '—'}</th></tr></tfoot></table></div>
+      <p class="sub" style="margin:8px 0 0">Tap a group to collapse it. Grouped by product line.</p></section>`;
+  }
+  return `${head('Sales report', 'Sales by rep and by item, for any dates — like QuickBooks', dashTools('Sales report'))}${rptDatesBar()}${tabs}${body}`;
+}
+(function () { try { const st = document.createElement('style'); st.textContent = `
+.rpt{width:100%;border-collapse:collapse;font-size:14px}
+.rpt th,.rpt td{padding:8px 10px;text-align:left;border-bottom:1px solid var(--line)}
+.rpt th.num,.rpt td.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.rpt thead th{font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);border-bottom:2px solid var(--line)}
+.rpt tfoot th{border-top:2px solid var(--line);border-bottom:none;font-size:14px}
+.rpt-grp td{background:var(--surface-2)}
+.rpt-sub td{font-size:13px;color:var(--text)}
+.rpt tbody tr:hover td{background:var(--surface-2)}
+`; document.head.appendChild(st); } catch (e) { } })();
+
+
 const VIEWS = {
   home: { title: 'Dashboard', r: renderHome },
   order: { title: 'New order', r: renderOrder },
@@ -1787,6 +1871,7 @@ const VIEWS = {
   buying: { title: 'Buying & suppliers', r: renderBuying },
   items: { title: 'Products', r: renderItems },
   catalog: { title: 'Catalog', r: renderCatalog },
+  salesreport: { title: 'Sales report', r: renderSalesReport },
   margin: { title: 'Margins', r: renderMargin },
   pricelist: { title: 'Price list', r: renderPriceList },
   po: { title: 'Purchase order', r: renderPO },
@@ -1833,7 +1918,7 @@ const NAV = [
   { items: [['home', 'Dashboard', 'home'], ['ask', 'Ask AI ✨', 'chat'], ['calendar', 'Calendar', 'cal']] },
   { h: 'ORDERS', items: [['order', 'New order', 'order'], ['orders', 'Orders', 'order'], ['inbox', 'Incoming orders', 'chat', 'inbox'], ['toqb', 'To QuickBooks', 'check', 'toqb']] },
   { h: 'CUSTOMERS', items: [['visits', "Today's visits", 'clock'], ['coverage', 'Coverage plan', 'clip'], ['pitch', 'New to pitch', 'chart'], ['customers', 'Customers', 'people', 'late'], ['payments', 'Payments', 'card', 'pay'], ['collect', 'Collections', 'card'], ['aging', 'Collections dashboard', 'chart'], ['stmts', 'Statements by email', 'mail'], ['custprofit', 'Profit by store', 'chart'], ['lost', 'Lost items', 'alert'], ['yomtov', 'Yom Tov list', 'cal'], ['ytplan', 'Yom Tov planner', 'chart']] },
-  { h: 'SALES & MONEY', items: [['mysales', 'Salesman dashboard', 'chart'], ['storesales', 'Store sales', 'chart'], ['scorecard', 'Store scorecard', 'people'], ['atrisk', 'At-risk board', 'alert'], ['crosssell', 'Cross-sell', 'chart'], ['newlost', 'New & lost stores', 'people'], ['habits', 'Order habits', 'clock'], ['seasonality', 'Seasonality', 'chart'], ['repscore', 'Salesman scorecard', 'people'], ['reps', 'Sales by rep & commission', 'people'], ['returns', 'Returns & credits', 'card'], ['finance', 'Finance', 'chart']] },
+  { h: 'SALES & MONEY', items: [['mysales', 'Salesman dashboard', 'chart'], ['storesales', 'Store sales', 'chart'], ['scorecard', 'Store scorecard', 'people'], ['atrisk', 'At-risk board', 'alert'], ['crosssell', 'Cross-sell', 'chart'], ['newlost', 'New & lost stores', 'people'], ['habits', 'Order habits', 'clock'], ['seasonality', 'Seasonality', 'chart'], ['salesreport', 'Sales report', 'chart'], ['repscore', 'Salesman scorecard', 'people'], ['reps', 'Sales by rep & commission', 'people'], ['returns', 'Returns & credits', 'card'], ['finance', 'Finance', 'chart']] },
   { h: 'PRODUCTS', items: [['catalog', 'Catalog', 'box'], ['prodsales', 'Product sales', 'chart'], ['winners', 'Winners & losers', 'chart'], ['items', 'Products & profit', 'chart'], ['margin', 'Margins', 'chart'], ['pricelist', 'Price list', 'order'], ['pricecheck', 'Price check', 'card'], ['pricespread', 'Price spread', 'chart']] },
   { h: 'DELIVERIES', items: [['route', 'Deliveries', 'box'], ['stop', 'Driver', 'wheel'], ['live', 'Live trucks', 'pin'], ['loading', 'Loading', 'truck'], ['dsched', 'Delivery days', 'cal'], ['delivstats', 'Delivery stats', 'chart'], ['routeprofit', 'Route profit', 'chart']] },
   { h: 'WAREHOUSE', items: [['packnext', 'What to pack', 'clip'], ['forecast', 'Week-ahead forecast', 'chart'], ['packing', 'Packing plan', 'clip'], ['stockcover', 'Stock cover', 'box'], ['packlog', 'Pack log', 'clip'], ['packrep', 'Packing report', 'chart'], ['yield', 'Yield', 'chart']] },
@@ -7707,6 +7792,10 @@ document.addEventListener('click', e => {
     case 'plan-preset': S.planFromD = d.f; S.planToD = d.t; S.planOpen = null; keep(); break;
     case 'plan-open': S.planOpen = S.planOpen === +d.i ? null : +d.i; keep(); break;
     case 'store-open': S.storeOpen = !S.storeOpen; S.storeQ = ''; keep(); break;
+    case 'rp-preset': S.rpPreset = d.p; if (d.p === 'custom') { const r = rptRange(); S.rpFrom = S.rpFrom || r.from; S.rpTo = S.rpTo || r.to; } keep(); break;
+    case 'rp-tab': S.rpTab = d.t; keep(); break;
+    case 'rp-rep': S.rpRepOpen = S.rpRepOpen === d.r ? null : d.r; keep(); break;
+    case 'rp-grp': S.rpItemClosed = Object.assign({}, S.rpItemClosed); S.rpItemClosed[d.g] = !S.rpItemClosed[d.g]; keep(); break;
     case 'paste-open': S.pasteOpen = !S.pasteOpen; if (!S.pasteOpen) S.pasteText = ''; keep(); break;
     case 'paste-read': {
       const txt = (S.pasteText || '').trim(); if (!txt) { toast('Type or paste the order first.'); break; }
@@ -8159,6 +8248,8 @@ document.addEventListener('input', e => {
   if (e.target.id === 'pk-set-q') { S.pkSetQ = e.target.value; const el = document.getElementById('pk-set-list'); if (el) { const h = pkSettings(); const m = h.match(/<div id="pk-set-list">([\s\S]*)<\/div>\s*<\/section>/); if (m) el.innerHTML = m[1]; } return; }
   if (e.target.id === 'inv-num') { S.orderRef = e.target.value; return; }
   if (e.target.id === 'paste-order') { S.pasteText = e.target.value; return; }
+  if (e.target.id === 'rp-from') { if (e.target.value) { S.rpFrom = isoRd(e.target.value); S.rpPreset = 'custom'; render(); } return; }
+  if (e.target.id === 'rp-to') { if (e.target.value) { S.rpTo = isoRd(e.target.value); S.rpPreset = 'custom'; render(); } return; }
   if (e.target.id === 'ord-q') { S.ordQ = e.target.value; const ol = document.getElementById('ord-list'); if (ol) ol.innerHTML = ordList(); return; }
   if (e.target.id === 'cust-q') { S.custQ = e.target.value; const box = document.getElementById('cust-list'); if (box) box.innerHTML = custRows(); return; }
   if (e.target.id === 'vs-q') { S.vsQ = e.target.value; const pos = e.target.selectionStart; render(); const q = document.getElementById('vs-q'); if (q) { q.focus(); try { q.setSelectionRange(pos, pos); } catch (x) { /* ignore */ } } return; }
