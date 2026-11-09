@@ -1148,7 +1148,7 @@ const S = {
     { name: 'Sourdough Pretzel Crunchies', code: 66, pack: '84 x 1oz', stock: 40, qty: 8 }
   ],
   lastOrder: [12, 6, 6, 8, 10],
-  invFilter: 'zero', invEdit: null, reorder: ['Chuster Sm. Flakes', 'Chuster Barley'],
+  invFilter: 'zero', invEdit: null, invQ: '', reorder: ['Chuster Sm. Flakes', 'Chuster Barley'],
   inv: [
     { name: 'Chuster Sm. Flakes', brand: 'Chuster', onHand: -12, reorderAt: 40, why: 'Sold before a delivery was received' },
     { name: 'Chuster Barley', brand: 'Chuster', onHand: -4, reorderAt: 40, why: 'Not counted in 3 weeks' },
@@ -1308,8 +1308,9 @@ if (REAL) {
   S.stores = realStores.concat(S.stores.filter(x => !SAMPLE_STORES.has(x.name) && !realStores.some(b => b.name === x.name)));
   // location stores (Bingo's four) — their own pickable store, one QuickBooks customer behind them
   Object.keys(STORE_LOCS).forEach(name => { if (!S.stores.some(s => s.name === name)) { const m = REAL.customers.find(c => c.name === STORE_LOCS[name].main) || {}; S.stores.push({ name, address: '', phone: m.phone || '', email: '', truck: '', note: '', isLoc: true }); } });
-  S.inv = REAL.belowZero.map(b => ({ name: b.name, code: b.code, brand: b.group, onHand: b.stock, reorderAt: b.reorderAt || 0, why: b.sold28 ? `sold ${b.sold28} in the last 4 weeks` : '' }))
+  { const _invRaw = REAL.belowZero.map(b => ({ name: b.name, code: b.code, brand: b.group, onHand: b.stock, reorderAt: b.reorderAt || 0, why: b.sold28 ? `sold ${b.sold28} in the last 4 weeks` : '' }))
     .concat(REAL.low.map(b => ({ name: b.name, code: b.code, brand: b.group, onHand: b.stock, reorderAt: b.reorderAt || 0, why: b.sold28 ? `sold ${b.sold28} in the last 4 weeks` : '' })));
+    const _seen = {}; S.inv = _invRaw.filter(r => { const k = (r.code || '') + '|' + r.name; if (_seen[k]) return false; _seen[k] = 1; return true; }); }
   S.reorder = [];
   const packs = realCat.filter(c => (c.full || '').startsWith('Packs')).slice(0, 5);
   S.order = []; // a new order starts empty
@@ -2537,6 +2538,33 @@ function renderInventory() {
   const low = S.inv.filter(r => !OFF_NAMES.has(r.name)).filter(r => invStatus(r) === 'low').length;
   const GO = ['Chuster', 'Landaus', 'Chuster Snacks', 'Chuster Loose', 'Landaus Loose'];
   const rankG = g => { const i = GO.indexOf(g); return i < 0 ? 99 : i; };
+  const allMode = S.invFilter === 'allprod';
+  let allRows = '';
+  if (allMode) {
+    const q = (S.invQ || '').trim().toLowerCase();
+    const seen = {};
+    let items = S.catalog.filter(p => !p.off && !OFF_NAMES.has(p.name) && typeof p.stock === 'number')
+      .filter(p => { const k = (p.code || '') + '|' + p.name; if (seen[k]) return false; seen[k] = 1; return true; });
+    if (q) items = items.filter(p => (p.name + ' ' + (p.code || '') + ' ' + (p.brand || '')).toLowerCase().includes(q));
+    items.sort((a, b) => rankG(a.brand) - rankG(b.brand) || String(a.brand || '').localeCompare(String(b.brand || '')) || (a.stock - b.stock));
+    const cnts = {}; items.forEach(p => { cnts[p.brand] = (cnts[p.brand] || 0) + 1; });
+    let lg = null;
+    allRows = items.map(p => {
+      const st = p.stock < 0 ? 'zero' : p.stock === 0 ? 'low' : 'ok';
+      const invI = S.inv.findIndex(r => r.name === p.name && String(r.code) === String(p.code));
+      const editing = invI >= 0 && S.invEdit === invI;
+      const inList = S.reorder.includes(p.name);
+      const hdr = p.brand !== lg ? `<div class="ghead ${gcls(p.brand)}" style="margin-top:${lg === null ? 0 : 14}px"><span>${esc(String(p.brand || 'Other').toUpperCase())}</span><span>${cnts[p.brand]} item${cnts[p.brand] > 1 ? 's' : ''}</span></div>` : '';
+      lg = p.brand;
+      return hdr + `<div class="irow ${gcls(p.brand)}${st === 'zero' ? ' on' : ''}">
+        <span class="icode">${p.code && p.code !== '—' ? esc(p.code) : '·'}</span>
+        <div class="main"><div class="name">${esc(p.name)}</div><div class="meta">${esc(p.pack || '')}</div></div>
+        ${editing ? `<label class="sr" for="cnt">New count for ${esc(p.name)}</label><input class="inp num" id="cnt" type="number" inputmode="numeric" value="${Math.max(p.stock, 0)}" style="width:110px"><button class="btn primary sm" data-act="inv-save" data-i="${invI}">Save count</button>`
+          : `<span class="tag ${st === 'zero' ? 'red' : st === 'low' ? 'gold' : 'green'} num" style="font-size:14px">${fn(p.stock)} on hand</span>
+             <div class="actions"><button class="btn ghost sm" data-act="inv-fix-cat" data-full="${esc(p.full || p.name)}">Fix count</button><button class="btn ${inList ? 'ghost' : 'gold'} sm" data-act="inv-reorder-name" data-n="${esc(p.name)}"${inList ? ' disabled' : ''}>${inList ? 'On reorder list' : 'Reorder'}</button></div>`}
+      </div>`;
+    }).join('') || `<p class="sub" style="text-align:center;padding:24px 0">No products match${q ? ' “' + esc(q) + '”' : ''}.</p>`;
+  }
   const byStatus = S.inv.filter(r => !OFF_NAMES.has(r.name)).filter(r => S.invFilter === 'all' || invStatus(r) === S.invFilter);
   const brands = [...new Set(S.inv.map(r => r.brand))].sort((a, b) => rankG(a) - rankG(b) || a.localeCompare(b));
   const list = byStatus.filter(r => S.invBrand === 'All' || r.brand === S.invBrand)
@@ -2569,10 +2597,12 @@ function renderInventory() {
       <div class="chips" role="group" aria-label="Filter">
         <button class="chip" data-act="inv-filter" data-f="zero" aria-pressed="${S.invFilter === 'zero'}">Below zero · ${zero}</button>
         <button class="chip" data-act="inv-filter" data-f="low" aria-pressed="${S.invFilter === 'low'}">Low · ${low}</button>
-        <button class="chip" data-act="inv-filter" data-f="all" aria-pressed="${S.invFilter === 'all'}">All items</button>
+        <button class="chip" data-act="inv-filter" data-f="all" aria-pressed="${S.invFilter === 'all'}">Needs attention</button>
+        <button class="chip" data-act="inv-filter" data-f="allprod" aria-pressed="${S.invFilter === 'allprod'}">All products</button>
       </div>
-      <div class="chips" role="group" aria-label="Brand" style="margin-top:8px"><button class="chip" data-act="inv-brand" data-b="All" aria-pressed="${S.invBrand === 'All'}">All brands</button>${brands.map(b => `<button class="chip ${gcls(b)}" data-act="inv-brand" data-b="${esc(b)}" aria-pressed="${S.invBrand === b}">${esc(b)} · ${byStatus.filter(r => r.brand === b).length}</button>`).join('')}</div>
-      <div style="margin-top:10px">${rows}</div>
+      ${allMode ? `<div class="field" style="margin-top:8px">${ic('search')}<label class="sr" for="inv-q">Search products</label><input id="inv-q" value="${esc(S.invQ || '')}" placeholder="Search by name, code or brand" autocomplete="off"></div>`
+        : `<div class="chips" role="group" aria-label="Brand" style="margin-top:8px"><button class="chip" data-act="inv-brand" data-b="All" aria-pressed="${S.invBrand === 'All'}">All brands</button>${brands.map(b => `<button class="chip ${gcls(b)}" data-act="inv-brand" data-b="${esc(b)}" aria-pressed="${S.invBrand === b}">${esc(b)} · ${byStatus.filter(r => r.brand === b).length}</button>`).join('')}</div>`}
+      <div style="margin-top:10px">${allMode ? allRows : rows}</div>
       <p class="sample" style="margin:10px 0 0">${REAL ? `Stock counts from your QuickBooks export of ${REAL.snapAsOf ? fmtShort(isoRd(REAL.snapAsOf)) : 'Oct 23'}. For now, Fix count only changes this screen, not QuickBooks.` : 'Showing example items. The real list will have all 46.'}</p>
     </section>
     <aside class="card stack">
@@ -7914,6 +7944,14 @@ document.addEventListener('click', e => {
     case 'inv-edit': S.invEdit = +d.i; keep(); setTimeout(() => { const c = document.getElementById('cnt'); if (c) c.focus(); }, 0); break;
     case 'inv-save': { const v = parseInt(document.getElementById('cnt').value, 10); if (!isNaN(v)) { S.inv[+d.i].onHand = v; toast(`Count saved: ${S.inv[+d.i].name} is now ${v}.`); } S.invEdit = null; keep(); break; }
     case 'inv-reorder': S.reorder.push(S.inv[+d.i].name); keep(); break;
+    case 'inv-reorder-name': if (d.n && !S.reorder.includes(d.n)) S.reorder.push(d.n); keep(); break;
+    case 'inv-fix-cat': {
+      const p = S.catalog.find(c => (c.full || c.name) === d.full) || S.catalog.find(c => c.name === d.full);
+      if (!p) break;
+      let i = S.inv.findIndex(r => r.name === p.name && String(r.code) === String(p.code));
+      if (i < 0) { S.inv.push({ name: p.name, code: p.code, brand: p.brand, onHand: typeof p.stock === 'number' ? p.stock : 0, reorderAt: 0, why: '' }); i = S.inv.length - 1; }
+      S.invEdit = i; keep(); setTimeout(() => { const c = document.getElementById('cnt'); if (c) c.focus(); }, 0); break;
+    }
     case 'po': toast(`Purchase order made for ${S.reorder.length} items (example).`); break;
     case 'pk-set': S.pkSetOpen = true; render(); window.scrollTo(0, 0); break;
     case 'pk-set-close': S.pkSetOpen = false; render(); break;
@@ -8238,7 +8276,7 @@ document.addEventListener('input', e => {
   if (e.target.id === 'sc-q') { S.scQ = e.target.value; const pos = e.target.selectionStart; render(); const q = document.getElementById('sc-q'); if (q) { q.focus(); try { q.setSelectionRange(pos, pos); } catch (x) {} } return; }
   if (e.target.id === 'mg-q') { S.mgQ = e.target.value; const pos = e.target.selectionStart; render(); const q = document.getElementById('mg-q'); if (q) { q.focus(); try { q.setSelectionRange(pos, pos); } catch (x) {} } return; }
   if (e.target.id === 'hb-q') { S.hbQ = e.target.value; const pos = e.target.selectionStart; render(); const q = document.getElementById('hb-q'); if (q) { q.focus(); try { q.setSelectionRange(pos, pos); } catch (x) {} } return; }
-  { const m = { 'pr-q': () => S.pr.q = e.target.value, 'sco-q': () => S.scoQ = e.target.value, 'xs-q': () => S.xsQ = e.target.value, 'fc-q': () => S.fcQ = e.target.value, 'd-q': () => S.dQ = e.target.value, 'd-stopq': () => S.dStopQ = e.target.value, 'cat-q': () => S.catQ = e.target.value }[e.target.id];
+  { const m = { 'pr-q': () => S.pr.q = e.target.value, 'sco-q': () => S.scoQ = e.target.value, 'xs-q': () => S.xsQ = e.target.value, 'fc-q': () => S.fcQ = e.target.value, 'd-q': () => S.dQ = e.target.value, 'd-stopq': () => S.dStopQ = e.target.value, 'cat-q': () => S.catQ = e.target.value, 'inv-q': () => S.invQ = e.target.value }[e.target.id];
     if (m) { m(); const id = e.target.id; const pos = e.target.selectionStart; render(); const q = document.getElementById(id); if (q) { q.focus(); try { q.setSelectionRange(pos, pos); } catch (x) {} } return; } }
   if (e.target.id === 'nl-q') { S.nlQ = e.target.value; const pos = e.target.selectionStart; render(); const q = document.getElementById('nl-q'); if (q) { q.focus(); try { q.setSelectionRange(pos, pos); } catch (x) {} } return; }
   if (e.target.id === 'ss-q') { S.ss.q = e.target.value; const pos = e.target.selectionStart; render(); const q = document.getElementById('ss-q'); if (q) { q.focus(); try { q.setSelectionRange(pos, pos); } catch (x) {} } return; }
