@@ -6319,6 +6319,22 @@ function renderDriver() {
   const legs = []; for (let i = 0; i < undel.length; i += 9) legs.push(undel.slice(i, i + 9));
   const legBtns = legs.map((leg, g) => { const from = g * 9 + 1, to = g * 9 + leg.length; const href = navLegHref(leg);
     return `<a class="btn ${g === 0 ? 'primary' : 'ghost'}" href="${esc(href)}" target="_blank" rel="noopener">${g === 0 ? '▶ Start in Google Maps' : '→ Continue'}${legs.length > 1 ? ` · stops ${from}-${to}` : ''}</a>`; }).join('');
+  // #4 route time & finish estimate (haversine over the geocoded stops, ~20 mph + ~6 min/stop)
+  let estHtml = '';
+  { const sp = S.gc[gcKey(S.dsched.start || '')]; const pts = undel.map(x => S.gc[gcKey(x.c.address)]).filter(p => p && !p.none);
+    let km = 0, prev = (sp && !sp.none) ? sp : (pts[0] || null), seq = (sp && !sp.none) ? pts : pts.slice(1);
+    if (prev) seq.forEach(p => { km += kmBetween(prev, p); prev = p; });
+    const miles = Math.round(km * 0.621), driveMin = km ? Math.round(miles / 20 * 60) : 0, totMin = driveMin + undel.length * 6;
+    const dur = totMin >= 60 ? `${Math.floor(totMin / 60)}h ${totMin % 60}m` : `${totMin}m`;
+    const hhmm = dt => { let h = dt.getHours(), m = dt.getMinutes(); const ap = h >= 12 ? 'PM' : 'AM'; h = h % 12 || 12; return `${h}:${String(m).padStart(2, '0')} ${ap}`; };
+    const fin = (date === isoOf(TODAY) && totMin) ? ` · done&nbsp;~${hhmm(new Date(Date.now() + totMin * 60000))}` : '';
+    if (undel.length) estHtml = `<p class="sub" style="margin:0;display:flex;gap:4px;flex-wrap:wrap">⏱️ ${undel.length} stop${undel.length > 1 ? 's' : ''} to go${miles ? ` · ~${fn(miles)} mi` : ''} · about&nbsp;${dur}${fin}</p>`;
+  }
+  // #91 capacity check
+  const truckCases = list.reduce((s, x) => s + stopCases(x.o), 0);
+  const cap = +S.dsched.cap || 0;
+  const over = cap && truckCases > cap, near = cap && !over && truckCases > cap * 0.9;
+  const capNote = over ? `<span style="color:var(--bad-text);font-weight:800"> · ⚠️ over truck limit (${fn(cap)})</span>` : near ? `<span style="font-weight:700"> · nearly full (${fn(cap)})</span>` : '';
   const dayPop = S.dDayPop ? `<div class="dday-back" data-act="d-daypop" data-v="close"><div class="dday-box" data-act="dday-noop"><h2>Delivery day</h2>
     <div class="dday-opts"><button class="${date === isoOf(TODAY) ? 'on' : ''}" data-act="d-setday" data-d="${isoOf(TODAY)}">Today</button><button class="${date === isoOf(TODAY + 1) ? 'on' : ''}" data-act="d-setday" data-d="${isoOf(TODAY + 1)}">Tomorrow</button><button data-act="d-daycal">${ic('cal')} Pick</button></div>
     ${S.dDayCal ? dayGrid(date) : ''}
@@ -6331,9 +6347,10 @@ function renderDriver() {
     <button class="btn ghost" data-act="r-best" data-t="${t}"${S.routeBusy ? ' disabled' : ''}>${S.routeBusy ? esc(S.routeBusy) : '🧭 Re-sort shortest'}</button>
     ${undel.length ? `<button class="btn ghost" data-act="d-copy-route" data-t="${t}">${ic('clip')} Copy stops for a route app</button>` : ''}
   </section>
+  ${estHtml}
   ${legs.length > 1 ? `<p class="sub" style="margin:0">Google Maps fits about 9 stops at a time. Drive the first 9 in order, then tap <b>Continue</b> for the next 9.</p>` : ''}
   <div class="chips">${T.map((tr, n) => `<button class="chip" data-act="d-truck" data-t="${n}" aria-pressed="${t === n}">${esc(tr.name)} · ${(byT[n] || []).length}</button>`).join('')}</div>
-  <div class="tiles"><div class="tile"><div class="k">Stops left</div><div class="v">${left} of ${list.length}</div><div class="s">${fn(list.reduce((s, x) => s + stopCases(x.o), 0))} cases on the truck</div></div>
+  <div class="tiles"><div class="tile${over ? ' bad' : ''}"><div class="k">Stops left</div><div class="v">${left} of ${list.length}</div><div class="s">${fn(truckCases)} cases on the truck${capNote}</div></div>
     ${next ? `<button class="tile good" data-act="d-open" data-k="${esc(next.k)}" style="text-align:left;font:inherit;cursor:pointer"><div class="k">Next stop</div><div class="v" style="font-size:20px">${esc(next.o.c)}</div><div class="s">${esc(dlvAddr(next))} · tap to start</div></button>` : `<div class="tile good"><div class="k">All done</div><div class="v">🎉</div><div class="s">Send your day to the office</div></div>`}</div>
   ${(() => {
     const todoL = list.filter(x => !x.st.st); const doneL = list.filter(x => x.st.st);
@@ -6468,7 +6485,8 @@ function renderDSched() {
     <p class="sub" style="margin:0">The salesman takes orders in an area, and the truck delivers there on the next day that area has the truck. For example: orders from Williamsburg on Sunday go out Monday, orders from Boro Park on Monday go out Tuesday. An order dated a day its area already has the truck goes out that same day.</p>
     <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center"><span class="lbl" style="margin:0">Trucks</span><div class="chips">${[1, 2, 3].map(n => `<button class="chip" data-act="ds-n" data-n="${n}" aria-pressed="${(+S.dsched.n || 1) === n}">${n}</button>`).join('')}</div></div>
     <div><span class="lbl">Country gets the truck only in these months</span><div class="chips" style="flex-wrap:wrap">${MON.map((m, i) => `<button class="chip" data-act="ds-mon" data-a="Country" data-m="${i + 1}" aria-pressed="${((S.dsched.season || {}).Country || []).includes(i + 1)}">${m.slice(0, 3)}</button>`).join('')}</div></div>
-    <div><label class="lbl" for="ds-start">The truck starts from (for the shortest order)</label><input class="inp" id="ds-start" value="${esc(S.dsched.start || DSCHED_DEFAULT.start)}" autocomplete="off"></div></section>
+    <div><label class="lbl" for="ds-start">The truck starts from (for the shortest order)</label><input class="inp" id="ds-start" value="${esc(S.dsched.start || DSCHED_DEFAULT.start)}" autocomplete="off"></div>
+    <div><label class="lbl" for="ds-cap">Cases a full truck holds (for the capacity warning)</label><input class="inp num" id="ds-cap" type="number" inputmode="numeric" value="${S.dsched.cap || ''}" placeholder="e.g. 1200" autocomplete="off"></div></section>
   <section class="card" style="overflow-x:auto"><table class="mini-table" style="min-width:640px"><tr><td><b>Area</b></td>${[0, 1, 2, 3, 4, 5].map(w => `<td style="text-align:center"><b>${WDS[w]}</b></td>`).join('')}</tr>
     ${areas.map(a => `<tr><td>${esc(a)}</td>${[0, 1, 2, 3, 4, 5].map(w => { const v = (S.dsched[w] || {})[a]; return `<td style="text-align:center"><select class="sel ds-cell" data-w="${w}" data-a="${esc(a)}" style="width:auto;min-height:34px;font-size:13px${v != null ? ';background:var(--brand-soft);font-weight:800' : ''}" aria-label="${esc(a)} on ${WD[w]}"><option value="">—</option>${T.map((tr, n) => `<option value="${n}"${v != null && +v === n ? ' selected' : ''}>${esc(tr.name)}</option>`).join('')}</select></td>`; }).join('')}</tr>`).join('')}</table>
     <p class="sub" style="margin:8px 0 0">Started from your invoices, one day after the salesman: Monsey and Monroe Sun, Williamsburg Mon, Boro Park Tue–Thu, Country Wed (only in the months picked above), Lakewood Thu, no deliveries Friday. Change any box. Saved for everyone.</p></section>
@@ -8239,6 +8257,7 @@ document.addEventListener('change', e => {
   if (t.id === 'fin-mon') { S.finMon = +t.value; render(); }
   if (cl.contains('d-truck')) { const k = t.dataset.k; S.dstat[k] = Object.assign({}, S.dstat[k] || {}, { truck: +t.value }); saveDstat(); dsShare(k); render(); }
   if (t.id === 'ds-start') { S.dsched.start = t.value.trim(); saveLS('chuster-dsched-v1', S.dsched); SYNC.put('sc', 'all', S.dsched); toast('Start address saved.'); return; }
+  if (t.id === 'ds-cap') { S.dsched.cap = parseInt(t.value, 10) || 0; saveLS('chuster-dsched-v1', S.dsched); SYNC.put('sc', 'all', S.dsched); return; }
   if (cl.contains('ds-cell')) { const w = t.dataset.w, ar = t.dataset.a; S.dsched[w] = S.dsched[w] || {}; if (t.value === '') delete S.dsched[w][ar]; else S.dsched[w][ar] = +t.value; ddCache = null; saveLS('chuster-dsched-v1', S.dsched); SYNC.put('sc', 'all', S.dsched); render(); }
   if (t.id === 'll-date') { S.llDate = t.value; render(); }
   if (cl.contains('ll-area')) { S.areaTruck[t.dataset.a] = +t.value; saveLS('chuster-areatruck-v1', S.areaTruck); render(); }
