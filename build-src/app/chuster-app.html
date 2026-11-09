@@ -6106,6 +6106,9 @@ const dsFix = v => (v && v.v === 3) ? Object.assign(v, v.season ? {} : { season:
 Object.assign(S, { dsched: dsFix(loadLS('chuster-dsched-v1', null)), gc: loadLS('chuster-gc-v1', {}), routeBusy: '', dstat: loadLS('chuster-dstat-v1', {}), dorder: loadLS('chuster-dorder-v1', {}), dDate: null, dTruck: 0, dStop: null, dShort: {}, dDrop: {}, dStopQ: '', drvShow: 'todo', autoRoute: {}, dSigOpen: false, dPhotos: [], drvMap: false });
 (function prune() { const cut = isoOf(TODAY - 21); let ch = false; Object.keys(S.dstat).forEach(k => { if (k.slice(0, 10) < cut) { delete S.dstat[k]; ch = true; } }); if (ch) saveLS('chuster-dstat-v1', S.dstat); })();
 const saveDstat = () => { try { localStorage.setItem('chuster-dstat-v1', JSON.stringify(S.dstat)); } catch (e) { toast('This device is full. Old photos were not saved.'); } };
+Object.assign(S, { clock: loadLS('chuster-clock-v1', {}), dcheck: loadLS('chuster-dcheck-v1', {}), dcheckOpen: false });
+const PRETRIP = ['Tires', 'Lights', 'Oil / fuel', 'Brakes', 'Load tied down'];
+const nowClock = () => { const d = new Date(); let h = d.getHours(), m = d.getMinutes(); const ap = h >= 12 ? 'PM' : 'AM'; h = h % 12 || 12; return h + ':' + String(m).padStart(2, '0') + ' ' + ap; };
 const DTRUCKS = () => { const n = Math.max(1, Math.min(4, +S.dsched.n || 1)); const T = (S.trucks.length ? S.trucks : []).slice(0, n); while (T.length < n) T.push({ name: 'Truck ' + (T.length + 1) }); return T; };
 let ddCache = null;
 // an area with months set (Country: only in the summer) has the truck only in those months
@@ -6339,8 +6342,15 @@ function renderDriver() {
     <div class="dday-opts"><button class="${date === isoOf(TODAY) ? 'on' : ''}" data-act="d-setday" data-d="${isoOf(TODAY)}">Today</button><button class="${date === isoOf(TODAY + 1) ? 'on' : ''}" data-act="d-setday" data-d="${isoOf(TODAY + 1)}">Tomorrow</button><button data-act="d-daycal">${ic('cal')} Pick</button></div>
     ${S.dDayCal ? dayGrid(date) : ''}
     <button class="dday-cancel" data-act="d-daypop" data-v="close">Cancel</button></div></div>` : '';
+  // #69 clock in/out + #88 pre-trip check
+  const ck = S.clock[date] || {}; const chk = S.dcheck[date] || {}; const chkDone = PRETRIP.every(it => chk[it]);
+  const clockBtn = !ck.in ? `<button class="btn ghost sm" data-act="d-clock" data-v="in">🕐 Clock in</button>`
+    : !ck.out ? `<span class="tag green" style="font-size:13px">🟢 In ${esc(ck.in)}</span><button class="btn ghost sm" data-act="d-clock" data-v="out">Clock out</button>`
+    : `<span class="tag grey" style="font-size:13px">🕐 ${esc(ck.in)} – ${esc(ck.out)}</span>`;
+  const checkBtn = `<button class="btn ${chkDone ? 'ghost' : 'gold'} sm" data-act="d-check-open">${chkDone ? '✅ Truck checked' : '🛻 Pre-trip check'}</button>`;
+  const checkBox = S.dcheckOpen ? `<div class="card stack" style="gap:6px;padding:10px 14px;margin-top:8px">${PRETRIP.map(it => `<label style="display:flex;gap:10px;align-items:center;font-size:15px;cursor:pointer"><input type="checkbox" ${chk[it] ? 'checked' : ''} data-act="d-check" data-i="${esc(it)}" style="width:20px;height:20px">${esc(it)}</label>`).join('')}<p class="sub" style="margin:2px 0 0">${chkDone ? 'All good — truck is checked. ✅' : 'Tick each before you roll.'}</p></div>` : '';
   return `${head('Driver', `${esc(T[t].name)}`, `<button class="btn good" data-act="d-send">Send my day to the office</button>`)}${dayPop}
-  <div class="dlv-head" style="margin-bottom:10px"><button class="dlv-date" data-act="d-daypop" data-v="open">${fmtLong(isoRd(date))} <span aria-hidden="true">▾</span></button><button class="btn ghost sm" data-act="d-day" data-d="${days[i + 1] || ''}"${days[i + 1] ? '' : ' disabled'} aria-label="Day before">‹</button><button class="btn ghost sm" data-act="d-day" data-d="${days[i - 1] || ''}"${i > 0 ? '' : ' disabled'} aria-label="Next day">›</button></div>
+  <div class="dlv-head" style="margin-bottom:10px"><button class="dlv-date" data-act="d-daypop" data-v="open">${fmtLong(isoRd(date))} <span aria-hidden="true">▾</span></button><button class="btn ghost sm" data-act="d-day" data-d="${days[i + 1] || ''}"${days[i + 1] ? '' : ' disabled'} aria-label="Day before">‹</button><button class="btn ghost sm" data-act="d-day" data-d="${days[i - 1] || ''}"${i > 0 ? '' : ' disabled'} aria-label="Next day">›</button><span style="flex:1"></span>${clockBtn}${checkBtn}</div>${checkBox}
   <section class="card" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:10px 14px">
     ${legBtns || '<span class="sub" style="margin:0">No stops with an address to navigate.</span>'}
     ${nsms ? `<a class="btn gold" href="${esc(nsms)}">💬 Text ${esc(next.o.c)}: on the way</a>` : ''}
@@ -7859,6 +7869,9 @@ document.addEventListener('click', e => {
     case 'rp-tab': S.rpTab = d.t; keep(); break;
     case 'rp-rep': S.rpRepOpen = S.rpRepOpen === d.r ? null : d.r; keep(); break;
     case 'rp-grp': S.rpItemClosed = Object.assign({}, S.rpItemClosed); S.rpItemClosed[d.g] = !S.rpItemClosed[d.g]; keep(); break;
+    case 'd-clock': { const dt = S.dDate || isoOf(TODAY); const c = Object.assign({}, S.clock[dt] || {}); if (d.v === 'in') c.in = nowClock(); else c.out = nowClock(); S.clock[dt] = c; saveLS('chuster-clock-v1', S.clock); toast(d.v === 'in' ? `Clocked in ${c.in}.` : `Clocked out ${c.out}.`); keep(); break; }
+    case 'd-check-open': S.dcheckOpen = !S.dcheckOpen; keep(); break;
+    case 'd-check': { const dt = S.dDate || isoOf(TODAY); const c = Object.assign({}, S.dcheck[dt] || {}); c[d.i] = !c[d.i]; S.dcheck[dt] = c; saveLS('chuster-dcheck-v1', S.dcheck); keep(); break; }
     case 'paste-open': S.pasteOpen = !S.pasteOpen; if (!S.pasteOpen) S.pasteText = ''; keep(); break;
     case 'paste-read': {
       const txt = (S.pasteText || '').trim(); if (!txt) { toast('Type or paste the order first.'); break; }
