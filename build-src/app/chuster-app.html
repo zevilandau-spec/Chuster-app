@@ -1476,6 +1476,86 @@ function renderProductSales() {
   <p class="sub" style="margin:0">Categories are grouped automatically from the product names. If any product is in the wrong group, tell me and I'll fix it. "vs before" compares with the same number of days just before this range.</p>`;
 }
 
+/* ---------- Scorecard: real monthly sales (clickable) + year compare ---------- */
+// customer -> continuous month list + {ym: {amt(net), nInv, refs:{ref->{q,amt}}}}
+function custMonthly(name) {
+  const data = {};
+  REAL.orders.list.forEach(o => {
+    if (o.c !== name || o.a == null) return;
+    const ym = o.d.slice(0, 7);
+    const M = data[ym] || (data[ym] = { amt: 0, nInv: 0, refs: {} });
+    M.amt += o.a; if (o.t === 'inv') M.nInv++;
+    if (o.t === 'inv' && o.l) rowsOf(o.l).forEach(([ref, q, a]) => {
+      if (typeof ref !== 'number' || !(q > 0)) return;
+      const x = M.refs[ref] || (M.refs[ref] = { q: 0, amt: 0 }); x.q += q; x.amt += a;
+    });
+  });
+  const lo = dateOf(isoRd(REAL.orders.from)), hi = dateOf(isoRd(REAL.orders.to));
+  const months = []; let y = lo.getFullYear(), m = lo.getMonth();
+  while (y < hi.getFullYear() || (y === hi.getFullYear() && m <= hi.getMonth())) {
+    months.push(y + '-' + String(m + 1).padStart(2, '0')); m++; if (m > 11) { m = 0; y++; }
+  }
+  return { months, data };
+}
+function scoMonthDrill(c, ym, M) {
+  const [yy, mm] = ym.split('-'); const title = MONS[+mm - 1] + ' ' + yy;
+  if (!M || !M.nInv) return `<div class="sco-drill"><div style="display:flex;justify-content:space-between;align-items:baseline"><b>${esc(title)}</b><button class="btn ghost sm" data-act="sco-mon" data-m="${ym}">Close</button></div><p class="sub" style="margin:6px 0 0">No orders this month.</p></div>`;
+  const prods = Object.keys(M.refs || {}).map(r => ({ r: +r, c: REAL.catalog[+r], q: M.refs[r].q, amt: M.refs[r].amt }))
+    .filter(p => p.q > 0).sort((a, b) => b.amt - a.amt);
+  const rows = prods.map(p => `<tr><td>${itName(p.c || { name: '#' + p.r })}</td><td class="num">${fn(p.q)} cs</td><td class="num">${money(p.amt)}</td></tr>`).join('');
+  return `<div class="sco-drill stack" style="gap:6px">
+    <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:6px"><b style="font-size:15px">${esc(title)} — what they took</b><span class="sub" style="margin:0">${money(M.amt || 0)} · ${fn(M.nInv)} invoice${M.nInv === 1 ? '' : 's'}</span></div>
+    <table class="mini-table">${rows || '<tr><td class="sub">No product lines this month.</td></tr>'}</table>
+    <div><button class="btn ghost sm" data-act="sco-mon" data-m="${ym}">Close</button></div></div>`;
+}
+function scoMonthChart(c) {
+  const { months, data } = custMonthly(c.name);
+  if (!months.length) return '';
+  const show = months.slice(-14);
+  const max = Math.max(1, ...show.map(ym => Math.abs((data[ym] || {}).amt || 0)));
+  const sel = (S.scoMon && show.includes(S.scoMon)) ? S.scoMon : null;
+  const cols = show.map(ym => {
+    const d = data[ym] || { amt: 0 }; const [yy, mm] = ym.split('-'); const isSel = ym === sel;
+    const bh = d.amt > 0 ? Math.max(3, Math.abs(d.amt) / max * 100) : 0;
+    return `<button class="sco-col${isSel ? ' on' : ''}" data-act="sco-mon" data-m="${ym}" aria-label="${MONS[+mm - 1]} ${yy}: ${money(d.amt || 0)}">
+      <span class="sco-colbar"><span class="sco-colfill${isSel ? ' on' : ''}" style="height:${bh.toFixed(1)}%"></span></span>
+      <span class="sco-collab">${MONS[+mm - 1]}${(mm === '01' || ym === show[0]) ? `<span class="sco-colyr">'${yy.slice(2)}</span>` : ''}</span></button>`;
+  }).join('');
+  return `<section class="card stack" style="gap:8px"><div class="card-head" style="margin:0"><h2 style="margin:0">Sales by month</h2><span class="sub" style="margin:0">tap a month to see what they took</span></div>
+    <div class="sco-bars">${cols}</div>${sel ? scoMonthDrill(c, sel, data[sel]) : ''}</section>`;
+}
+function scoYearCompare(c) {
+  const ly = c.ly || []; if (!ly.length) return '';
+  const lastQ = {}; ly.forEach(inv => (inv[2] || []).forEach(([ref, q]) => { if (typeof ref === 'number') lastQ[ref] = (lastQ[ref] || 0) + q; }));
+  const SR = storeRefs()[c.name] || { refs: {} }; const thisQ = {}; Object.keys(SR.refs).forEach(r => thisQ[+r] = SR.refs[r].q);
+  const refs = [...new Set([...Object.keys(lastQ), ...Object.keys(thisQ)].map(Number))];
+  const rows = refs.map(r => ({ r, c: REAL.catalog[r], lq: lastQ[r] || 0, tq: thisQ[r] || 0 }))
+    .sort((a, b) => (b.tq + b.lq) - (a.tq + a.lq)).slice(0, 15);
+  const body = rows.map(p => {
+    const diff = p.tq - p.lq, pct = p.lq ? Math.round(diff / p.lq * 100) : 0;
+    const tag = p.lq === 0 ? '<span style="color:var(--good-text)">new</span>'
+      : p.tq === 0 ? '<span style="color:var(--bad-text)">stopped</span>'
+        : diff > 0 ? `<span style="color:var(--good-text)">▲ ${pct}%</span>`
+          : diff < 0 ? `<span style="color:var(--bad-text)">▼ ${Math.abs(pct)}%</span>` : '—';
+    return `<tr><td>${itName(p.c || { name: '#' + p.r })}</td><td class="num">${fn(p.lq)}</td><td class="num">${fn(p.tq)}</td><td class="num">${tag}</td></tr>`;
+  }).join('');
+  return `<section class="card stack" style="gap:4px"><div class="card-head" style="margin:0"><h2 style="margin:0">This year vs last year</h2><span class="sub" style="margin:0">cases this season vs the same months a year ago</span></div>
+    <table class="mini-table"><tr><td><b>Product</b></td><td class="num"><b>Last yr</b></td><td class="num"><b>This yr</b></td><td class="num"><b>Change</b></td></tr>${body || '<tr><td colspan="4" class="sub">No year-ago orders on file.</td></tr>'}</table></section>`;
+}
+(function () { try { const st = document.createElement('style'); st.textContent = `
+.sco-bars{display:flex;align-items:stretch;gap:4px;height:150px;padding-top:6px}
+.sco-col{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;gap:4px;background:none;border:0;padding:4px 0 0;cursor:pointer;border-radius:8px;-webkit-tap-highlight-color:transparent}
+.sco-col:hover{background:var(--surface-2)}
+.sco-col.on{background:var(--surface-2)}
+.sco-colbar{width:100%;max-width:30px;flex:1;display:flex;align-items:flex-end;justify-content:center}
+.sco-colfill{width:72%;min-height:2px;background:var(--chart-a);border-radius:3px 3px 0 0;transition:height .18s ease}
+.sco-colfill.on{background:var(--gold)}
+.sco-collab{font-size:11px;color:var(--muted);line-height:1.1;text-align:center;white-space:nowrap}
+.sco-colyr{display:block;font-size:9px;opacity:.75}
+.sco-col.on .sco-collab{color:var(--text);font-weight:700}
+.sco-drill{border-top:1px solid var(--line);padding-top:10px;margin-top:2px}
+`; document.head.appendChild(st); } catch (e) { } })();
+
 /* ---------- 2. Store scorecard ---------- */
 function renderScorecard() {
   if (!REAL) return needData('Store scorecard');
@@ -1494,7 +1574,6 @@ function renderScorecard() {
   const prods = Object.keys(SR.refs).map(r => ({ r: +r, c: REAL.catalog[+r], q: SR.refs[r].q, amt: SR.refs[r].amt, last: SR.refs[r].last })).sort((a, b) => b.amt - a.amt);
   const asOf = isoRd(REAL.asOf);
   const stopped = prods.filter(p => p.c && asOf - p.last > 70 && p.q > 0).sort((a, b) => b.amt - a.amt).slice(0, 8);
-  const months = c.months || [];
   const owner = S.role === 'Owner' && IT;
   let profit = 0, costKnown = true; if (owner) prods.forEach(p => { const it = IT.list[p.r]; if (it && it.cost) profit += p.amt - it.cost * p.q; else costKnown = false; });
   const ds = c.last ? asOf - isoRd(c.last) : null;
@@ -1506,7 +1585,8 @@ function renderScorecard() {
     <div class="tile ct"><div class="k">Last order</div><div class="v" style="font-size:20px">${ds != null ? ds + ' days' : '—'}</div><div class="s">${c.gap ? 'usually every ~' + c.gap + ' days' : 'ago'}</div></div>
     ${owner ? `<div class="tile ct ct-green"><div class="k">Profit to you</div><div class="v">${fm(profit)}</div><div class="s">${costKnown ? 'all data' : 'where cost known'}</div></div>` : ''}
   </div>
-  ${months.length ? `<section class="card stack" style="gap:6px"><h2 style="margin:0">Sales by month</h2>${(() => { const vals = months.map(m => typeof m === 'number' ? m : (m && m[1]) || 0); const e = dateOf(isoRd(REAL.asOf)); const labels = []; for (let k = vals.length - 1; k >= 0; k--) { const dd = new Date(e.getFullYear(), e.getMonth() - k, 1); labels.push(MONS[dd.getMonth()] + ' ' + String(dd.getFullYear()).slice(2)); } return bkBars(vals, labels); })()}</section>` : ''}
+  ${scoMonthChart(c)}
+  ${scoYearCompare(c)}
   <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:12px">
     <section class="card stack" style="gap:4px"><h2 style="margin:0">Top products</h2><table class="mini-table">${prods.slice(0, 12).map(p => `<tr><td>${itName(p.c || { name: '#' + p.r })}</td><td class="num">${fn(p.q)} cs</td><td class="num">${fm(p.amt)}</td></tr>`).join('') || '<tr><td class="sub">No line detail yet.</td></tr>'}</table></section>
     <section class="card stack" style="gap:4px"><h2 style="margin:0">Stopped buying</h2><p class="sub" style="margin:0">bought before, nothing in 10+ weeks — worth a call</p><table class="mini-table">${stopped.map(p => `<tr><td>${itName(p.c)}</td><td class="num">${fn(p.q)} cs</td><td class="sub" style="text-align:right">${Math.round((asOf - p.last) / 7)} wks ago</td></tr>`).join('') || '<tr><td class="sub">Nothing stopped — buying steadily.</td></tr>'}</table></section>
@@ -5597,7 +5677,7 @@ function openPOSection() {
 const DLY = REAL && REAL.daily ? REAL.daily : null;
 Object.assign(S, { ms: { rep: S.user === 'Motty' ? 'All' : 'Dudi', range: 'days', area: 'All', end: null, year: null }, msMovers: false });
 Object.assign(S, { ss: { range: 'month', end: null, sort: 'sales', q: '', area: 'All' }, nlTab: 'new', nlQ: '', hbTab: 'overdue', hbQ: '', mgTab: 'best', mgQ: '', dvWeeks: 8, agTab: 'worst', scTab: 'urgent', scQ: '', psTab: 'left', psQ: '' });
-Object.assign(S, { pr: { range: '30', cat: 'All', pack: 'All', brand: 'All', metric: 'sales', q: '', from: null, to: null }, scoSel: null, scoQ: '', xsSel: null, xsQ: '', arTab: 'all', winTab: 'up', fcQ: '' });
+Object.assign(S, { pr: { range: '30', cat: 'All', pack: 'All', brand: 'All', metric: 'sales', q: '', from: null, to: null }, scoSel: null, scoQ: '', scoMon: null, xsSel: null, xsQ: '', arTab: 'all', winTab: 'up', fcQ: '' });
 Object.assign(S, { ret: { from: null, to: null } });
 const addDays = (iso, n) => isoOf(isoRd(iso) + n);
 const msYears = () => { const M = (REP && REP.months) || []; const y1 = +((M[M.length - 1] || DLY.to).slice(0, 4)); const y0 = +((M[0] || DLY.from).slice(0, 4)); const out = []; for (let y = y1; y >= y0; y--) out.push(y); return out; };
@@ -8127,8 +8207,9 @@ document.addEventListener('click', e => {
     case 'pr-pack': S.pr.pack = d.v; keep(); break;
     case 'pr-brand': S.pr.brand = d.v; keep(); break;
     case 'pr-metric': S.pr.metric = d.v; keep(); break;
-    case 'sco-pick': S.scoSel = d.n; window.scrollTo(0, 0); keep(); break;
-    case 'sco-back': S.scoSel = null; keep(); break;
+    case 'sco-pick': S.scoSel = d.n; S.scoMon = null; window.scrollTo(0, 0); keep(); break;
+    case 'sco-back': S.scoSel = null; S.scoMon = null; keep(); break;
+    case 'sco-mon': S.scoMon = (S.scoMon === d.m ? null : d.m); keep(); break;
     case 'xs-pick': S.xsSel = +d.n; window.scrollTo(0, 0); keep(); break;
     case 'xs-back': S.xsSel = null; keep(); break;
     case 'ar-tab': S.arTab = d.v; keep(); break;
