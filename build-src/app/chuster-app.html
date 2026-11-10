@@ -2261,6 +2261,7 @@ function renderHome() {
 function renderHomeRaw() {
   if (REAL) return renderHomeReal();
   const greet = (() => { const h = new Date().getHours(); return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening'; })();
+  const who = S.user || S.baseRole;
   const y25 = [.80, .84, .93, .30, .77, .71, .69, .77, 1.18, .98, .91, .96];
   const y26 = [.81, .84, .95, .30, .79, .73, .70, .79, 1.20, .30];
   const X = i => 40 + i * 58, Y = v => 230 - v * 140;
@@ -2270,10 +2271,10 @@ function renderHomeRaw() {
   const kindNote = kind.kind === 'closed' ? ` Today is ${kind.label}, so the office is closed.` : kind.kind === 'short' ? ` Today is ${kind.label}: short day.` : '';
   return `
   ${head('Dashboard', todayLine(), `<span class="tag green">${ic('check')} QuickBooks synced</span><a class="btn ghost" href="#payments" data-go="payments">Payments</a><a class="btn primary" href="#order" data-go="order">+ New order</a>`)}
-  <!--@brief--><div class="brief"><strong>${greet}, Zevi.</strong> Yesterday: <a href="#order" data-go="order">$22K in 26 invoices</a>. Today: <a href="#loading" data-go="loading">34 orders on 4 trucks</a>. <span class="red">$1.65M</span> is over 60 days. <a href="#inventory" data-go="inventory" class="red">46 items are below zero</a>, <a href="#inventory" data-go="inventory">8 are low in stock</a>, and 45 stores are late to reorder. <a href="#inbox" data-go="inbox">${S.inbox.filter(x => x.st !== 'added').length} new orders</a> came in by WhatsApp and email, and <a href="#payments" data-go="payments">${S.payments.filter(p => p.st !== 'applied').length} payments</a> are waiting to be applied.${kindNote}</div>
+  <!--@brief--><div class="brief"><strong>${greet}, ${esc(who)}.</strong> Yesterday: <a href="#order" data-go="order">$22K in 26 invoices</a>. Today: <a href="#loading" data-go="loading">34 orders on 4 trucks</a>. <span class="red">$1.65M</span> is over 60 days. <a href="#inventory" data-go="inventory" class="red">46 items are below zero</a>, <a href="#inventory" data-go="inventory">8 are low in stock</a>, and 45 stores are late to reorder. <a href="#inbox" data-go="inbox">${S.inbox.filter(x => x.st !== 'added').length} new orders</a> came in by WhatsApp and email, and <a href="#payments" data-go="payments">${S.payments.filter(p => p.st !== 'applied').length} payments</a> are waiting to be applied.${kindNote}</div>
 
   <!--@hero--><div class="hero">
-    <div class="who"><span><b>Hi Zevi</b><small>296 stores</small></span></div>
+    <div class="who"><span><b>Hi ${esc(who)}</b><small>296 stores</small></span></div>
     <div class="goal">
       <svg width="84" height="84" viewBox="0 0 84 84" role="img" aria-label="26% of October goal">
         <circle cx="42" cy="42" r="36" fill="none" stroke="rgba(255,255,255,0.18)" stroke-width="8"/>
@@ -3286,6 +3287,7 @@ function renderHomeReal() {
   const D = REAL;
   const CY = +D.asOf.slice(0, 4), PY = CY - 1, PPY = CY - 2, CM = +D.asOf.slice(5, 7) - 1, MN = MON[CM];
   const greet = (() => { const h = new Date().getHours(); return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening'; })();
+  const who = S.user || S.baseRole;
   const t = D.ar.totals; const past = t[1] + t[2] + t[3] + t[4]; const over60 = t[3] + t[4];
   const prevRd = isoRd(D.prevDay.date);
   const g = pct(D.ytd, D.ytdPrev);
@@ -3312,10 +3314,10 @@ function renderHomeReal() {
   ${S.wkOpen ? weeklyCard() : ''}
   ${S.sumOpen ? summaryCard() : ''}
   ${homeTrucks()}
-  <!--@brief--><div class="brief"><strong>${greet}, Zevi.</strong> On ${fmtShort(prevRd)}: <a href="#orders" data-go="orders"><strong>${fm(D.prevDay.amount)} in ${D.prevDay.count} invoices</strong></a>. This year so far: <strong>${fm(D.ytd)}</strong>, ${sgn(g)} vs the same days last year. Stores owe <strong>${fm(D.ar.total)}</strong>, and <a href="#customers" data-act="go-cust" data-f="owe" class="red">${fm(past)} of it is past due</a>. <a href="#inventory" data-act="go-inv" data-f="zero" class="red">${D.counts.belowZero} items are below zero</a>${D.counts.low ? `, <a href="#inventory" data-act="go-inv" data-f="low">${D.counts.low} are under their reorder point</a>` : ''}, and <a href="#customers" data-act="go-cust" data-f="late">${D.counts.late} stores are later than usual to reorder</a>.</div>
+  <!--@brief--><div class="brief"><strong>${greet}, ${esc(who)}.</strong> On ${fmtShort(prevRd)}: <a href="#orders" data-go="orders"><strong>${fm(D.prevDay.amount)} in ${D.prevDay.count} invoices</strong></a>. This year so far: <strong>${fm(D.ytd)}</strong>, ${sgn(g)} vs the same days last year. Stores owe <strong>${fm(D.ar.total)}</strong>, and <a href="#customers" data-act="go-cust" data-f="owe" class="red">${fm(past)} of it is past due</a>. <a href="#inventory" data-act="go-inv" data-f="zero" class="red">${D.counts.belowZero} items are below zero</a>${D.counts.low ? `, <a href="#inventory" data-act="go-inv" data-f="low">${D.counts.low} are under their reorder point</a>` : ''}, and <a href="#customers" data-act="go-cust" data-f="late">${D.counts.late} stores are later than usual to reorder</a>.</div>
 
   <!--@hero--><div class="hero">
-    <div class="who"><span><b>Hi Zevi</b><small>${D.counts.activeCustomers} active customers</small></span></div>
+    <div class="who"><span><b>Hi ${esc(who)}</b><small>${D.counts.activeCustomers} active customers</small></span></div>
     <div class="goal">
       <svg width="84" height="84" viewBox="0 0 84 84" role="img" aria-label="${MN} so far is ${octPct}% of all of ${MN} ${PY}">
         <circle cx="42" cy="42" r="36" fill="none" stroke="rgba(255,255,255,0.18)" stroke-width="8"/>
