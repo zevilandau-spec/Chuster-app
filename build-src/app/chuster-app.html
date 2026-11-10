@@ -1626,7 +1626,7 @@ function renderCrossSell() {
 
 /* ---------- 4. Salesman scorecard (owner) ---------- */
 function renderRepScore() {
-  if (S.role !== 'Owner') return head('Salesman scorecard', '') + '<section class="card"><p class="sub" style="margin:0">Only the owner sees this.</p></section>';
+  if (S.role !== 'Owner' && !officePlus()) return head('Salesman scorecard', '') + '<section class="card"><p class="sub" style="margin:0">Only the owner sees this.</p></section>';
   if (!REAL) return needData('Salesman scorecard');
   const names = (REAL.repNames || {});
   const by = {};
@@ -1920,6 +1920,37 @@ function renderSalesReport() {
 `; document.head.appendChild(st); } catch (e) { } })();
 
 
+function renderActivity() {
+  if (!isZevi()) return head('Activity', '') + '<section class="card"><p class="sub" style="margin:0">Only you see this page.</p></section>';
+  const t12 = ms => { const d = new Date(ms); let h = d.getHours(); const m = d.getMinutes(); const ap = h < 12 ? 'AM' : 'PM'; h = h % 12 || 12; return h + ':' + String(m).padStart(2, '0') + ' ' + ap; };
+  const dayIso = ms => { const d = new Date(ms); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
+  const actLabel = k => k === 'open' ? 'Opened the app' : 'Opened ' + ((VIEWS[k] && VIEWS[k].title) || k);
+  let events = Object.values(S.activity || {}).filter(a => a && a.at).sort((a, b) => b.at - a.at);
+  const users = [...new Set(events.map(a => a.u))].sort();
+  const sel = S.avUser && users.includes(S.avUser) ? S.avUser : null;
+  if (sel) events = events.filter(a => a.u === sel);
+  const todIso = isoOf(TODAY);
+  const todays = Object.values(S.activity || {}).filter(a => a && a.at && dayIso(a.at) === todIso);
+  const opensToday = todays.filter(a => a.k === 'open').length;
+  const peopleToday = new Set(todays.map(a => a.u)).size;
+  // group (already-sorted) events by day
+  const groups = []; const gi = {};
+  events.slice(0, 400).forEach(a => { const di = dayIso(a.at); if (gi[di] == null) { gi[di] = groups.length; groups.push([di, []]); } groups[gi[di]][1].push(a); });
+  const body = groups.map(([di, list]) => {
+    const rd = isoRd(di); const hdr = di === todIso ? 'Today' : fmtShort(rd);
+    const rows = list.map(a => `<div style="display:flex;align-items:baseline;gap:10px;padding:6px 0;border-top:1px solid var(--line)">
+      <span class="num" style="width:74px;flex:none;font-size:13px;color:var(--muted)">${t12(a.at)}</span>
+      <span style="flex:1;min-width:0"><b>${esc(a.u || '?')}</b>${a.r && a.r !== a.u ? ` <span class="sub" style="font-size:12px">${esc(a.r)}</span>` : ''} <span style="color:var(--muted)">— ${esc(actLabel(a.k))}</span></span></div>`).join('');
+    return `<section class="card stack" style="gap:0"><div class="card-head" style="margin:0 0 2px"><h2 style="margin:0;font-size:15px">${esc(hdr)}</h2><span class="sub" style="margin:0">${list.length} action${list.length === 1 ? '' : 's'}</span></div>${rows}</section>`;
+  }).join('');
+  const chips = `<div class="chips" style="margin-bottom:4px"><button class="chip" data-act="av-user" data-u="" aria-pressed="${!sel}">Everyone</button>${users.map(u => `<button class="chip" data-act="av-user" data-u="${esc(u)}" aria-pressed="${sel === u}">${esc(u)}</button>`).join('')}</div>`;
+  return `${head('Activity', 'Who opened the app, when, and what they looked at — only you see this')}
+  <div class="tiles"><div class="tile ct ct-blue"><div class="k">Opened today</div><div class="v">${fn(opensToday)}</div><div class="s">times the app was unlocked</div></div>
+    <div class="tile ct ct-gold"><div class="k">People today</div><div class="v">${fn(peopleToday)}</div><div class="s">different logins</div></div></div>
+  ${users.length ? chips : ''}
+  ${body || '<section class="card"><p class="sub" style="margin:0">No activity recorded yet. As people open the app, it shows up here. Keeps the last 60 days.</p></section>'}
+  <p class="sub" style="margin:0">Each time someone unlocks the app it logs their name and the time, and notes the screens they open (at most once every few minutes per screen). It's fair to let staff know the app keeps a log.</p>`;
+}
 const VIEWS = {
   home: { title: 'Dashboard', r: renderHome },
   order: { title: 'New order', r: renderOrder },
@@ -1945,6 +1976,7 @@ const VIEWS = {
   dsched: { title: 'Delivery days', r: () => renderDSched() },
   delivstats: { title: 'Delivery stats', r: renderDelivStats },
   tools: { title: 'Tools', r: renderTools },
+  activity: { title: 'Activity', r: renderActivity },
   inbox: { title: 'Incoming orders', r: renderInbox },
   payments: { title: 'Payments', r: renderPayments },
   packlog: { title: 'Pack log', r: renderPackLog },
@@ -2013,6 +2045,10 @@ const TABS = [['home', 'Home', 'home'], ['orders', 'Orders', 'order'], ['route',
 (function () { const r = String(window.CHUSTER_ROLE || 'Owner').split(':'); S.baseRole = r[0]; S.user = r[1] || ({ Owner: 'Zevi' }[r[0]] || r[0]); S.realUser = S.user; })();
 if (S.baseRole !== 'Owner') S.role = S.baseRole;
 const byName = () => S.user || S.baseRole;
+// Joel: an Office login that Zevi also gave the money screens + Tools (still no Finance/books money pages).
+const officePlus = () => S.role === 'Office' && S.realUser === 'Joel';
+// Only Zevi (not the other owners) sees the private Activity log.
+const isZevi = () => S.baseRole === 'Owner' && S.realUser === 'Zevi';
 try { S.lang = localStorage.getItem('chuster-lang') || 'en'; } catch (e) { S.lang = 'en'; }
 const ROLE_VIEWS = {
   Warehouse: ['ask', 'catalog', 'packnext', 'packing', 'stockcover', 'packlog', 'packrep', 'yield', 'inventory', 'prodplan', 'ordernow', 'reorder', 'plan', 'margin', 'loading', 'loadlist', 'calendar', 'stockmoves', 'polist'],
@@ -2026,7 +2062,12 @@ function myRepCodes() { const p = (S.repCfg && S.repCfg.people || {})[S.user]; r
 const salesLocked = () => isSales() && !!myRepCodes();
 const custMine = c => !salesLocked() || (!!c && myRepCodes().includes(c.rep || '—'));
 const custMineName = n => !salesLocked() || custMine(custByName(n));
-const allowed = v => S.role === 'Owner' ? true : S.role === 'Office' ? !['tools', 'custprofit', 'finance', 'expenses', 'bank', 'journal', 'accounts', 'margin', 'repscore'].includes(v) : (ROLE_VIEWS[S.role] || []).includes(v);
+const allowed = v => {
+  if (v === 'activity') return isZevi();
+  if (S.role === 'Owner') return true;
+  if (S.role === 'Office') { const deny = officePlus() ? ['finance', 'expenses', 'bank', 'journal', 'accounts'] : ['tools', 'custprofit', 'finance', 'expenses', 'bank', 'journal', 'accounts', 'margin', 'repscore']; return !deny.includes(v); }
+  return (ROLE_VIEWS[S.role] || []).includes(v);
+};
 const roleHome = () => S.role === 'Warehouse' ? 'packnext' : S.role === 'Driver' ? 'route' : isSales() ? 'mysales' : 'home';
 const YI = { 'Dashboard': 'הויפט בלאט', 'Ask the portal': 'פרעג די אפּ', 'Ask AI': 'פרעג AI', 'Ask AI ✨': 'פרעג AI ✨', 'Ask': 'פרעג', 'Orders': 'ארדערס', 'New order': 'נייע ארדער', '+ New order': '+ נייע ארדער', 'Incoming orders': 'אריינקומענדיגע ארדערס', 'Payments': 'באצאלונגען',
   'Customers': 'קאסטומערס', 'Collections': 'איינמאנען געלט', 'Products & profit': 'פראדוקטן און פראפיט', 'Sales by rep & commission': 'סעילס לויט רעפּ', 'Sales by rep': 'סעילס לויט רעפּ', 'Yom Tov list': 'יום טוב ליסטע', 'Chanuka': 'חנוכה', 'Purim': 'פורים', 'Pesach': 'פסח', 'After Pesach': 'נאך פסח', 'Shavuos': 'שבועות', 'Rosh Hashana': 'ראש השנה', 'Yom Tov reorder list': 'יום טוב ליסטע',
@@ -2046,7 +2087,7 @@ function drawChrome() {
   document.getElementById('nav').innerHTML = NAV2.map(g => (g.h ? `<h3>${tr(g.h)}</h3>` : '') + g.items.map(([v, label, icon, count]) =>
     v ? `<a href="#${v}" data-go="${v}"${S.view === v ? ' aria-current="page"' : ''}>${ic(icon)}${tr(label)}${cnt(count) ? `<span class="count">${cnt(count)}</span>` : ''}</a>`
       : `<a href="#${S.view}" data-act="soon" data-name="${label}">${ic(icon)}${tr(label)}<span class="soon">SOON</span></a>`).join('')).join('')
-    + (S.role === 'Owner' ? `<h3>${tr('ONLY YOU SEE THIS')}</h3><a href="#tools" data-go="tools"${S.view === 'tools' ? ' aria-current="page"' : ''}>${ic('tools')}${tr('Tools')}</a>` : '');
+    + ((S.role === 'Owner' || officePlus()) ? `<h3>${tr(S.role === 'Owner' ? 'ONLY YOU SEE THIS' : 'Tools')}</h3>${isZevi() ? `<a href="#activity" data-go="activity"${S.view === 'activity' ? ' aria-current="page"' : ''}>${ic('clock')}${tr('Activity')}</a>` : ''}<a href="#tools" data-go="tools"${S.view === 'tools' ? ' aria-current="page"' : ''}>${ic('tools')}${tr('Tools')}</a>` : '');
   const TN = [
     ['home', 'Dashboard'],
     ['finance', 'Finance'],
@@ -2069,9 +2110,9 @@ function drawChrome() {
   <div class="tn-right"><div class="tn-date">${fmtShort(TODAY)}<br>${hebStr(TODAY, false)}</div>
     ${allowed('ask') ? `<a class="btn gold sm" href="#ask" data-go="ask">${ic('chat')}${tr('Ask')}</a>` : ''}
     ${allowed('order') ? `<a class="btn primary sm tn-hide" href="#order" data-go="order" style="background:#FFFFFF;color:var(--brand-text)">${tr('+ New order')}</a>` : ''}
-    ${S.role === 'Owner' ? `<button class="icon-btn" data-go="tools" aria-label="Tools"><svg viewBox="0 0 24 24"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18v3h3l6.3-6.3a4 4 0 0 0 5.4-5.4l-2.5 2.5-2.4-.6-.6-2.4z"/></svg></button>` : ''}
+    ${(S.role === 'Owner' || officePlus()) ? `<button class="icon-btn" data-go="tools" aria-label="Tools"><svg viewBox="0 0 24 24"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18v3h3l6.3-6.3a4 4 0 0 0 5.4-5.4l-2.5 2.5-2.4-.6-.6-2.4z"/></svg></button>` : ''}
     <button class="icon-btn" data-act="menu" aria-label="More: everything, settings, lock"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button></div>`;
-  document.getElementById('top-tools').hidden = S.role !== 'Owner';
+  document.getElementById('top-tools').hidden = S.role !== 'Owner' && !officePlus();
   document.getElementById('role').value = S.role;
   document.getElementById('role-box').hidden = S.baseRole !== 'Owner';
   const lb = document.getElementById('lang-btn'); if (lb) lb.textContent = S.lang === 'yi' ? 'English' : 'אידיש (Yiddish)';
@@ -2089,7 +2130,8 @@ function drawChrome() {
 }
 function go(v, keepScroll) { S.lxSheet = null; S.tileView = null;
   if (!VIEWS[v]) v = 'home';
-  if (v === 'tools' && S.role !== 'Owner') v = 'home';
+  if (v === 'tools' && S.role !== 'Owner' && !officePlus()) v = 'home';
+  if (v === 'activity' && !isZevi()) v = 'home';
   if (!allowed(v)) v = roleHome();
   // Leaving New Order for another screen starts the next order fresh (clear the store and items).
   if (S.view === 'order' && v !== 'order') {
@@ -2097,6 +2139,7 @@ function go(v, keepScroll) { S.lxSheet = null; S.tileView = null;
     S.orderShip = null; S.orderLoc = null; S.storeOpen = false; S.storeQ = ''; S.lyPick = null; S.creditOk = null; S.shipCalOpen = false; S.orderStep = 'build';
   }
   S.view = v;
+  if (typeof logActivity === 'function') logActivity(v);
   closeMenu();
   render();
   // Add a history entry per screen so the phone's back-swipe / back button returns to the
@@ -3175,7 +3218,7 @@ function renderTools() {
         <button class="btn ghost sm" data-act="dash-move" data-i="${i}" data-d="-1" aria-label="Move ${esc(d.label)} up"${i === 0 ? ' disabled' : ''}>↑</button>
         <button class="btn ghost sm" data-act="dash-move" data-i="${i}" data-d="1" aria-label="Move ${esc(d.label)} down"${i === S.dash.length - 1 ? ' disabled' : ''}>↓</button></div>`).join('')}
     </section>`;
-  return `${head('Tools', 'Add and change things in your app. Only you see this page.')}
+  return `${head('Tools', 'Add and change things in your app. Owners and Joel see this page.')}
   <div class="note">For now, what you add here is saved on this device only. In the real app it saves for everyone, and new products and stores go into QuickBooks too.</div>
   <div class="chips" role="group" aria-label="Tools section">${tabs.map(([k, l]) => `<button class="chip" data-act="tools-tab" data-t="${k}" aria-pressed="${t === k}">${l}</button>`).join('')}</div>
   ${body}`;
@@ -3957,7 +4000,7 @@ const KIND_NAME = { r: 'Retail', w: 'Wholesale' };
 const KIND_SUB = { r: 'packs for stores', w: 'loose bulk cases' };
 function renderMargin() {
   if (!REAL || !IT) return needData('Margins');
-  if (S.role !== 'Owner') return head('Margins', '') + '<section class="card"><p class="sub" style="margin:0">Only the owner can see margins.</p></section>';
+  if (S.role !== 'Owner' && !officePlus()) return head('Margins', '') + '<section class="card"><p class="sub" style="margin:0">Only the owner can see margins.</p></section>';
   const kind = S.itKind || 'r';
   const all = itRows().filter(r => r.o.kind === kind && r.amt > 0 && r.cost != null);
   const totSales = all.reduce((s, r) => s + r.amt, 0), totProfit = all.reduce((s, r) => s + r.profit, 0);
@@ -5057,7 +5100,7 @@ function custProfit() {
 }
 function renderCustProfit() {
   if (!REAL || !HIST || !REP || !IT) return needData('Profit by store');
-  if (S.role !== 'Owner') return head('Profit by store', '') + '<p class="sub">Only the owner sees profit.</p>';
+  if (S.role !== 'Owner' && !officePlus()) return head('Profit by store', '') + '<p class="sub">Only the owner sees profit.</p>';
   const L = custProfit(); const srt = { profit: (x, y) => (y.estProfit || 0) - (x.estProfit || 0), margin: (x, y) => (y.margin == null ? -9 : y.margin) - (x.margin == null ? -9 : x.margin), low: (x, y) => (x.margin == null ? 9 : x.margin) - (y.margin == null ? 9 : y.margin), sales: (x, y) => y.sales - x.sales };
   L.sort(srt[S.cpSort] || srt.profit);
   const cov = L.reduce((s, x) => s + x.covSales, 0) / Math.max(1, L.reduce((s, x) => s + x.sales, 0));
@@ -6640,7 +6683,7 @@ const SYNC = (function () {
     if (!viaApp && onNetlify && e && e.name === 'TypeError') { viaApp = true; try { localStorage.setItem('chuster-db-via-app', '1'); } catch (x) { /* ignore */ } setTimeout(() => tick(), 500); }
   }
   const st = { ok: null, err: '', last: 0, since: loadLS('chuster-sync-since', {}), out: loadLS('chuster-sync-out', {}), seen: {}, key: null, flushing: false, pulling: false, started: false };
-  const COLLS = ['gc', 'ds', 'rd', 'll', 'do', 'sc', 'tr', 'lq', 'ls', 'lm', 'lx', 'lh', 'qi', 'qo', 'qc', 'qs', 'qp', 'qh', 'qw', 'qr', 'ps', 'pp', 'pn', 'pq', 'sx', 'sl', 'vn', 'pt', 'cv', 'cg', 'df', 'cut'];
+  const COLLS = ['gc', 'ds', 'rd', 'll', 'do', 'sc', 'tr', 'lq', 'ls', 'lm', 'lx', 'lh', 'qi', 'qo', 'qc', 'qs', 'qp', 'qh', 'qw', 'qr', 'ps', 'pp', 'pn', 'pq', 'sx', 'sl', 'vn', 'pt', 'cv', 'cg', 'df', 'cut', 'av'];
   const h = s => { let a = 0x811c9dc5, b = 0x9e3779b9; for (let i = 0; i < s.length; i++) { const c = s.charCodeAt(i); a = Math.imul(a ^ c, 16777619) >>> 0; b = Math.imul(b ^ c, 2246822519) >>> 0; } return a.toString(36) + b.toString(36); };
   const b64 = u8 => { let s = ''; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); return btoa(s); };
   const unb64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -6970,6 +7013,25 @@ function proofCard() {
     ${p.loading ? '<p class="sub" style="margin:0">Loading…</p>' : p.err ? `<p class="sub" style="margin:0;color:var(--bad-text)">${esc(p.err)}</p>` : `<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-start">${p.sig ? `<img src="${p.sig}" alt="Signature" style="height:110px;background:#fff;border-radius:8px;border:1px solid var(--line)">` : ''}${(p.photos || []).map((u, i) => `<img src="${u}" alt="Photo ${i + 1}" style="max-height:220px;border-radius:8px">`).join('')}${!p.sig && !(p.photos || []).length ? '<span class="sub">No signature or photo for this stop.</span>' : ''}</div>`}</section>`;
 }
 SYNC.start();
+
+/* ================= Activity log: who opened the app, when, and which screens (only Zevi sees it) ================= */
+// Each record: { u:user, r:role, at:ms, k:'open' | <view name> }. Shared through the encrypted database like everything else.
+S.activity = loadLS('chuster-activity-v1', {});
+const saveActivity = () => { try { localStorage.setItem('chuster-activity-v1', JSON.stringify(S.activity)); } catch (e) { /* full */ } };
+function pruneActivity() { const cutMs = Date.now() - 60 * 864e5; let ch = false; for (const id of Object.keys(S.activity)) { const a = S.activity[id]; if (!a || !(a.at > cutMs)) { delete S.activity[id]; ch = true; } } if (ch) saveActivity(); }
+SYNC.on('av', (k, val) => { if (val == null) delete S.activity[k]; else S.activity[k] = val; saveActivity(); });
+let avSeen = {}; // throttle screen logging this session
+function logActivity(kind) {
+  try {
+    if (!SYNC.ready()) return;
+    const now = Date.now();
+    if (kind !== 'open') { const last = avSeen[kind] || 0; if (now - last < 5 * 60 * 1000) return; avSeen[kind] = now; }
+    const key = isoOf(TODAY) + '|' + (S.realUser || S.baseRole) + '|' + kind + '|' + now.toString(36) + Math.floor(Math.random() * 1e4).toString(36);
+    SYNC.put('av', key, { u: S.realUser || S.baseRole, r: S.baseRole, at: now, k: kind });
+  } catch (e) { /* never let logging break the app */ }
+}
+pruneActivity();
+setTimeout(() => logActivity('open'), 1800); // after SYNC has connected
 
 /* ================= events ================= */
 /* ================= Loading: by stop or by item, ship types, the crew's loading day, counts shared with every phone ================= */
@@ -8210,6 +8272,7 @@ document.addEventListener('click', e => {
     case 'sco-pick': S.scoSel = d.n; S.scoMon = null; window.scrollTo(0, 0); keep(); break;
     case 'sco-back': S.scoSel = null; S.scoMon = null; keep(); break;
     case 'sco-mon': S.scoMon = (S.scoMon === d.m ? null : d.m); keep(); break;
+    case 'av-user': S.avUser = d.u || null; keep(); break;
     case 'xs-pick': S.xsSel = +d.n; window.scrollTo(0, 0); keep(); break;
     case 'xs-back': S.xsSel = null; keep(); break;
     case 'ar-tab': S.arTab = d.v; keep(); break;
