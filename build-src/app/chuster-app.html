@@ -1925,11 +1925,22 @@ function renderActivity() {
   const t12 = ms => { const d = new Date(ms); let h = d.getHours(); const m = d.getMinutes(); const ap = h < 12 ? 'AM' : 'PM'; h = h % 12 || 12; return h + ':' + String(m).padStart(2, '0') + ' ' + ap; };
   const dayIso = ms => { const d = new Date(ms); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
   const actLabel = k => k === 'open' ? 'Opened the app' : 'Opened ' + ((VIEWS[k] && VIEWS[k].title) || k);
+  const todIso = isoOf(TODAY);
   let events = Object.values(S.activity || {}).filter(a => a && a.at).sort((a, b) => b.at - a.at);
   const users = [...new Set(events.map(a => a.u))].sort();
+  // date range
+  const pr = S.avRange || 'all'; let fromIso = null, toIso = null;
+  if (pr === 'today') { fromIso = toIso = todIso; }
+  else if (pr === '7') { fromIso = isoOf(TODAY - 6); toIso = todIso; }
+  else if (pr === '30') { fromIso = isoOf(TODAY - 29); toIso = todIso; }
+  else if (pr === 'custom') { fromIso = S.avFrom || isoOf(TODAY - 6); toIso = S.avTo || todIso; if (fromIso > toIso) { const t = fromIso; fromIso = toIso; toIso = t; } }
+  if (fromIso) events = events.filter(a => { const di = dayIso(a.at); return di >= fromIso && di <= toIso; });
+  const presets = [['today', 'Today'], ['7', 'Last 7 days'], ['30', 'Last 30 days'], ['all', 'All'], ['custom', 'Pick dates']];
+  const dateBar = `<div class="chips" role="group" aria-label="Dates" style="margin-bottom:6px">${presets.map(([k, l]) => `<button class="chip" data-act="av-range" data-p="${k}" aria-pressed="${pr === k}">${l}</button>`).join('')}</div>${pr === 'custom' ? `<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:end;margin-bottom:6px">
+    <label class="stack" style="gap:3px"><span class="eyebrow">From</span><input type="date" id="av-from" value="${esc(fromIso)}" max="${todIso}" style="border:1px solid var(--line);border-radius:8px;padding:7px"></label>
+    <label class="stack" style="gap:3px"><span class="eyebrow">To</span><input type="date" id="av-to" value="${esc(toIso)}" max="${todIso}" style="border:1px solid var(--line);border-radius:8px;padding:7px"></label></div>` : ''}`;
   const sel = S.avUser && users.includes(S.avUser) ? S.avUser : null;
   if (sel) events = events.filter(a => a.u === sel);
-  const todIso = isoOf(TODAY);
   const todays = Object.values(S.activity || {}).filter(a => a && a.at && dayIso(a.at) === todIso);
   const opensToday = todays.filter(a => a.k === 'open').length;
   const peopleToday = new Set(todays.map(a => a.u)).size;
@@ -1947,8 +1958,9 @@ function renderActivity() {
   return `${head('Activity', 'Who opened the app, when, and what they looked at — only you see this')}
   <div class="tiles"><div class="tile ct ct-blue"><div class="k">Opened today</div><div class="v">${fn(opensToday)}</div><div class="s">times the app was unlocked</div></div>
     <div class="tile ct ct-gold"><div class="k">People today</div><div class="v">${fn(peopleToday)}</div><div class="s">different logins</div></div></div>
+  ${dateBar}
   ${users.length ? chips : ''}
-  ${body || '<section class="card"><p class="sub" style="margin:0">No activity recorded yet. As people open the app, it shows up here. Keeps the last 60 days.</p></section>'}
+  ${body || `<section class="card"><p class="sub" style="margin:0">${Object.keys(S.activity || {}).length ? 'No activity in these dates — try a wider range or “All”.' : 'No activity recorded yet. As people open the app, it shows up here. Keeps the last 60 days.'}</p></section>`}
   <p class="sub" style="margin:0">Each time someone unlocks the app it logs their name and the time, and notes the screens they open (at most once every few minutes per screen). It's fair to let staff know the app keeps a log.</p>`;
 }
 const VIEWS = {
@@ -8273,6 +8285,7 @@ document.addEventListener('click', e => {
     case 'sco-back': S.scoSel = null; S.scoMon = null; keep(); break;
     case 'sco-mon': S.scoMon = (S.scoMon === d.m ? null : d.m); keep(); break;
     case 'av-user': S.avUser = d.u || null; keep(); break;
+    case 'av-range': S.avRange = d.p; if (d.p === 'custom') { S.avFrom = S.avFrom || isoOf(TODAY - 6); S.avTo = S.avTo || isoOf(TODAY); } keep(); break;
     case 'xs-pick': S.xsSel = +d.n; window.scrollTo(0, 0); keep(); break;
     case 'xs-back': S.xsSel = null; keep(); break;
     case 'ar-tab': S.arTab = d.v; keep(); break;
@@ -8518,6 +8531,8 @@ document.addEventListener('input', e => {
   if (e.target.id === 'paste-order') { S.pasteText = e.target.value; return; }
   if (e.target.id === 'sig-name') { S.proof.sigName = e.target.value; return; }
   if (e.target.id === 'bh-note') { const dt = S.dDate || isoOf(TODAY); S.backhaul[dt] = e.target.value; saveLS('chuster-backhaul-v1', S.backhaul); return; }
+  if (e.target.id === 'av-from') { if (e.target.value) { S.avFrom = e.target.value; S.avRange = 'custom'; render(); } return; }
+  if (e.target.id === 'av-to') { if (e.target.value) { S.avTo = e.target.value; S.avRange = 'custom'; render(); } return; }
   if (e.target.id === 'rp-from') { if (e.target.value) { S.rpFrom = isoRd(e.target.value); S.rpPreset = 'custom'; render(); } return; }
   if (e.target.id === 'rp-to') { if (e.target.value) { S.rpTo = isoRd(e.target.value); S.rpPreset = 'custom'; render(); } return; }
   if (e.target.id === 'ord-q') { S.ordQ = e.target.value; const ol = document.getElementById('ord-list'); if (ol) ol.innerHTML = ordList(); return; }
