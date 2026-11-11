@@ -1148,7 +1148,7 @@ const S = {
     { name: 'Sourdough Pretzel Crunchies', code: 66, pack: '84 x 1oz', stock: 40, qty: 8 }
   ],
   lastOrder: [12, 6, 6, 8, 10],
-  invFilter: 'zero', invEdit: null, invQ: '', invGroupBy: 'brand', reorder: ['Chuster Sm. Flakes', 'Chuster Barley'],
+  invFilter: 'allprod', invEdit: null, invQ: '', invGroupBy: 'product', invSel: null, countMode: false, countDraft: {}, reorder: ['Chuster Sm. Flakes', 'Chuster Barley'],
   inv: [
     { name: 'Chuster Sm. Flakes', brand: 'Chuster', onHand: -12, reorderAt: 40, why: 'Sold before a delivery was received' },
     { name: 'Chuster Barley', brand: 'Chuster', onHand: -4, reorderAt: 40, why: 'Not counted in 3 weeks' },
@@ -2675,6 +2675,26 @@ function shipCal(selIso, autoIso) {
 }
 
 function invStatus(r) { return r.onHand < 0 ? 'zero' : r.onHand < r.reorderAt ? 'low' : 'ok'; }
+// --- Inventory velocity: how much of one product sells today / this week / a usual week ---
+function invVelocity(full) {
+  if (!REAL || !full || !REAL.orders) return { today: 0, week: 0, usualWk: 0, days: null };
+  const todayIso = isoOf(TODAY), wkStart = isoOf(TODAY - dow(TODAY)), d28 = isoOf(TODAY - 27);
+  let today = 0, week = 0, s28 = 0;
+  (REAL.orders.list || []).forEach(o => { if (o.t !== 'inv' || !o.l) return; rowsOf(o.l).forEach(([r, q]) => {
+    if (typeof r !== 'number' || !(q > 0)) return; const c = REAL.catalog[r]; if (!c || c.full !== full) return;
+    if (o.d === todayIso) today += q; if (o.d >= wkStart) week += q; if (o.d >= d28) s28 += q;
+  }); });
+  return { today, week, usualWk: s28 / 4 };
+}
+// --- Orders placed in the app that aren't in QuickBooks yet, summed by product (full name) ---
+function pendingByFull() {
+  const m = {};
+  Object.values(S.qw || {}).forEach(r => { if (!r || r.kind !== 'inv') return; if (r.st === 'done' || r.st === 'error' || r.st === 'void') return;
+    (r.lines || []).forEach(l => { const full = l[0], q = +l[1] || 0; if (!full || q <= 0) return; m[full] = (m[full] || 0) + q; }); });
+  return m;
+}
+// stock the app shows for a product, after subtracting app orders not yet in QuickBooks
+function stockLeft(full, baseStock) { const pend = pendingByFull()[full] || 0; return { base: baseStock, pend, left: baseStock - pend }; }
 function renderInventory() {
   const zero = S.inv.filter(r => !OFF_NAMES.has(r.name)).filter(r => invStatus(r) === 'zero').length;
   const low = S.inv.filter(r => !OFF_NAMES.has(r.name)).filter(r => invStatus(r) === 'low').length;
@@ -2691,20 +2711,40 @@ function renderInventory() {
     let items = S.catalog.filter(p => !p.off && !OFF_NAMES.has(p.name) && typeof p.stock === 'number')
       .filter(p => { const k = (p.code || '') + '|' + p.name; if (seen[k]) return false; seen[k] = 1; return true; });
     if (q) items = items.filter(p => (p.name + ' ' + (p.code || '') + ' ' + (p.brand || '')).toLowerCase().includes(q));
+    const counting = S.countMode;
+    const velPanel = p => { const v = invVelocity(p.full); const sl = stockLeft(p.full, p.stock); const perDay = v.usualWk / 7; const days = perDay > 0 ? Math.round(sl.left / perDay) : null;
+      return `<div class="ivel"><div class="ivel-g">
+        <div><span class="ivel-k">Today</span><span class="ivel-v">${fn(v.today)}</span><span class="ivel-s">cases out</span></div>
+        <div><span class="ivel-k">This week</span><span class="ivel-v">${fn(v.week)}</span><span class="ivel-s">so far</span></div>
+        <div><span class="ivel-k">Usual week</span><span class="ivel-v">${fn(Math.round(v.usualWk))}</span><span class="ivel-s">avg last 4 wks</span></div>
+        <div><span class="ivel-k">Stock lasts</span><span class="ivel-v">${days == null ? '—' : days + ' d'}</span><span class="ivel-s">${sl.pend > 0 ? fn(sl.left) + ' left now' : fn(sl.base) + ' on hand'}</span></div>
+      </div></div>`; };
     const row = p => {
-      const st = p.stock < 0 ? 'zero' : p.stock === 0 ? 'low' : 'ok';
+      const idx = S.catalog.indexOf(p);
       const invI = S.inv.findIndex(r => r.name === p.name && String(r.code) === String(p.code));
       const editing = invI >= 0 && S.invEdit === invI;
       const inList = S.reorder.includes(p.name);
       const sub = byProd ? (p.brand || '') : (p.pack || '');
-      const nm = byProd ? esc(p.name) : esc(p.name);
-      return `<div class="irow ${gcls(p.brand)}${st === 'zero' ? ' on' : ''}">
+      if (counting) {
+        const dr = S.countDraft[p.full]; const has = dr !== undefined && dr !== '';
+        const last = S.counts[p.full];
+        return `<div class="irow ${gcls(p.brand)}">
+          <span class="icode">${p.code && p.code !== '—' ? esc(p.code) : '·'}</span>
+          <div class="main"><div class="name">${esc(p.name)}</div><div class="meta">QuickBooks has ${fn(p.stock)}${last ? ` · last counted ${fn(last.q)} ${esc(fmtShort(isoRd(String(last.at).slice(0, 10))))}` : ''}</div></div>
+          <input class="inp num cnt-in" data-full="${esc(p.full)}" data-qb="${p.stock}" data-k="${idx}" type="number" inputmode="numeric" placeholder="count" value="${has ? esc(dr) : ''}" style="width:92px">
+          <span id="d_${idx}" class="${has ? 'tag num ' + (+dr - p.stock === 0 ? 'green' : 'gold') : 'sub'}" style="min-width:52px;text-align:right">${has ? ((+dr - p.stock > 0 ? '+' : '') + fn(+dr - p.stock)) : '—'}</span>
+        </div>`;
+      }
+      const sl = stockLeft(p.full, p.stock); const showLeft = sl.pend > 0; const disp = showLeft ? sl.left : sl.base;
+      const st = disp < 0 ? 'zero' : disp === 0 ? 'low' : 'ok';
+      const sel = S.invSel === (p.full || p.name);
+      return `<div class="irow ${gcls(p.brand)}${st === 'zero' ? ' on' : ''}${sel ? ' sel' : ''}">
         <span class="icode">${p.code && p.code !== '—' ? esc(p.code) : '·'}</span>
-        <div class="main"><div class="name">${nm}</div><div class="meta">${esc(sub)}</div></div>
+        <div class="main" data-act="inv-tap" data-full="${esc(p.full || p.name)}" style="cursor:pointer" role="button" aria-expanded="${sel}"><div class="name">${esc(p.name)} <span class="icar">${sel ? '▲' : '▾'}</span></div><div class="meta">${showLeft ? `${fn(sl.base)} in stock · <b style="color:var(--gold-text)">${fn(sl.pend)} on orders</b>` : esc(sub)}</div></div>
         ${editing ? `<label class="sr" for="cnt">New count for ${esc(p.name)}</label><input class="inp num" id="cnt" type="number" inputmode="numeric" value="${Math.max(p.stock, 0)}" style="width:110px"><button class="btn primary sm" data-act="inv-save" data-i="${invI}">Save count</button>`
-          : `<span class="tag ${st === 'zero' ? 'red' : st === 'low' ? 'gold' : 'green'} num" style="font-size:14px">${fn(p.stock)} on hand</span>
+          : `<button class="itag ${st === 'zero' ? 'red' : st === 'low' ? 'gold' : 'green'}" data-act="inv-tap" data-full="${esc(p.full || p.name)}"><b>${fn(disp)}</b><small>${showLeft ? 'left' : 'on hand'}</small></button>
              <div class="actions"><button class="btn ghost sm" data-act="inv-fix-cat" data-full="${esc(p.full || p.name)}">Fix count</button><button class="btn ${inList ? 'ghost' : 'gold'} sm" data-act="inv-reorder-name" data-n="${esc(p.name)}"${inList ? ' disabled' : ''}>${inList ? 'On reorder list' : 'Reorder'}</button></div>`}
-      </div>`;
+      </div>${sel && !editing ? velPanel(p) : ''}`;
     };
     const gmap = {}; items.forEach(p => { const k = byProd ? baseProd(p.name) : (p.brand || 'Other'); (gmap[k] = gmap[k] || []).push(p); });
     const gkeys = Object.keys(gmap).sort((a, b) => byProd
@@ -2736,7 +2776,7 @@ function renderInventory() {
     </div>`;
   }).join('') || `<p class="sub">Nothing here. Every item in this filter is in good shape.</p>`;
   return `
-  ${head('Inventory', 'Fix counts that went below zero and reorder what is running low', `<button class="btn ghost" data-act="soon" data-name="Count stock">Count stock</button><button class="btn primary" data-act="soon" data-name="Receive delivery">Receive delivery</button>`)}
+  ${head('Inventory', 'Fix counts that went below zero and reorder what is running low', `<button class="btn ${S.countMode ? 'primary' : 'ghost'}" data-act="count-toggle">${S.countMode ? '✓ Done counting' : 'Count stock'}</button><button class="btn primary" data-act="soon" data-name="Receive delivery">Receive delivery</button>`)}
   <div class="tiles">
     <div class="tile bad"><div class="k">Below zero</div><div class="v">${REAL ? zero : 46} items</div><div class="s">Sold more than we have on record</div></div>
     <div class="tile warn"><div class="k">Low in stock</div><div class="v">${REAL ? low : 8} items</div><div class="s">Under their reorder point</div></div>
@@ -2753,8 +2793,9 @@ function renderInventory() {
       ${allMode ? `<div class="chips" role="group" aria-label="Group by" style="margin-top:8px"><span class="eyebrow" style="align-self:center;margin-right:2px">Group by</span><button class="chip" data-act="inv-groupby" data-g="brand" aria-pressed="${!byProd}">Brand</button><button class="chip" data-act="inv-groupby" data-g="product" aria-pressed="${byProd}">Product</button></div>
         <div class="field" style="margin-top:8px">${ic('search')}<label class="sr" for="inv-q">Search products</label><input id="inv-q" value="${esc(S.invQ || '')}" placeholder="Search by name, code or brand" autocomplete="off"></div>`
         : `<div class="chips" role="group" aria-label="Brand" style="margin-top:8px"><button class="chip" data-act="inv-brand" data-b="All" aria-pressed="${S.invBrand === 'All'}">All brands</button>${brands.map(b => `<button class="chip ${gcls(b)}" data-act="inv-brand" data-b="${esc(b)}" aria-pressed="${S.invBrand === b}">${esc(b)} · ${byStatus.filter(r => r.brand === b).length}</button>`).join('')}</div>`}
+      ${S.countMode ? (() => { const entered = Object.keys(S.countDraft).filter(f => S.countDraft[f] !== '' && S.countDraft[f] != null).length; return `<div class="count-bar"><div><b>Counting stock</b><div class="sub" style="margin:0;font-size:12px">Walk the warehouse and type the real count next to each item. The badge shows how far off QuickBooks is. Saving keeps a record; QuickBooks stays the stock source.</div></div><div style="display:flex;gap:8px;align-items:center;white-space:nowrap"><span class="sub" style="margin:0">${entered} counted</span><button class="btn primary sm" data-act="count-save"${entered ? '' : ' disabled'}>Save counts</button></div></div>`; })() : ''}
       <div style="margin-top:10px">${allMode ? allRows : rows}</div>
-      <p class="sample" style="margin:10px 0 0">${REAL ? `Stock counts from your QuickBooks export of ${REAL.snapAsOf ? fmtShort(isoRd(REAL.snapAsOf)) : 'Oct 23'}. For now, Fix count only changes this screen, not QuickBooks.` : 'Showing example items. The real list will have all 46.'}</p>
+      <p class="sample" style="margin:10px 0 0">${REAL ? (S.countMode ? 'Counts you save are shared with the office and kept as a record. They don’t change QuickBooks.' : `Big number is what’s left after app orders. “On hand” is from QuickBooks (${REAL.snapAsOf ? fmtShort(isoRd(REAL.snapAsOf)) : 'Oct 23'}); Fix count only changes this screen, not QuickBooks.`) : 'Showing example items. The real list will have all 46.'}</p>
     </section>
     <aside class="card stack">
       <h2>Reorder list</h2>
@@ -2766,6 +2807,23 @@ function renderInventory() {
   </div>`;
 }
 
+(function () { try { const st = document.createElement('style'); st.textContent = `
+.irow.sel{outline:2px solid var(--brand,#22409A);outline-offset:-2px}
+.icar{font-size:11px;color:var(--muted)}
+.itag{display:inline-flex;flex-direction:column;align-items:flex-end;background:none;border:0;cursor:pointer;padding:2px 6px;border-radius:8px;line-height:1.12;font:inherit}
+.itag b{font-size:16px;font-weight:800}
+.itag small{font-size:11px;color:var(--muted)}
+.itag.red b{color:var(--bad-text)} .itag.gold b{color:var(--gold-text)} .itag.green b{color:var(--good-text)}
+.ivel{background:var(--surface-2);border-radius:10px;padding:10px 12px;margin:2px 0 8px}
+.ivel-g{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;text-align:center}
+.ivel-g>div{display:flex;flex-direction:column;gap:1px}
+.ivel-k{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em}
+.ivel-v{font-size:20px;font-weight:800}
+.ivel-s{font-size:11px;color:var(--muted)}
+.count-bar{display:flex;gap:12px;justify-content:space-between;align-items:center;flex-wrap:wrap;background:var(--surface-2);border-radius:10px;padding:10px 12px;margin-top:10px}
+.cnt-in{text-align:right}
+@media(max-width:560px){.ivel-g{grid-template-columns:repeat(2,1fr)}}
+`; document.head.appendChild(st); } catch (e) { } })();
 function packDays() {
   const out = []; let r = TODAY; let guard = 0;
   while (out.filter(d => !d.closed).length < 4 && guard < 20) {
@@ -6716,7 +6774,7 @@ const SYNC = (function () {
     if (!viaApp && onNetlify && e && e.name === 'TypeError') { viaApp = true; try { localStorage.setItem('chuster-db-via-app', '1'); } catch (x) { /* ignore */ } setTimeout(() => tick(), 500); }
   }
   const st = { ok: null, err: '', last: 0, since: loadLS('chuster-sync-since', {}), out: loadLS('chuster-sync-out', {}), seen: {}, key: null, flushing: false, pulling: false, started: false };
-  const COLLS = ['gc', 'ds', 'rd', 'll', 'do', 'sc', 'tr', 'lq', 'ls', 'lm', 'lx', 'lh', 'qi', 'qo', 'qc', 'qs', 'qp', 'qh', 'qw', 'qr', 'ps', 'pp', 'pn', 'pq', 'sx', 'sl', 'vn', 'pt', 'cv', 'cg', 'df', 'cut', 'av'];
+  const COLLS = ['gc', 'ds', 'rd', 'll', 'do', 'sc', 'tr', 'lq', 'ls', 'lm', 'lx', 'lh', 'qi', 'qo', 'qc', 'qs', 'qp', 'qh', 'qw', 'qr', 'ps', 'pp', 'pn', 'pq', 'sx', 'sl', 'vn', 'pt', 'cv', 'cg', 'df', 'cut', 'av', 'ct'];
   const h = s => { let a = 0x811c9dc5, b = 0x9e3779b9; for (let i = 0; i < s.length; i++) { const c = s.charCodeAt(i); a = Math.imul(a ^ c, 16777619) >>> 0; b = Math.imul(b ^ c, 2246822519) >>> 0; } return a.toString(36) + b.toString(36); };
   const b64 = u8 => { let s = ''; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); return btoa(s); };
   const unb64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -7053,6 +7111,10 @@ S.activity = loadLS('chuster-activity-v1', {});
 const saveActivity = () => { try { localStorage.setItem('chuster-activity-v1', JSON.stringify(S.activity)); } catch (e) { /* full */ } };
 function pruneActivity() { const cutMs = Date.now() - 60 * 864e5; let ch = false; for (const id of Object.keys(S.activity)) { const a = S.activity[id]; if (!a || !(a.at > cutMs)) { delete S.activity[id]; ch = true; } } if (ch) saveActivity(); }
 SYNC.on('av', (k, val) => { if (val == null) delete S.activity[k]; else S.activity[k] = val; saveActivity(); });
+// Warehouse counts (Count mode): { full: {q, at, by} }. A record of real counts and how they compare to QuickBooks.
+S.counts = loadLS('chuster-counts-v1', {});
+const saveCounts = () => { try { localStorage.setItem('chuster-counts-v1', JSON.stringify(S.counts)); } catch (e) { /* full */ } };
+SYNC.on('ct', (k, val) => { if (val == null) delete S.counts[k]; else S.counts[k] = val; saveCounts(); });
 let avSeen = {}; // throttle screen logging this session
 function logActivity(kind) {
   try {
@@ -8188,6 +8250,9 @@ document.addEventListener('click', e => {
     case 'inv-reorder': S.reorder.push(S.inv[+d.i].name); keep(); break;
     case 'inv-reorder-name': if (d.n && !S.reorder.includes(d.n)) S.reorder.push(d.n); keep(); break;
     case 'inv-groupby': S.invGroupBy = d.g; keep(); break;
+    case 'inv-tap': S.invSel = (S.invSel === d.full ? null : d.full); keep(); break;
+    case 'count-toggle': S.countMode = !S.countMode; if (S.countMode) { S.invFilter = 'allprod'; S.invSel = null; S.invEdit = null; } keep(); break;
+    case 'count-save': { let n = 0; const by = byName(), at = nowIso(); Object.keys(S.countDraft).forEach(full => { const v = S.countDraft[full]; if (v === '' || v == null) return; const q = Math.round(+v); if (!isFinite(q)) return; const rec = { q, at, by }; S.counts[full] = rec; try { SYNC.put('ct', full, rec); } catch (e) { } n++; }); saveCounts(); S.countDraft = {}; S.countMode = false; toast(n ? `Saved ${n} count${n === 1 ? '' : 's'}.` : 'No counts entered.'); keep(); break; }
     case 'inv-fix-cat': {
       const p = S.catalog.find(c => (c.full || c.name) === d.full) || S.catalog.find(c => c.name === d.full);
       if (!p) break;
@@ -8505,6 +8570,13 @@ document.addEventListener('change', e => {
   if (t.id === 'pr-for' || t.id === 'pr-contact') { const pv = document.getElementById('ps-preview'); if (pv) pv.innerHTML = prSheet(S.prKind); }
 });
 document.addEventListener('input', e => {
+  if (e.target.classList && e.target.classList.contains('cnt-in')) {
+    const full = e.target.dataset.full, v = e.target.value; S.countDraft[full] = v;
+    const badge = document.getElementById('d_' + e.target.dataset.k); const qb = +e.target.dataset.qb;
+    if (badge) { if (v === '') { badge.textContent = '—'; badge.className = 'sub'; badge.style.cssText = 'min-width:52px;text-align:right'; } else { const diff = Math.round(+v) - qb; badge.textContent = (diff > 0 ? '+' : '') + fn(diff); badge.className = 'tag num ' + (diff === 0 ? 'green' : 'gold'); badge.style.cssText = 'min-width:52px;text-align:right'; } }
+    const bar = document.querySelector('.count-bar .btn'); if (bar) { const entered = Object.keys(S.countDraft).filter(f => S.countDraft[f] !== '' && S.countDraft[f] != null).length; bar.disabled = !entered; const lbl = bar.previousElementSibling; if (lbl) lbl.textContent = entered + ' counted'; }
+    return;
+  }
   if (e.target.classList && e.target.classList.contains('pl-inp')) {
     const m = S.pl[e.target.dataset.k]; const v = parseFloat(e.target.value);
     if (v > 0) m[e.target.dataset.i] = v; else delete m[e.target.dataset.i];
