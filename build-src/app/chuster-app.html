@@ -1148,7 +1148,7 @@ const S = {
     { name: 'Sourdough Pretzel Crunchies', code: 66, pack: '84 x 1oz', stock: 40, qty: 8 }
   ],
   lastOrder: [12, 6, 6, 8, 10],
-  invFilter: 'allprod', invEdit: null, invQ: '', invGroupBy: 'product', invSel: null, countMode: false, countDraft: {}, reorder: ['Chuster Sm. Flakes', 'Chuster Barley'],
+  invFilter: 'allprod', invEdit: null, invQ: '', invGroupBy: 'brand', invSel: null, countMode: false, countDraft: {}, reorder: ['Chuster Sm. Flakes', 'Chuster Barley'],
   inv: [
     { name: 'Chuster Sm. Flakes', brand: 'Chuster', onHand: -12, reorderAt: 40, why: 'Sold before a delivery was received' },
     { name: 'Chuster Barley', brand: 'Chuster', onHand: -4, reorderAt: 40, why: 'Not counted in 3 weeks' },
@@ -2750,7 +2750,7 @@ function renderInventory() {
     const gkeys = Object.keys(gmap).sort((a, b) => byProd
       ? (Math.min(...gmap[a].map(codeNum)) - Math.min(...gmap[b].map(codeNum)) || a.localeCompare(b))
       : (rankG(a) - rankG(b) || a.localeCompare(b)));
-    gkeys.forEach(k => gmap[k].sort((a, b) => byProd ? (rankG(a.brand) - rankG(b.brand) || codeNum(a) - codeNum(b)) : (a.stock - b.stock)));
+    gkeys.forEach(k => gmap[k].sort((a, b) => byProd ? (rankG(a.brand) - rankG(b.brand) || codeNum(a) - codeNum(b)) : (codeNum(a) - codeNum(b))));
     allRows = gkeys.map((k, gi) => { const list = gmap[k]; const tot = list.reduce((s, p) => s + p.stock, 0);
       const hdr = `<div class="ghead ${byProd ? '' : gcls(k)}" style="margin-top:${gi === 0 ? 0 : 14}px"><span>${esc(String(k || 'Other').toUpperCase())}</span><span>${byProd && list.length > 1 ? fn(tot) + ' total · ' : ''}${list.length} item${list.length > 1 ? 's' : ''}</span></div>`;
       return hdr + list.map(row).join(''); }).join('') || `<p class="sub" style="text-align:center;padding:24px 0">No products match${q ? ' “' + esc(q) + '”' : ''}.</p>`;
