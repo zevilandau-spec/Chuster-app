@@ -2570,8 +2570,14 @@ function shipOptions(cust) {
   if (!cust || !REAL || STORE_LOCS[cust.name]) return [];
   const out = [], seen = new Set();
   const norm = s => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
-  (cust.saddr || []).forEach(s => { const value = s.addr ? (s.name && norm(s.name) && !norm(s.addr).includes(norm(s.name)) ? s.name + ' — ' + s.addr : s.addr) : s.name; if (!value) return; const k = norm(value); if (seen.has(k)) return; seen.add(k); out.push({ label: s.name || s.addr, sub: s.name ? s.addr : '', value }); });
-  (REAL.orders.list || []).forEach(o => { if (o.c !== cust.name || !o.ship) return; const k = norm(o.ship); if (seen.has(k)) return; seen.add(k); out.push({ label: o.ship, sub: '', value: o.ship }); });
+  // The customer's main (default) address, by its street number + zip. Any ship-to that matches it is
+  // just the main address written differently — drop it so single-site stores get no ship-to question.
+  const mnums = String(cust.address || '').match(/\d+/g) || [];
+  const mzip = mnums.find(n => n.length === 5) || '';
+  const mstreet = mnums.find(n => n !== mzip) || '';
+  const sameAsMain = v => { if (!mzip || !mstreet) return false; const nums = String(v).match(/\d+/g) || []; return nums.includes(mzip) && nums.includes(mstreet); };
+  (cust.saddr || []).forEach(s => { const value = s.addr ? (s.name && norm(s.name) && !norm(s.addr).includes(norm(s.name)) ? s.name + ' — ' + s.addr : s.addr) : s.name; if (!value || sameAsMain(value)) return; const k = norm(value); if (seen.has(k)) return; seen.add(k); out.push({ label: s.name || s.addr, sub: s.name ? s.addr : '', value }); });
+  (REAL.orders.list || []).forEach(o => { if (o.c !== cust.name || !o.ship || sameAsMain(o.ship)) return; const k = norm(o.ship); if (seen.has(k)) return; seen.add(k); out.push({ label: o.ship, sub: '', value: o.ship }); });
   return out;
 }
 // Items on this order priced differently than this customer usually pays (from their invoice history).
