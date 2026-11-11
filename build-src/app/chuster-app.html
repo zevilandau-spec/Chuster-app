@@ -2851,6 +2851,10 @@ function renderInventory() {
 .pk-jobc{border-top:1px solid var(--line)}
 .pk-jobc .pk-job{border-top:0}
 .pk-appt{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:0 0 8px}
+.pk-soon{display:flex;gap:10px;align-items:center;border-top:1px solid var(--line);padding:9px 0}
+.pk-soon.urgent{background:var(--bad-bg,rgba(220,60,60,.06))}
+.pk-days{font-size:12px;font-weight:700;color:var(--muted)}
+.pk-days.red{color:var(--bad-text)} .pk-days.gold{color:var(--gold-text)}
 .count-bar{display:flex;gap:12px;justify-content:space-between;align-items:center;flex-wrap:wrap;background:var(--surface-2);border-radius:10px;padding:10px 12px;margin-top:10px}
 .cnt-in{text-align:right}
 @media(max-width:560px){.ivel-g{grid-template-columns:repeat(2,1fr)}}
@@ -5865,13 +5869,19 @@ function renderPickups() {
   pos.forEach(po => po.lines.forEach(l => { const g = prodMap[l.name] || (prodMap[l.name] = { name: l.name, item: l.item, total: 0, rows: [] }); g.total += l.left; g.rows.push({ num: po.num, vendor: po.vendor, deliv: po.deliv, left: l.left }); }));
   const codeOf = item => { const c = S.catalog.find(x => x.full === item); const n = c ? parseInt(c.code, 10) : NaN; return isNaN(n) ? 99999 : n; };
   const prodGroups = Object.values(prodMap).sort((a, b) => codeOf(a.item) - codeOf(b.item) || a.name.localeCompare(b.name));
+  // "Pick up soon": products running low that already have an open PO, ranked by how many days of stock are left
+  const normN = s => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  const bmNow = bmByFull();
+  const soon = prodGroups.map(g => { const c = S.catalog.find(x => x.full === g.item) || S.catalog.find(x => normN(x.name) === normN(g.name)); if (!c) return null; const full = c.full; const sl = stockLeft(full, c.stock || 0); const avail = sl.left + (bmNow[full] || bmNow[g.item] || 0); const rate = invVelocity(full).usualWk / 7; const days = rate > 0 ? avail / rate : null; return { name: g.name, avail, rate, days, onOrder: g.total, num: g.rows[0].num }; }).filter(x => x && x.days != null && x.days < 21).sort((a, b) => a.days - b.days);
   const pending = Object.values(S.moves || {}).filter(m => m && m.st === 'pending').sort((a, b) => (a.at || '').localeCompare(b.at || ''));
   const recent = Object.values(S.moves || {}).filter(m => m && m.st === 'done').sort((a, b) => (b.recvAt || b.at || '').localeCompare(a.recvAt || a.at || '')).slice(0, 8);
   const bm = bmByFull(); const bmItems = Object.keys(bm).filter(f => bm[f]).sort((a, b) => nameOf(a).localeCompare(nameOf(b)));
   const bmTotal = bmItems.reduce((s, f) => s + bm[f], 0);
   const lineTxt = m => (m.lines || []).map(l => `${esc(l[2] || nameOf(l[0]))} ${fn(l[1])}`).join(' · ') || 'no items';
   const jobCard = (m, actions) => `<div class="pk-job"><div style="flex:1;min-width:0"><b>${esc(m.from)} → ${esc(m.to)}</b>${m.poNum ? ` <span class="sub">PO #${esc(m.poNum)}</span>` : ''}${m.pickDate ? ` <span class="tag blue" style="font-size:12px">pick up ${esc(fmtShort(isoRd(m.pickDate)))}</span>` : ''}<div class="sub" style="margin:2px 0 0">${lineTxt(m)}</div></div>${actions}</div>`;
-  return `${head('Pickups', "Bring product from Logical and BM, and keep BM's count. Only you see this while you try it.")}
+  return `${head('Pickups', "What to pick up, when — the app watches your sales and your open POs. Only you see this while you try it.")}
+  <section class="card stack" style="gap:8px"><div class="card-head" style="margin:0"><h2 style="margin:0">Pick up soon</h2><span class="sub" style="margin:0">running low, with a PO waiting</span></div>
+    ${soon.length ? soon.map(x => { const out = x.avail <= 0; const urgent = out || x.days < 5; const lbl = out ? 'out now' : Math.round(x.days) + ' days left'; return `<div class="pk-soon${urgent ? ' urgent' : ''}"><div style="flex:1;min-width:0"><b>${esc(x.name)}</b> <span class="pk-days${urgent ? ' red' : x.days < 12 ? ' gold' : ''}">${lbl}</span><div class="sub" style="margin:1px 0 0">${fn(Math.round(x.avail))} on hand · selling ~${fn(Math.round(x.rate * 7))}/wk · ${fn(x.onOrder)} on order · PO #${esc(x.num)}</div></div><button class="btn gold sm" data-act="pk-make" data-num="${esc(x.num)}" data-to="BM">Schedule pickup</button></div>`; }).join('') : '<p class="sub" style="margin:0">Nothing running low that you have a PO for — you’re covered right now.</p>'}</section>
   <section class="card stack" style="gap:8px"><div class="card-head" style="margin:0"><h2 style="margin:0">What's at BM</h2><span class="sub" style="margin:0">${fn(bmTotal)} cases · ${bmItems.length} product${bmItems.length === 1 ? '' : 's'}</span></div>
     ${bmItems.length ? `<table class="mini-table">${bmItems.map(f => `<tr><td>${esc(nameOf(f))}</td><td class="num">${fn(bm[f])} cs</td></tr>`).join('')}</table>` : '<p class="sub" style="margin:0">BM is empty. As you mark Logical→BM pickups received, it fills up here.</p>'}</section>
   ${pending.length ? `<section class="card stack" style="gap:8px"><div class="card-head" style="margin:0"><h2 style="margin:0">Today's pickups</h2><span class="sub" style="margin:0">what the driver sees · ${pending.length}</span></div>
