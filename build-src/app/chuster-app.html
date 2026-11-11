@@ -2840,7 +2840,13 @@ function renderInventory() {
 .ivel-s{font-size:11px;color:var(--muted)}
 .ivel-drill{margin-top:8px;border-top:1px solid var(--line);padding-top:8px}
 .pk-job{display:flex;gap:10px;align-items:center;border-top:1px solid var(--line);padding:8px 0}
-.pk-po{border-top:1px solid var(--line);padding:8px 0}
+.pk-prod{border-top:1px solid var(--line)}
+.pk-prod>summary{cursor:pointer;padding:9px 2px;list-style:none;display:flex;gap:8px;align-items:baseline}
+.pk-prod>summary::-webkit-details-marker{display:none}
+.pk-prod>summary::before{content:'▸';color:var(--muted);font-size:12px}
+.pk-prod[open]>summary::before{content:'▾'}
+.pk-prod>summary:hover{background:var(--surface-2)}
+.pk-prod .pk-po{padding:8px 0 8px 18px;border-top:1px dashed var(--line)}
 .pk-xrow{display:flex;align-items:center;gap:8px;padding:4px 0}
 .count-bar{display:flex;gap:12px;justify-content:space-between;align-items:center;flex-wrap:wrap;background:var(--surface-2);border-radius:10px;padding:10px 12px;margin-top:10px}
 .cnt-in{text-align:right}
@@ -5830,7 +5836,7 @@ function openPOSection() {
 }
 
 /* ================= Pickups & transfers: Logical → BM/Brooklyn, BM → Chuster, with a running BM count ================= */
-Object.assign(S, { pkxDraft: {} });
+Object.assign(S, { pkxDraft: {}, pkDates: {} });
 function renderPickups() {
   if (!isZevi()) return `${head('Pickups', '')}<section class="card"><p class="sub" style="margin:0">Only you see this page while you try it.</p></section>`;
   if (!REAL) return needData('Pickups');
@@ -5840,20 +5846,29 @@ function renderPickups() {
   const poMoved = {}; Object.values(S.moves || {}).forEach(mv => { if (mv && mv.poNum) poMoved[mv.poNum] = mv; });
   const pickV = v => /winland|bickel/i.test(v || ''); // the only two vendors Chuster picks up from
   const poCode = po => { let min = 99999; po.lines.forEach(l => { const c = S.catalog.find(x => x.full === l.item); const n = c ? parseInt(c.code, 10) : NaN; if (!isNaN(n) && n < min) min = n; }); return min; };
-  const pos = Object.values(byNum).filter(po => !poMoved[po.num] && pickV(po.vendor)).sort((a, b) => poCode(a) - poCode(b) || ((a.lines[0] && a.lines[0].name) || '').localeCompare((b.lines[0] && b.lines[0].name) || ''));
+  const pos = Object.values(byNum).filter(po => !poMoved[po.num] && pickV(po.vendor));
+  // group the pickup POs by product; each product expands to its PO numbers
+  const prodMap = {};
+  pos.forEach(po => po.lines.forEach(l => { const g = prodMap[l.name] || (prodMap[l.name] = { name: l.name, item: l.item, total: 0, rows: [] }); g.total += l.left; g.rows.push({ num: po.num, vendor: po.vendor, deliv: po.deliv, left: l.left }); }));
+  const codeOf = item => { const c = S.catalog.find(x => x.full === item); const n = c ? parseInt(c.code, 10) : NaN; return isNaN(n) ? 99999 : n; };
+  const prodGroups = Object.values(prodMap).sort((a, b) => codeOf(a.item) - codeOf(b.item) || a.name.localeCompare(b.name));
   const pending = Object.values(S.moves || {}).filter(m => m && m.st === 'pending').sort((a, b) => (a.at || '').localeCompare(b.at || ''));
   const recent = Object.values(S.moves || {}).filter(m => m && m.st === 'done').sort((a, b) => (b.recvAt || b.at || '').localeCompare(a.recvAt || a.at || '')).slice(0, 8);
   const bm = bmByFull(); const bmItems = Object.keys(bm).filter(f => bm[f]).sort((a, b) => nameOf(a).localeCompare(nameOf(b)));
   const bmTotal = bmItems.reduce((s, f) => s + bm[f], 0);
   const lineTxt = m => (m.lines || []).map(l => `${esc(l[2] || nameOf(l[0]))} ${fn(l[1])}`).join(' · ') || 'no items';
-  const jobCard = (m, actions) => `<div class="pk-job"><div style="flex:1;min-width:0"><b>${esc(m.from)} → ${esc(m.to)}</b>${m.poNum ? ` <span class="sub">PO #${esc(m.poNum)}</span>` : ''}<div class="sub" style="margin:2px 0 0">${lineTxt(m)}</div></div>${actions}</div>`;
+  const jobCard = (m, actions) => `<div class="pk-job"><div style="flex:1;min-width:0"><b>${esc(m.from)} → ${esc(m.to)}</b>${m.poNum ? ` <span class="sub">PO #${esc(m.poNum)}</span>` : ''}${m.pickDate ? ` <span class="tag blue" style="font-size:12px">pick up ${esc(fmtShort(isoRd(m.pickDate)))}</span>` : ''}<div class="sub" style="margin:2px 0 0">${lineTxt(m)}</div></div>${actions}</div>`;
   return `${head('Pickups', "Bring product from Logical and BM, and keep BM's count. Only you see this while you try it.")}
   <section class="card stack" style="gap:8px"><div class="card-head" style="margin:0"><h2 style="margin:0">What's at BM</h2><span class="sub" style="margin:0">${fn(bmTotal)} cases · ${bmItems.length} product${bmItems.length === 1 ? '' : 's'}</span></div>
     ${bmItems.length ? `<table class="mini-table">${bmItems.map(f => `<tr><td>${esc(nameOf(f))}</td><td class="num">${fn(bm[f])} cs</td></tr>`).join('')}</table>` : '<p class="sub" style="margin:0">BM is empty. As you mark Logical→BM pickups received, it fills up here.</p>'}</section>
   ${pending.length ? `<section class="card stack" style="gap:8px"><div class="card-head" style="margin:0"><h2 style="margin:0">Today's pickups</h2><span class="sub" style="margin:0">what the driver sees · ${pending.length}</span></div>
     ${pending.map(m => jobCard(m, `<div style="display:flex;flex-direction:column;gap:6px"><button class="btn primary sm" data-act="pk-recv" data-id="${esc(m.id)}">${m.to === 'BM' ? 'Received at BM' : 'Done'}</button><button class="btn ghost sm" data-act="pk-cancel" data-id="${esc(m.id)}">Cancel</button></div>`)).join('')}</section>` : ''}
-  <section class="card stack" style="gap:8px"><div class="card-head" style="margin:0"><h2 style="margin:0">Open POs — ready to pick up</h2><span class="sub" style="margin:0">Winland &amp; Bickels · ${pos.length}</span></div>
-    ${pos.length ? pos.map(po => `<div class="pk-po"><div><b>${po.lines.map(l => esc(l.name) + ' ' + fn(l.left)).join(' · ')}</b><div class="sub" style="margin:2px 0 0">${esc(po.vendor)} · PO #${esc(po.num)} · due ${esc(po.deliv)}</div></div><div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px"><button class="btn gold sm" data-act="pk-make" data-num="${esc(po.num)}" data-to="BM">Schedule → BM</button><button class="btn ghost sm" data-act="pk-make" data-num="${esc(po.num)}" data-to="Brooklyn">Schedule → Brooklyn</button></div></div>`).join('') : '<p class="sub" style="margin:0">No open POs from QuickBooks right now.</p>'}</section>
+  <section class="card stack" style="gap:6px"><div class="card-head" style="margin:0"><h2 style="margin:0">Open POs — ready to pick up</h2><span class="sub" style="margin:0">Winland &amp; Bickels · by product</span></div>
+    ${prodGroups.length ? prodGroups.map(g => `<details class="pk-prod"><summary><b>${esc(g.name)}</b> <span class="sub">${fn(g.total)} on order · ${g.rows.length} PO${g.rows.length > 1 ? 's' : ''}</span></summary>
+      ${g.rows.map(r => `<div class="pk-po"><div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap"><span class="sub" style="margin:0">PO #${esc(r.num)} · ${esc(r.vendor)} · ${fn(r.left)} cs · due ${esc(r.deliv)}</span></div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:end;margin-top:6px"><label class="stack" style="gap:2px"><span class="eyebrow">Pick up from Logical on</span><input type="date" class="pkd-in" data-num="${esc(r.num)}" value="${esc(S.pkDates[r.num] || '')}" style="border:1px solid var(--line);border-radius:8px;padding:6px"></label>
+          <button class="btn gold sm" data-act="pk-make" data-num="${esc(r.num)}" data-to="BM">Schedule → BM</button><button class="btn ghost sm" data-act="pk-make" data-num="${esc(r.num)}" data-to="Brooklyn">→ Brooklyn</button></div></div>`).join('')}
+    </details>`).join('') : '<p class="sub" style="margin:0">No open Winland or Bickels POs right now.</p>'}</section>
   <section class="card stack" style="gap:8px"><div class="card-head" style="margin:0"><h2 style="margin:0">BM → Chuster run</h2><span class="sub" style="margin:0">what to bring over</span></div>
     ${bmItems.length ? `${bmItems.map(f => `<div class="pk-xrow"><span style="flex:1;min-width:0">${esc(nameOf(f))} <span class="sub">(${fn(bm[f])} at BM)</span></span><input class="inp num pkx-in" data-full="${esc(f)}" type="number" inputmode="numeric" placeholder="cases" max="${bm[f]}" value="${S.pkxDraft[f] != null ? esc(S.pkxDraft[f]) : ''}" style="width:88px"></div>`).join('')}<button class="btn primary" data-act="pk-xrun">Create BM → Chuster run</button>` : '<p class="sub" style="margin:0">Nothing at BM to bring yet.</p>'}</section>
   ${recent.length ? `<section class="card stack" style="gap:4px"><div class="card-head" style="margin:0"><h2 style="margin:0">Recent</h2><span class="sub" style="margin:0">tap Undo to bring a PO back</span></div>${recent.map(m => `<div style="display:flex;align-items:center;gap:10px;border-top:1px solid var(--line);padding:6px 0"><span class="sub" style="margin:0;flex:1;min-width:0">${esc(m.from)} → ${esc(m.to)}${m.poNum ? ` · PO #${esc(m.poNum)}` : ''} · ${fn((m.lines || []).reduce((s, l) => s + (+l[1] || 0), 0))} cs${m.recvAt ? ' · ' + esc(fmtShort(isoRd(String(m.recvAt).slice(0, 10)))) : ''}</span><button class="btn ghost sm" data-act="pk-undo" data-id="${esc(m.id)}">Undo</button></div>`).join('')}</section>` : ''}
@@ -8313,7 +8328,7 @@ document.addEventListener('click', e => {
     case 'inv-groupby': S.invGroupBy = d.g; keep(); break;
     case 'inv-tap': S.invSel = (S.invSel === d.full ? null : d.full); S.invVelPer = null; keep(); break;
     case 'inv-vel': S.invVelPer = (S.invVelPer === d.per ? null : d.per); keep(); break;
-    case 'pk-make': { const OPOl = (REAL && REAL.openPO && REAL.openPO.list) || []; const lines = OPOl.filter(p => String(p.num) === String(d.num)); if (!lines.length) { toast('PO not found.'); break; } const po = lines[0]; putMove({ id: 'mv' + Date.now().toString(36) + Math.floor(Math.random() * 1e4).toString(36), from: 'Logical', to: d.to, poNum: d.num, vendor: po.vendor, d: isoOf(TODAY), lines: lines.map(p => [p.item, p.left, p.name]), st: 'pending', by: byName(), at: nowIso() }); toast("Scheduled. The driver sees it under Today's pickups."); keep(); break; }
+    case 'pk-make': { const OPOl = (REAL && REAL.openPO && REAL.openPO.list) || []; const lines = OPOl.filter(p => String(p.num) === String(d.num)); if (!lines.length) { toast('PO not found.'); break; } const po = lines[0]; putMove({ id: 'mv' + Date.now().toString(36) + Math.floor(Math.random() * 1e4).toString(36), from: 'Logical', to: d.to, poNum: d.num, vendor: po.vendor, d: isoOf(TODAY), pickDate: S.pkDates[d.num] || null, lines: lines.map(p => [p.item, p.left, p.name]), st: 'pending', by: byName(), at: nowIso() }); delete S.pkDates[d.num]; toast("Scheduled. The driver sees it under Today's pickups."); keep(); break; }
     case 'pk-recv': { const m = S.moves[d.id]; if (m) { m.st = 'done'; m.recvAt = nowIso(); putMove(m); toast(m.to === 'BM' ? 'Received — added to BM.' : 'Done.'); } keep(); break; }
     case 'pk-cancel': delMove(d.id); keep(); break;
     case 'pk-undo': { const m = S.moves[d.id]; delMove(d.id); toast(m && m.poNum ? `PO #${m.poNum} is back on the open list.` : 'Undone.'); keep(); break; }
@@ -8638,6 +8653,7 @@ document.addEventListener('change', e => {
 });
 document.addEventListener('input', e => {
   if (e.target.classList && e.target.classList.contains('pkx-in')) { const f = e.target.dataset.full; if (e.target.value === '') delete S.pkxDraft[f]; else S.pkxDraft[f] = e.target.value; return; }
+  if (e.target.classList && e.target.classList.contains('pkd-in')) { const n = e.target.dataset.num; if (e.target.value === '') delete S.pkDates[n]; else S.pkDates[n] = e.target.value; return; }
   if (e.target.classList && e.target.classList.contains('cnt-in')) {
     const full = e.target.dataset.full, v = e.target.value; S.countDraft[full] = v;
     const badge = document.getElementById('d_' + e.target.dataset.k); const qb = +e.target.dataset.qb;
