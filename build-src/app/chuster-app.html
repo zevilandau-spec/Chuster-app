@@ -1989,6 +1989,7 @@ const VIEWS = {
   delivstats: { title: 'Delivery stats', r: renderDelivStats },
   tools: { title: 'Tools', r: renderTools },
   activity: { title: 'Activity', r: renderActivity },
+  pickups: { title: 'Pickups', r: renderPickups },
   inbox: { title: 'Incoming orders', r: renderInbox },
   payments: { title: 'Payments', r: renderPayments },
   packlog: { title: 'Pack log', r: renderPackLog },
@@ -2045,7 +2046,7 @@ const NAV = [
   { h: 'CUSTOMERS', items: [['visits', "Today's visits", 'clock'], ['coverage', 'Coverage plan', 'clip'], ['pitch', 'New to pitch', 'chart'], ['customers', 'Customers', 'people', 'late'], ['payments', 'Payments', 'card', 'pay'], ['collect', 'Collections', 'card'], ['aging', 'Collections dashboard', 'chart'], ['stmts', 'Statements by email', 'mail'], ['custprofit', 'Profit by store', 'chart'], ['lost', 'Lost items', 'alert'], ['yomtov', 'Yom Tov list', 'cal'], ['ytplan', 'Yom Tov planner', 'chart']] },
   { h: 'SALES & MONEY', items: [['mysales', 'Salesman dashboard', 'chart'], ['storesales', 'Store sales', 'chart'], ['scorecard', 'Store scorecard', 'people'], ['atrisk', 'At-risk board', 'alert'], ['crosssell', 'Cross-sell', 'chart'], ['newlost', 'New & lost stores', 'people'], ['habits', 'Order habits', 'clock'], ['seasonality', 'Seasonality', 'chart'], ['salesreport', 'Sales report', 'chart'], ['repscore', 'Salesman scorecard', 'people'], ['reps', 'Sales by rep & commission', 'people'], ['returns', 'Returns & credits', 'card'], ['finance', 'Finance', 'chart']] },
   { h: 'PRODUCTS', items: [['catalog', 'Catalog', 'box'], ['prodsales', 'Product sales', 'chart'], ['winners', 'Winners & losers', 'chart'], ['items', 'Products & profit', 'chart'], ['margin', 'Margins', 'chart'], ['pricelist', 'Price list', 'order'], ['pricecheck', 'Price check', 'card'], ['pricespread', 'Price spread', 'chart']] },
-  { h: 'DELIVERIES', items: [['route', 'Deliveries', 'box'], ['stop', 'Driver', 'wheel'], ['live', 'Live trucks', 'pin'], ['loading', 'Loading', 'truck'], ['dsched', 'Delivery days', 'cal'], ['delivstats', 'Delivery stats', 'chart'], ['routeprofit', 'Route profit', 'chart']] },
+  { h: 'DELIVERIES', items: [['route', 'Deliveries', 'box'], ['stop', 'Driver', 'wheel'], ['pickups', 'Pickups', 'truck'], ['live', 'Live trucks', 'pin'], ['loading', 'Loading', 'truck'], ['dsched', 'Delivery days', 'cal'], ['delivstats', 'Delivery stats', 'chart'], ['routeprofit', 'Route profit', 'chart']] },
   { h: 'WAREHOUSE', items: [['packnext', 'What to pack', 'clip'], ['forecast', 'Week-ahead forecast', 'chart'], ['packing', 'Packing plan', 'clip'], ['stockcover', 'Stock cover', 'box'], ['packlog', 'Pack log', 'clip'], ['packrep', 'Packing report', 'chart'], ['yield', 'Yield', 'chart']] },
   { h: 'STOCK & BUYING', items: [['inventory', 'Inventory', 'box', 'inv'], ['prodplan', 'Make today', 'box'], ['ordernow', 'Order now', 'alert'], ['reorder', 'Reorder alerts', 'alert'], ['plan', 'Plan a season', 'chart'], ['margin', 'Margin watch', 'chart'], ['buying', 'Buying & suppliers', 'card'], ['polist', 'All purchase orders', 'clip'], ['stockmoves', 'Stock moves', 'box']] },
   { h: 'BOOKS', items: [['expenses', 'Expenses', 'chart'], ['bank', 'Bank & deposits', 'card'], ['vendors', 'Vendors & bills', 'people'], ['salesorders', 'Sales orders & estimates', 'order'], ['journal', 'Journal entries', 'clip'], ['accounts', 'Chart of accounts', 'chart']] }
@@ -2075,7 +2076,7 @@ const salesLocked = () => isSales() && !!myRepCodes();
 const custMine = c => !salesLocked() || (!!c && myRepCodes().includes(c.rep || '—'));
 const custMineName = n => !salesLocked() || custMine(custByName(n));
 const allowed = v => {
-  if (v === 'activity') return isZevi();
+  if (v === 'activity' || v === 'pickups') return isZevi();
   if (S.role === 'Owner') return true;
   if (S.role === 'Office') { const deny = officePlus() ? ['finance', 'expenses', 'bank', 'journal', 'accounts'] : ['tools', 'custprofit', 'finance', 'expenses', 'bank', 'journal', 'accounts', 'margin', 'repscore']; return !deny.includes(v); }
   return (ROLE_VIEWS[S.role] || []).includes(v);
@@ -2838,6 +2839,9 @@ function renderInventory() {
 .ivel-v{font-size:20px;font-weight:800}
 .ivel-s{font-size:11px;color:var(--muted)}
 .ivel-drill{margin-top:8px;border-top:1px solid var(--line);padding-top:8px}
+.pk-job{display:flex;gap:10px;align-items:center;border-top:1px solid var(--line);padding:8px 0}
+.pk-po{border-top:1px solid var(--line);padding:8px 0}
+.pk-xrow{display:flex;align-items:center;gap:8px;padding:4px 0}
 .count-bar{display:flex;gap:12px;justify-content:space-between;align-items:center;flex-wrap:wrap;background:var(--surface-2);border-radius:10px;padding:10px 12px;margin-top:10px}
 .cnt-in{text-align:right}
 @media(max-width:560px){.ivel-g{grid-template-columns:repeat(2,1fr)}}
@@ -5825,6 +5829,35 @@ function openPOSection() {
     <p class="sub" style="margin:0;font-size:12px">From QuickBooks Open Purchase Orders, ${fmtShort(isoRd(REAL.snapAsOf || REAL.asOf))}. "Past due date" = the delivery date passed and QuickBooks still shows it open. Close them in QuickBooks if they came in.</p></section>`;
 }
 
+/* ================= Pickups & transfers: Logical → BM/Brooklyn, BM → Chuster, with a running BM count ================= */
+Object.assign(S, { pkxDraft: {} });
+function renderPickups() {
+  if (!isZevi()) return `${head('Pickups', '')}<section class="card"><p class="sub" style="margin:0">Only you see this page while you try it.</p></section>`;
+  if (!REAL) return needData('Pickups');
+  const OPOl = (REAL.openPO && REAL.openPO.list) || [];
+  const nameOf = full => { const c = S.catalog.find(x => x.full === full); if (c) return c.name; const o = OPOl.find(p => p.item === full); if (o) return o.name; for (const mv of Object.values(S.moves || {})) { const ln = (mv.lines || []).find(l => l[0] === full && l[2]); if (ln) return ln[2]; } return String(full || '').split(':').pop(); };
+  const byNum = {}; OPOl.forEach(p => { (byNum[p.num] || (byNum[p.num] = { num: p.num, vendor: p.vendor, deliv: p.deliv, lines: [] })).lines.push(p); });
+  const poMoved = {}; Object.values(S.moves || {}).forEach(mv => { if (mv && mv.poNum) poMoved[mv.poNum] = mv; });
+  const pos = Object.values(byNum).filter(po => !poMoved[po.num]);
+  const pending = Object.values(S.moves || {}).filter(m => m && m.st === 'pending').sort((a, b) => (a.at || '').localeCompare(b.at || ''));
+  const recent = Object.values(S.moves || {}).filter(m => m && m.st === 'done').sort((a, b) => (b.recvAt || b.at || '').localeCompare(a.recvAt || a.at || '')).slice(0, 8);
+  const bm = bmByFull(); const bmItems = Object.keys(bm).filter(f => bm[f]).sort((a, b) => nameOf(a).localeCompare(nameOf(b)));
+  const bmTotal = bmItems.reduce((s, f) => s + bm[f], 0);
+  const lineTxt = m => (m.lines || []).map(l => `${esc(l[2] || nameOf(l[0]))} ${fn(l[1])}`).join(' · ') || 'no items';
+  const jobCard = (m, actions) => `<div class="pk-job"><div style="flex:1;min-width:0"><b>${esc(m.from)} → ${esc(m.to)}</b>${m.poNum ? ` <span class="sub">PO #${esc(m.poNum)}</span>` : ''}<div class="sub" style="margin:2px 0 0">${lineTxt(m)}</div></div>${actions}</div>`;
+  return `${head('Pickups', "Bring product from Logical and BM, and keep BM's count. Only you see this while you try it.")}
+  <section class="card stack" style="gap:8px"><div class="card-head" style="margin:0"><h2 style="margin:0">What's at BM</h2><span class="sub" style="margin:0">${fn(bmTotal)} cases · ${bmItems.length} product${bmItems.length === 1 ? '' : 's'}</span></div>
+    ${bmItems.length ? `<table class="mini-table">${bmItems.map(f => `<tr><td>${esc(nameOf(f))}</td><td class="num">${fn(bm[f])} cs</td></tr>`).join('')}</table>` : '<p class="sub" style="margin:0">BM is empty. As you mark Logical→BM pickups received, it fills up here.</p>'}</section>
+  ${pending.length ? `<section class="card stack" style="gap:8px"><div class="card-head" style="margin:0"><h2 style="margin:0">Today's pickups</h2><span class="sub" style="margin:0">what the driver sees · ${pending.length}</span></div>
+    ${pending.map(m => jobCard(m, `<div style="display:flex;flex-direction:column;gap:6px"><button class="btn primary sm" data-act="pk-recv" data-id="${esc(m.id)}">${m.to === 'BM' ? 'Received at BM' : 'Done'}</button><button class="btn ghost sm" data-act="pk-cancel" data-id="${esc(m.id)}">Cancel</button></div>`)).join('')}</section>` : ''}
+  <section class="card stack" style="gap:8px"><div class="card-head" style="margin:0"><h2 style="margin:0">Open POs — ready to pick up</h2><span class="sub" style="margin:0">from QuickBooks · ${pos.length}</span></div>
+    ${pos.length ? pos.map(po => `<div class="pk-po"><div><b>${esc(po.vendor)}</b> <span class="sub">PO #${esc(po.num)} · due ${esc(po.deliv)}</span><div class="sub" style="margin:2px 0 0">${po.lines.map(l => `${esc(l.name)} ${fn(l.left)}`).join(' · ')}</div></div><div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px"><button class="btn gold sm" data-act="pk-make" data-num="${esc(po.num)}" data-to="BM">Schedule → BM</button><button class="btn ghost sm" data-act="pk-make" data-num="${esc(po.num)}" data-to="Brooklyn">Schedule → Brooklyn</button></div></div>`).join('') : '<p class="sub" style="margin:0">No open POs from QuickBooks right now.</p>'}</section>
+  <section class="card stack" style="gap:8px"><div class="card-head" style="margin:0"><h2 style="margin:0">BM → Chuster run</h2><span class="sub" style="margin:0">what to bring over</span></div>
+    ${bmItems.length ? `${bmItems.map(f => `<div class="pk-xrow"><span style="flex:1;min-width:0">${esc(nameOf(f))} <span class="sub">(${fn(bm[f])} at BM)</span></span><input class="inp num pkx-in" data-full="${esc(f)}" type="number" inputmode="numeric" placeholder="cases" max="${bm[f]}" value="${S.pkxDraft[f] != null ? esc(S.pkxDraft[f]) : ''}" style="width:88px"></div>`).join('')}<button class="btn primary" data-act="pk-xrun">Create BM → Chuster run</button>` : '<p class="sub" style="margin:0">Nothing at BM to bring yet.</p>'}</section>
+  ${recent.length ? `<section class="card stack" style="gap:4px"><div class="card-head" style="margin:0"><h2 style="margin:0">Recent</h2></div>${recent.map(m => `<div class="sub" style="margin:0;border-top:1px solid var(--line);padding:6px 0">${esc(m.from)} → ${esc(m.to)}${m.poNum ? ` · PO #${esc(m.poNum)}` : ''} · ${fn((m.lines || []).reduce((s, l) => s + (+l[1] || 0), 0))} cs${m.recvAt ? ' · ' + esc(fmtShort(isoRd(String(m.recvAt).slice(0, 10)))) : ''}</div>`).join('')}</section>` : ''}
+  <p class="sub" style="margin:0">First version to try. Next step: the driver snaps a photo of the Logical bill and the AI fills the items and checks the PO number. Nobody but you sees this screen yet.</p>`;
+}
+
 /* ================= Salesman dashboard (e.g. "Dudi's sales") ================= */
 const DLY = REAL && REAL.daily ? REAL.daily : null;
 Object.assign(S, { ms: { rep: S.user === 'Motty' ? 'All' : 'Dudi', range: 'days', area: 'All', end: null, year: null }, msMovers: false });
@@ -6792,7 +6825,7 @@ const SYNC = (function () {
     if (!viaApp && onNetlify && e && e.name === 'TypeError') { viaApp = true; try { localStorage.setItem('chuster-db-via-app', '1'); } catch (x) { /* ignore */ } setTimeout(() => tick(), 500); }
   }
   const st = { ok: null, err: '', last: 0, since: loadLS('chuster-sync-since', {}), out: loadLS('chuster-sync-out', {}), seen: {}, key: null, flushing: false, pulling: false, started: false };
-  const COLLS = ['gc', 'ds', 'rd', 'll', 'do', 'sc', 'tr', 'lq', 'ls', 'lm', 'lx', 'lh', 'qi', 'qo', 'qc', 'qs', 'qp', 'qh', 'qw', 'qr', 'ps', 'pp', 'pn', 'pq', 'sx', 'sl', 'vn', 'pt', 'cv', 'cg', 'df', 'cut', 'av', 'ct'];
+  const COLLS = ['gc', 'ds', 'rd', 'll', 'do', 'sc', 'tr', 'lq', 'ls', 'lm', 'lx', 'lh', 'qi', 'qo', 'qc', 'qs', 'qp', 'qh', 'qw', 'qr', 'ps', 'pp', 'pn', 'pq', 'sx', 'sl', 'vn', 'pt', 'cv', 'cg', 'df', 'cut', 'av', 'ct', 'mv'];
   const h = s => { let a = 0x811c9dc5, b = 0x9e3779b9; for (let i = 0; i < s.length; i++) { const c = s.charCodeAt(i); a = Math.imul(a ^ c, 16777619) >>> 0; b = Math.imul(b ^ c, 2246822519) >>> 0; } return a.toString(36) + b.toString(36); };
   const b64 = u8 => { let s = ''; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); return btoa(s); };
   const unb64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -7133,6 +7166,14 @@ SYNC.on('av', (k, val) => { if (val == null) delete S.activity[k]; else S.activi
 S.counts = loadLS('chuster-counts-v1', {});
 const saveCounts = () => { try { localStorage.setItem('chuster-counts-v1', JSON.stringify(S.counts)); } catch (e) { /* full */ } };
 SYNC.on('ct', (k, val) => { if (val == null) delete S.counts[k]; else S.counts[k] = val; saveCounts(); });
+// Pickups / warehouse moves: { id: {from, to, poNum, vendor, d, lines:[[full,cases]], st:'pending'|'done', by, at, recvAt} }
+S.moves = loadLS('chuster-moves-v1', {});
+const saveMoves = () => { try { localStorage.setItem('chuster-moves-v1', JSON.stringify(S.moves)); } catch (e) { /* full */ } };
+const putMove = m => { m.upd = Date.now(); S.moves[m.id] = m; saveMoves(); try { SYNC.put('mv', m.id, m); } catch (e) { } };
+const delMove = id => { delete S.moves[id]; saveMoves(); try { SYNC.put('mv', id, null); } catch (e) { } };
+SYNC.on('mv', (k, val) => { if (val == null) delete S.moves[k]; else S.moves[k] = val; saveMoves(); });
+// BM contents = sum of received moves into BM minus runs out of BM (only 'done' moves count)
+function bmByFull() { const m = {}; Object.values(S.moves || {}).forEach(mv => { if (!mv || mv.st !== 'done') return; const sign = mv.to === 'BM' ? 1 : mv.from === 'BM' ? -1 : 0; if (!sign) return; (mv.lines || []).forEach(l => { const full = l[0], q = +l[1] || 0; if (!full || !q) return; m[full] = (m[full] || 0) + sign * q; }); }); return m; }
 let avSeen = {}; // throttle screen logging this session
 function logActivity(kind) {
   try {
@@ -8270,6 +8311,10 @@ document.addEventListener('click', e => {
     case 'inv-groupby': S.invGroupBy = d.g; keep(); break;
     case 'inv-tap': S.invSel = (S.invSel === d.full ? null : d.full); S.invVelPer = null; keep(); break;
     case 'inv-vel': S.invVelPer = (S.invVelPer === d.per ? null : d.per); keep(); break;
+    case 'pk-make': { const OPOl = (REAL && REAL.openPO && REAL.openPO.list) || []; const lines = OPOl.filter(p => String(p.num) === String(d.num)); if (!lines.length) { toast('PO not found.'); break; } const po = lines[0]; putMove({ id: 'mv' + Date.now().toString(36) + Math.floor(Math.random() * 1e4).toString(36), from: 'Logical', to: d.to, poNum: d.num, vendor: po.vendor, d: isoOf(TODAY), lines: lines.map(p => [p.item, p.left, p.name]), st: 'pending', by: byName(), at: nowIso() }); toast("Scheduled. The driver sees it under Today's pickups."); keep(); break; }
+    case 'pk-recv': { const m = S.moves[d.id]; if (m) { m.st = 'done'; m.recvAt = nowIso(); putMove(m); toast(m.to === 'BM' ? 'Received — added to BM.' : 'Done.'); } keep(); break; }
+    case 'pk-cancel': delMove(d.id); keep(); break;
+    case 'pk-xrun': { const lines = Object.keys(S.pkxDraft || {}).map(f => [f, Math.round(+S.pkxDraft[f] || 0)]).filter(l => l[1] > 0); if (!lines.length) { toast('Enter how many to bring.'); break; } const bm = bmByFull(); const nm = f => { const c = S.catalog.find(x => x.full === f); return c ? c.name : f; }; putMove({ id: 'mv' + Date.now().toString(36) + Math.floor(Math.random() * 1e4).toString(36), from: 'BM', to: 'Chuster', d: isoOf(TODAY), lines: lines.map(l => [l[0], Math.min(l[1], bm[l[0]] || l[1]), nm(l[0])]), st: 'pending', by: byName(), at: nowIso() }); S.pkxDraft = {}; toast('BM → Chuster run created. Mark it Done when it arrives.'); keep(); break; }
     case 'count-toggle': S.countMode = !S.countMode; if (S.countMode) { S.invFilter = 'allprod'; S.invSel = null; S.invEdit = null; } keep(); break;
     case 'count-save': { let n = 0; const by = byName(), at = nowIso(); Object.keys(S.countDraft).forEach(full => { const v = S.countDraft[full]; if (v === '' || v == null) return; const q = Math.round(+v); if (!isFinite(q)) return; const rec = { q, at, by }; S.counts[full] = rec; try { SYNC.put('ct', full, rec); } catch (e) { } n++; }); saveCounts(); S.countDraft = {}; S.countMode = false; toast(n ? `Saved ${n} count${n === 1 ? '' : 's'}.` : 'No counts entered.'); keep(); break; }
     case 'inv-fix-cat': {
@@ -8589,6 +8634,7 @@ document.addEventListener('change', e => {
   if (t.id === 'pr-for' || t.id === 'pr-contact') { const pv = document.getElementById('ps-preview'); if (pv) pv.innerHTML = prSheet(S.prKind); }
 });
 document.addEventListener('input', e => {
+  if (e.target.classList && e.target.classList.contains('pkx-in')) { const f = e.target.dataset.full; if (e.target.value === '') delete S.pkxDraft[f]; else S.pkxDraft[f] = e.target.value; return; }
   if (e.target.classList && e.target.classList.contains('cnt-in')) {
     const full = e.target.dataset.full, v = e.target.value; S.countDraft[full] = v;
     const badge = document.getElementById('d_' + e.target.dataset.k); const qb = +e.target.dataset.qb;
