@@ -1,15 +1,15 @@
 {
  "result": "ok",
  "history": "2026-11-10T23:02:21",
- "at": "2026-11-11T04:13Z",
+ "at": "2026-11-11T04:17Z",
  "last": [
   "customers 306 | cells 250568 | bytes 2252419",
   "balance lines 69 | open PO lines 83 open $ 865428 | reps {'MH': 'Mordche Hersh', 'PU': 'Pick Up', 'WH': 'Wholsale', 'WHC': 'Wholsale Country'}",
   "daily 332 days 8179 invoices | cases known to 2026-11-10 | bytes 156176",
   "books 504276 bytes | expenses 25739 deposits 2988 bill payments 2827 open sales orders 0 estimates 0 adjustments 0 builds 0 POs 1225 journal 35 accounts 140",
   "sync added; url = https://chuster-afb77-default-rtdb.firebaseio.com",
-  "locked 1167826 bytes for Owner:Zevi, Office:Office, Office:Joel, Warehouse:Warehouse, Driver:Driver, Sales:Dudi, SalesDriver:Motty, Owner:Ben, Owner:Moses | round trip ok: true",
-  "locked page 2760335 bytes; zip 1768179",
+  "locked 1167816 bytes for Owner:Zevi, Office:Office, Office:Joel, Warehouse:Warehouse, Driver:Driver, Sales:Dudi, SalesDriver:Motty, Owner:Ben, Owner:Moses | round trip ok: true",
+  "locked page 2762128 bytes; zip 1768745",
   "built from QuickBooks history 2020-01-01 to 2026-11-10"
  ]
 }
