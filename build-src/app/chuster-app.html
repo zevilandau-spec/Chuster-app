@@ -1920,6 +1920,63 @@ function renderSalesReport() {
 `; document.head.appendChild(st); } catch (e) { } })();
 
 
+// What's new — a running list of what shipped, newest first. r: role that sees it (Owner-only if set).
+const CHANGELOG = [
+  { d: '2026-11-11', t: 'Pickups (preview)', b: "New Pickups screen: what to pick up from Winland & Bickel's, by product, with a 'Pick up soon' radar that watches your stock and sales, plus a running BM count. You-only while you try it.", r: 'Owner' },
+  { d: '2026-11-11', t: 'Lost sales', b: 'See the dollars being out of stock is costing you, worst first — with how much more you bleed each week until it is fixed.', r: 'Owner' },
+  { d: '2026-11-11', t: 'Dashboard greets you by name', b: 'The home screen now says hi to whoever is logged in, not always Zevi.' },
+  { d: '2026-11-10', t: 'Inventory by product', b: 'Inventory opens by brand in item-sheet order. Tap a product for today / this week / a usual week and how long stock lasts — and tap a day to see which stores took it.' },
+  { d: '2026-11-10', t: 'Count mode', b: 'Count stock walks the warehouse and shows how far off QuickBooks is, item by item.' },
+  { d: '2026-11-10', t: 'Activity log', b: 'See who opened the app and when, with a date filter. Owner-only.', r: 'Owner' },
+  { d: '2026-11-10', t: 'Scorecard: tap a month', b: "On a customer, tap a blue month bar to see what they took that month, plus a this-year-vs-last-year table." },
+  { d: '2026-11-09', t: 'New logins', b: 'Added an Office login for Joel, and set up Ben and Moses.', r: 'Owner' },
+  { d: '2026-11-09', t: 'Cleaner ship-to', b: "Orders stop asking for a ship-to when it's the same as the main address; sales-by-location folds 'no location' into the main address." }
+];
+const waUnseen = () => { const seen = S.waSeen || ''; return CHANGELOG.filter(e => (!e.r || S.role === 'Owner' || e.r === S.role) && e.d > seen).length; };
+function renderWhatsNew() {
+  const mine = CHANGELOG.filter(e => !e.r || S.role === 'Owner' || e.r === S.role); const seen = S.waSeen || '';
+  return `${head("What's new", 'Everything new in the app, newest first')}
+  ${mine.map(e => `<section class="card stack" style="gap:4px"><div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px"><h2 style="margin:0;font-size:16px">${esc(e.t)}${e.d > seen ? ' <span class="tag gold" style="font-size:11px">new</span>' : ''}</h2><span class="sub" style="margin:0;white-space:nowrap">${esc(fmtShort(isoRd(e.d)))}</span></div><p class="sub" style="margin:0;color:var(--text)">${esc(e.b)}</p></section>`).join('')}`;
+}
+function renderLostSales() {
+  if (S.role !== 'Owner' && !officePlus()) return head('Lost sales', '') + '<section class="card"><p class="sub" style="margin:0">Only the owner sees this.</p></section>';
+  if (!REAL) return needData('Lost sales');
+  const items = (REAL.belowZero || []).map(z => { const c = S.catalog.find(x => String(x.code) === String(z.code) && x.name === z.name) || S.catalog.find(x => x.name === z.name); const price = c && c.price ? c.price : 0; const short = Math.max(0, -(z.stock || 0)); const wk = (z.sold28 || 0) / 4; return { name: z.name, short, price, lost: short * price, wkBleed: wk * price }; }).filter(x => x.lost > 0).sort((a, b) => b.lost - a.lost);
+  const totLost = items.reduce((s, x) => s + x.lost, 0), totWk = items.reduce((s, x) => s + x.wkBleed, 0);
+  return `${head('Lost sales', 'What being out of stock is costing you')}
+  <div class="tiles"><div class="tile ct ct-gold"><div class="k">Short right now</div><div class="v">${money(totLost)}</div><div class="s">orders you can't fill today</div></div>
+    <div class="tile ct ct-blue"><div class="k">Bleeding</div><div class="v">${money(totWk)}/wk</div><div class="s">while these stay out</div></div></div>
+  <section class="card"><div style="overflow-x:auto"><table class="rpt"><thead><tr><th>Item</th><th class="num">Short</th><th class="num">Price</th><th class="num">Lost now</th><th class="num">Per week</th></tr></thead><tbody>
+    ${items.map(x => `<tr><td><b>${esc(x.name)}</b></td><td class="num">${fn(x.short)}</td><td class="num">${money(x.price)}</td><td class="num"><b>${money(x.lost)}</b></td><td class="num">${money(x.wkBleed)}</td></tr>`).join('') || '<tr><td colspan="5" class="sub">Nothing out of stock — nice.</td></tr>'}
+    </tbody><tfoot><tr><th>TOTAL</th><th></th><th></th><th class="num">${money(totLost)}</th><th class="num">${money(totWk)}</th></tr></tfoot></table></div>
+  <p class="sub" style="margin:8px 0 0">"Short right now" = cases below zero × price — orders you've already shorted. "Per week" = recent sales pace × price while it stays out. Pick these up to stop the bleed.</p></section>`;
+}
+function renderCommand() {
+  if (S.role !== 'Owner') return head('Command center', '') + '<section class="card"><p class="sub" style="margin:0">Only owners see this.</p></section>';
+  if (!REAL) return needData('Command center');
+  const lost = (REAL.belowZero || []).reduce((s, z) => { const c = S.catalog.find(x => String(x.code) === String(z.code) && x.name === z.name) || S.catalog.find(x => x.name === z.name); const p = c && c.price ? c.price : 0; return s + Math.max(0, -(z.stock || 0)) * p; }, 0);
+  const bz = REAL.counts ? REAL.counts.belowZero : 0, late = REAL.counts ? REAL.counts.late : 0;
+  const tiles = [
+    { k: 'Out of stock', v: money(lost), s: "orders you can't fill", go: 'lostsales', cls: 'ct-gold' },
+    { k: 'Below zero', v: fn(bz) + ' items', s: 'counts gone negative', go: 'inventory', cls: 'ct-blue' },
+    { k: 'Stores slipping', v: fn(late), s: 'overdue to order', go: 'atrisk', cls: 'ct-blue' }
+  ];
+  if (isZevi()) tiles.push({ k: 'Pickups', v: 'open', s: 'what to bring in', go: 'pickups', cls: 'ct-gold' });
+  return `${head('Command center', 'What needs you today')}
+  <div class="tiles">${tiles.map(t => `<div class="tile ct ${t.cls}" data-go="${t.go}" style="cursor:pointer"><div class="k">${t.k}</div><div class="v">${t.v}</div><div class="s">${t.s}</div></div>`).join('')}</div>
+  <section class="card"><p class="sub" style="margin:0">Tap a tile to dig in. This is your owner home base — more lands here as I build it (who owes you, sales vs last year, pickups to schedule).</p></section>`;
+}
+function renderBrandSales() {
+  if (S.role !== 'Owner' && !officePlus()) return head('Sales by brand', '') + '<section class="card"><p class="sub" style="margin:0">Only the owner sees this.</p></section>';
+  if (!REAL) return needData('Sales by brand');
+  const by = {}; let tot = 0;
+  (REAL.orders.list || []).forEach(o => { if (o.t !== 'inv' || !o.l) return; rowsOf(o.l).forEach(([r, q, a]) => { const c = typeof r === 'number' ? REAL.catalog[r] : null; const g = c ? (c.group || 'Other') : 'Other'; const x = by[g] || (by[g] = { g, amt: 0, q: 0 }); x.amt += a || 0; x.q += q || 0; tot += a || 0; }); });
+  const rows = Object.values(by).sort((a, b) => b.amt - a.amt);
+  return `${head('Sales by brand', `${fmtShort(isoRd(REAL.orders.from))} – ${fmtShort(isoRd(REAL.orders.to))}`)}
+  <section class="card"><div style="overflow-x:auto"><table class="rpt"><thead><tr><th>Brand</th><th class="num">Cases</th><th class="num">Sales</th><th class="num">% of sales</th></tr></thead><tbody>
+    ${rows.map(x => `<tr><td><b>${esc((typeof GROUP_TITLE !== 'undefined' && GROUP_TITLE[x.g]) || x.g)}</b></td><td class="num">${fn(x.q)}</td><td class="num"><b>${money(x.amt)}</b></td><td class="num">${tot ? (x.amt / tot * 100).toFixed(1) : '0.0'}%</td></tr>`).join('') || '<tr><td colspan="4" class="sub">No sales yet.</td></tr>'}
+    </tbody><tfoot><tr><th>TOTAL</th><th class="num">${fn(rows.reduce((s, x) => s + x.q, 0))}</th><th class="num">${money(tot)}</th><th class="num">100%</th></tr></tfoot></table></div></section>`;
+}
 function renderActivity() {
   if (!isZevi()) return head('Activity', '') + '<section class="card"><p class="sub" style="margin:0">Only you see this page.</p></section>';
   const t12 = ms => { const d = new Date(ms); let h = d.getHours(); const m = d.getMinutes(); const ap = h < 12 ? 'AM' : 'PM'; h = h % 12 || 12; return h + ':' + String(m).padStart(2, '0') + ' ' + ap; };
@@ -1990,6 +2047,10 @@ const VIEWS = {
   tools: { title: 'Tools', r: renderTools },
   activity: { title: 'Activity', r: renderActivity },
   pickups: { title: 'Pickups', r: renderPickups },
+  whatsnew: { title: "What's new", r: renderWhatsNew },
+  lostsales: { title: 'Lost sales', r: renderLostSales },
+  command: { title: 'Command center', r: renderCommand },
+  brandsales: { title: 'Sales by brand', r: renderBrandSales },
   inbox: { title: 'Incoming orders', r: renderInbox },
   payments: { title: 'Payments', r: renderPayments },
   packlog: { title: 'Pack log', r: renderPackLog },
@@ -2041,10 +2102,10 @@ const VIEWS = {
   forecast: { title: 'Week-ahead forecast', r: renderForecast }
 };
 const NAV = [
-  { items: [['home', 'Dashboard', 'home'], ['ask', 'Ask AI ✨', 'chat'], ['calendar', 'Calendar', 'cal']] },
+  { items: [['home', 'Dashboard', 'home'], ['command', 'Command center', 'alert'], ['ask', 'Ask AI ✨', 'chat'], ['whatsnew', "What's new", 'star', 'new'], ['calendar', 'Calendar', 'cal']] },
   { h: 'ORDERS', items: [['order', 'New order', 'order'], ['orders', 'Orders', 'order'], ['inbox', 'Incoming orders', 'chat', 'inbox'], ['toqb', 'To QuickBooks', 'check', 'toqb']] },
   { h: 'CUSTOMERS', items: [['visits', "Today's visits", 'clock'], ['coverage', 'Coverage plan', 'clip'], ['pitch', 'New to pitch', 'chart'], ['customers', 'Customers', 'people', 'late'], ['payments', 'Payments', 'card', 'pay'], ['collect', 'Collections', 'card'], ['aging', 'Collections dashboard', 'chart'], ['stmts', 'Statements by email', 'mail'], ['custprofit', 'Profit by store', 'chart'], ['lost', 'Lost items', 'alert'], ['yomtov', 'Yom Tov list', 'cal'], ['ytplan', 'Yom Tov planner', 'chart']] },
-  { h: 'SALES & MONEY', items: [['mysales', 'Salesman dashboard', 'chart'], ['storesales', 'Store sales', 'chart'], ['scorecard', 'Store scorecard', 'people'], ['atrisk', 'At-risk board', 'alert'], ['crosssell', 'Cross-sell', 'chart'], ['newlost', 'New & lost stores', 'people'], ['habits', 'Order habits', 'clock'], ['seasonality', 'Seasonality', 'chart'], ['salesreport', 'Sales report', 'chart'], ['repscore', 'Salesman scorecard', 'people'], ['reps', 'Sales by rep & commission', 'people'], ['returns', 'Returns & credits', 'card'], ['finance', 'Finance', 'chart']] },
+  { h: 'SALES & MONEY', items: [['mysales', 'Salesman dashboard', 'chart'], ['storesales', 'Store sales', 'chart'], ['scorecard', 'Store scorecard', 'people'], ['atrisk', 'At-risk board', 'alert'], ['crosssell', 'Cross-sell', 'chart'], ['newlost', 'New & lost stores', 'people'], ['habits', 'Order habits', 'clock'], ['seasonality', 'Seasonality', 'chart'], ['salesreport', 'Sales report', 'chart'], ['brandsales', 'Sales by brand', 'chart'], ['lostsales', 'Lost sales', 'alert'], ['repscore', 'Salesman scorecard', 'people'], ['reps', 'Sales by rep & commission', 'people'], ['returns', 'Returns & credits', 'card'], ['finance', 'Finance', 'chart']] },
   { h: 'PRODUCTS', items: [['catalog', 'Catalog', 'box'], ['prodsales', 'Product sales', 'chart'], ['winners', 'Winners & losers', 'chart'], ['items', 'Products & profit', 'chart'], ['margin', 'Margins', 'chart'], ['pricelist', 'Price list', 'order'], ['pricecheck', 'Price check', 'card'], ['pricespread', 'Price spread', 'chart']] },
   { h: 'DELIVERIES', items: [['route', 'Deliveries', 'box'], ['stop', 'Driver', 'wheel'], ['pickups', 'Pickups', 'truck'], ['live', 'Live trucks', 'pin'], ['loading', 'Loading', 'truck'], ['dsched', 'Delivery days', 'cal'], ['delivstats', 'Delivery stats', 'chart'], ['routeprofit', 'Route profit', 'chart']] },
   { h: 'WAREHOUSE', items: [['packnext', 'What to pack', 'clip'], ['forecast', 'Week-ahead forecast', 'chart'], ['packing', 'Packing plan', 'clip'], ['stockcover', 'Stock cover', 'box'], ['packlog', 'Pack log', 'clip'], ['packrep', 'Packing report', 'chart'], ['yield', 'Yield', 'chart']] },
@@ -2078,7 +2139,7 @@ const custMineName = n => !salesLocked() || custMine(custByName(n));
 const allowed = v => {
   if (v === 'activity' || v === 'pickups') return isZevi();
   if (S.role === 'Owner') return true;
-  if (S.role === 'Office') { const deny = officePlus() ? ['finance', 'expenses', 'bank', 'journal', 'accounts'] : ['tools', 'custprofit', 'finance', 'expenses', 'bank', 'journal', 'accounts', 'margin', 'repscore']; return !deny.includes(v); }
+  if (S.role === 'Office') { const deny = officePlus() ? ['finance', 'expenses', 'bank', 'journal', 'accounts', 'command'] : ['tools', 'custprofit', 'finance', 'expenses', 'bank', 'journal', 'accounts', 'margin', 'repscore', 'lostsales', 'command', 'brandsales']; return !deny.includes(v); }
   return (ROLE_VIEWS[S.role] || []).includes(v);
 };
 const roleHome = () => S.role === 'Warehouse' ? 'packnext' : S.role === 'Driver' ? 'route' : isSales() ? 'mysales' : 'home';
@@ -2092,7 +2153,7 @@ const tr = t => (S.lang === 'yi' && YI[t]) ? `<span dir="rtl" lang="yi">${YI[t]}
 const trTxt = t => (S.lang === 'yi' && YI[t]) ? YI[t] : t;
 function drawChrome() {
   const cnt = c => c === 'inbox' ? S.inbox.filter(x => x.st !== 'added').length : c === 'pay' ? S.payments.filter(p => p.st !== 'applied').length
-    : c === 'inv' ? (REAL ? REAL.counts.belowZero : 46) : c === 'late' ? (REAL ? REAL.counts.late : 0) : c === 'toqb' ? (typeof qwCount === 'function' && S.qw ? qwCount() : 0) : c;
+    : c === 'inv' ? (REAL ? REAL.counts.belowZero : 46) : c === 'late' ? (REAL ? REAL.counts.late : 0) : c === 'toqb' ? (typeof qwCount === 'function' && S.qw ? qwCount() : 0) : c === 'new' ? (typeof waUnseen === 'function' ? waUnseen() : 0) : c;
   document.getElementById('data-title').textContent = REAL ? 'Real numbers' : 'Sample data';
   if (REAL) document.getElementById('data-note').textContent = qbLive() ? `QuickBooks live: sales, balances and stock straight from QuickBooks, updated ${qbAgo()}. Deliveries and payments by email are still examples.` : `Sales to ${fmtShort(isoRd(REAL.asOf))}, balances and stock ${REAL.snapAsOf ? fmtShort(isoRd(REAL.snapAsOf)) : ''}, from your QuickBooks export. Not live yet. Deliveries, WhatsApp orders and email payments are still examples.`;
   const navOk = it => it[0] ? allowed(it[0]) : (S.role === 'Owner' || S.role === 'Office');
@@ -2152,6 +2213,7 @@ function go(v, keepScroll) { S.lxSheet = null; S.tileView = null;
     S.orderShip = null; S.orderLoc = null; S.storeOpen = false; S.storeQ = ''; S.lyPick = null; S.creditOk = null; S.shipCalOpen = false; S.orderStep = 'build';
   }
   S.view = v;
+  if (v === 'whatsnew') { try { S.waSeen = isoOf(TODAY); localStorage.setItem('chuster-wa-seen', S.waSeen); } catch (e) { } }
   if (typeof logActivity === 'function') logActivity(v);
   closeMenu();
   render();
@@ -7205,6 +7267,7 @@ function pruneActivity() { const cutMs = Date.now() - 60 * 864e5; let ch = false
 SYNC.on('av', (k, val) => { if (val == null) delete S.activity[k]; else S.activity[k] = val; saveActivity(); });
 // Warehouse counts (Count mode): { full: {q, at, by} }. A record of real counts and how they compare to QuickBooks.
 S.counts = loadLS('chuster-counts-v1', {});
+try { S.waSeen = localStorage.getItem('chuster-wa-seen') || ''; } catch (e) { S.waSeen = ''; }
 const saveCounts = () => { try { localStorage.setItem('chuster-counts-v1', JSON.stringify(S.counts)); } catch (e) { /* full */ } };
 SYNC.on('ct', (k, val) => { if (val == null) delete S.counts[k]; else S.counts[k] = val; saveCounts(); });
 // Pickups / warehouse moves: { id: {from, to, poNum, vendor, d, lines:[[full,cases]], st:'pending'|'done', by, at, recvAt} }
