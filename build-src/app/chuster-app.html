@@ -1992,16 +1992,36 @@ const EMAIL_SEED = [
   { cat: 'shortage', who: 'Delivery — Kosher Discount', subj: 'Inv #155995 — 2 boxes short', sum: 'Chuster Soup Mandlen: 2 short (it\'s out of stock).', at: '2026-11-10T20:06:00' },
   { cat: 'shortage', who: 'Delivery — KRM Kollel Supermarket', subj: 'Inv #155991 — 5 boxes short', sum: 'Chuster Soup Mandlen: 5 short (out of stock).', at: '2026-11-10T19:25:00' }
 ];
+// Who am I, lowercased — each person sees only their own mailbox feed.
+function emMe() { return String(S.user || S.realUser || S.baseRole || '').trim().toLowerCase(); }
+function emAddr() { S.emailConn = S.emailConn || {}; const me = emMe(); const a = S.emailConn[me] && S.emailConn[me].email; if (a) return a; if (me === 'zevi') return 'zevi@chusternoodle.com'; return ''; }
+function emFeedFor() {
+  const me = emMe(); const live = REAL && REAL.emailFeed;
+  if (live && !Array.isArray(REAL.emailFeed)) { const addr = emAddr().toLowerCase(); return REAL.emailFeed[me] || (addr ? REAL.emailFeed[addr] : null) || []; }
+  if (live) return me === 'zevi' ? REAL.emailFeed : [];
+  return me === 'zevi' ? EMAIL_SEED : [];
+}
 function renderEmailInbox() {
-  const live = REAL && REAL.emailFeed && REAL.emailFeed.length;
-  const feed = live ? REAL.emailFeed : EMAIL_SEED;
+  const feed = emFeedFor(), addr = emAddr(), live = REAL && REAL.emailFeed;
+  if (!feed.length && !addr) {
+    return `${head('Email inbox', 'See your own mail right inside the app')}
+    <section class="card stack" style="gap:12px">
+      <div><h2 style="margin:0 0 4px;font-size:17px">Connect your email</h2>
+      <p class="sub" style="margin:0">Add your work email and the app pulls in what needs you — pickups, orders, bills, shortages. You only ever see <b>your own</b> mailbox; nobody else can open it.</p></div>
+      <input class="inp ec-in" type="email" inputmode="email" autocapitalize="off" placeholder="you@chusternoodle.com" value="${esc(S.ecDraft || '')}" style="font-size:16px">
+      <button class="btn primary" data-act="email-connect">Connect this email</button>
+      <p class="sub" style="margin:0;font-size:12px">Company (@chusternoodle.com) addresses connect fastest.</p>
+    </section>`;
+  }
   const cats = [['pickup', '🚚 Pickups — Logical / Winland'], ['order', '🛒 Orders'], ['bill', '🧾 Bills & vendors'], ['shortage', '❗ Shortages'], ['payment', '💵 Payments']];
   const byCat = {}; feed.forEach(e => (byCat[e.cat] || (byCat[e.cat] = [])).push(e));
   const tfmt = iso => { try { const d = new Date(iso); return fmtShort(isoRd(String(iso).slice(0, 10))) + ' ' + d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }); } catch (e) { return ''; } };
   const card = e => `<div class="em-row"><div style="flex:1;min-width:0"><div class="em-who">${esc(e.who)}${e.flag ? ` <span class="tag red" style="font-size:11px">${esc(e.flag)}</span>` : ''}</div><div class="em-sub">${esc(e.subj)}</div><div class="sub" style="margin:2px 0 0">${esc(e.sum)}</div></div><div class="sub" style="white-space:nowrap;font-size:11px">${tfmt(e.at)}</div></div>`;
   const body = cats.filter(([k]) => byCat[k]).map(([k, title]) => `<section class="card stack" style="gap:2px"><div class="card-head" style="margin:0"><h2 style="margin:0;font-size:15px">${title}</h2><span class="sub" style="margin:0">${byCat[k].length}</span></div>${byCat[k].map(card).join('')}</section>`).join('');
-  return `${head('Email inbox', 'What is coming in — pulled from your Outlook')}
-  ${live ? '' : '<div class="note" style="background:var(--brand-soft);border-color:var(--brand)"><b>Snapshot from a few minutes ago.</b> The hourly watcher will keep this fresh on its own.</div>'}
+  const pending = addr && !feed.length;
+  return `${head('Email inbox', addr ? esc(addr) : 'What is coming in')}
+  ${pending ? `<div class="note" style="background:var(--brand-soft);border-color:var(--brand)"><b>Pulling in ${esc(addr)}.</b> Your messages will start showing here shortly.</div>`
+    : (live ? '' : '<div class="note" style="background:var(--brand-soft);border-color:var(--brand)"><b>Snapshot from a few minutes ago.</b> The hourly watcher keeps this fresh on its own.</div>')}
   ${body || '<section class="card"><p class="sub" style="margin:0">Nothing needs you right now.</p></section>'}`;
 }
 function renderCommand() {
@@ -2194,7 +2214,7 @@ const custMine = c => !salesLocked() || (!!c && myRepCodes().includes(c.rep || '
 const custMineName = n => !salesLocked() || custMine(custByName(n));
 const allowed = v => {
   if (v === 'activity' || v === 'pickups') return isZevi();
-  if (v === 'email') return S.role === 'Owner';
+  if (v === 'email') return true;
   if (S.role === 'Owner') return true;
   if (S.role === 'Office') { const deny = officePlus() ? ['finance', 'expenses', 'bank', 'journal', 'accounts', 'command'] : ['tools', 'custprofit', 'finance', 'expenses', 'bank', 'journal', 'accounts', 'margin', 'repscore', 'lostsales', 'command', 'brandsales', 'movers']; return !deny.includes(v); }
   return (ROLE_VIEWS[S.role] || []).includes(v);
@@ -2210,7 +2230,7 @@ const tr = t => (S.lang === 'yi' && YI[t]) ? `<span dir="rtl" lang="yi">${YI[t]}
 const trTxt = t => (S.lang === 'yi' && YI[t]) ? YI[t] : t;
 function drawChrome() {
   const cnt = c => c === 'inbox' ? S.inbox.filter(x => x.st !== 'added').length : c === 'pay' ? S.payments.filter(p => p.st !== 'applied').length
-    : c === 'inv' ? (REAL ? REAL.counts.belowZero : 46) : c === 'late' ? (REAL ? REAL.counts.late : 0) : c === 'toqb' ? (typeof qwCount === 'function' && S.qw ? qwCount() : 0) : c === 'new' ? (typeof waUnseen === 'function' ? waUnseen() : 0) : c === 'em' ? ((REAL && REAL.emailFeed) ? REAL.emailFeed.length : (typeof EMAIL_SEED !== 'undefined' ? EMAIL_SEED.length : 0)) : c;
+    : c === 'inv' ? (REAL ? REAL.counts.belowZero : 46) : c === 'late' ? (REAL ? REAL.counts.late : 0) : c === 'toqb' ? (typeof qwCount === 'function' && S.qw ? qwCount() : 0) : c === 'new' ? (typeof waUnseen === 'function' ? waUnseen() : 0) : c === 'em' ? (typeof emFeedFor === 'function' ? emFeedFor().length : 0) : c;
   document.getElementById('data-title').textContent = REAL ? 'Real numbers' : 'Sample data';
   if (REAL) document.getElementById('data-note').textContent = qbLive() ? `QuickBooks live: sales, balances and stock straight from QuickBooks, updated ${qbAgo()}. Deliveries and payments by email are still examples.` : `Sales to ${fmtShort(isoRd(REAL.asOf))}, balances and stock ${REAL.snapAsOf ? fmtShort(isoRd(REAL.snapAsOf)) : ''}, from your QuickBooks export. Not live yet. Deliveries, WhatsApp orders and email payments are still examples.`;
   const navOk = it => it[0] ? allowed(it[0]) : (S.role === 'Owner' || S.role === 'Office');
@@ -6985,7 +7005,7 @@ const SYNC = (function () {
     if (!viaApp && onNetlify && e && e.name === 'TypeError') { viaApp = true; try { localStorage.setItem('chuster-db-via-app', '1'); } catch (x) { /* ignore */ } setTimeout(() => tick(), 500); }
   }
   const st = { ok: null, err: '', last: 0, since: loadLS('chuster-sync-since', {}), out: loadLS('chuster-sync-out', {}), seen: {}, key: null, flushing: false, pulling: false, started: false };
-  const COLLS = ['gc', 'ds', 'rd', 'll', 'do', 'sc', 'tr', 'lq', 'ls', 'lm', 'lx', 'lh', 'qi', 'qo', 'qc', 'qs', 'qp', 'qh', 'qw', 'qr', 'ps', 'pp', 'pn', 'pq', 'sx', 'sl', 'vn', 'pt', 'cv', 'cg', 'df', 'cut', 'av', 'ct', 'mv'];
+  const COLLS = ['gc', 'ds', 'rd', 'll', 'do', 'sc', 'tr', 'lq', 'ls', 'lm', 'lx', 'lh', 'qi', 'qo', 'qc', 'qs', 'qp', 'qh', 'qw', 'qr', 'ps', 'pp', 'pn', 'pq', 'sx', 'sl', 'vn', 'pt', 'cv', 'cg', 'df', 'cut', 'av', 'ct', 'mv', 'ec'];
   const h = s => { let a = 0x811c9dc5, b = 0x9e3779b9; for (let i = 0; i < s.length; i++) { const c = s.charCodeAt(i); a = Math.imul(a ^ c, 16777619) >>> 0; b = Math.imul(b ^ c, 2246822519) >>> 0; } return a.toString(36) + b.toString(36); };
   const b64 = u8 => { let s = ''; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); return btoa(s); };
   const unb64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -7333,6 +7353,9 @@ const saveMoves = () => { try { localStorage.setItem('chuster-moves-v1', JSON.st
 const putMove = m => { m.upd = Date.now(); S.moves[m.id] = m; saveMoves(); try { SYNC.put('mv', m.id, m); } catch (e) { } };
 const delMove = id => { delete S.moves[id]; saveMoves(); try { SYNC.put('mv', id, null); } catch (e) { } };
 SYNC.on('mv', (k, val) => { if (val == null) delete S.moves[k]; else S.moves[k] = val; saveMoves(); });
+S.emailConn = (() => { try { return JSON.parse(localStorage.getItem('chuster-ec-v1')) || {}; } catch (e) { return {}; } })();
+const saveEC = () => { try { localStorage.setItem('chuster-ec-v1', JSON.stringify(S.emailConn)); } catch (e) { } };
+SYNC.on('ec', (k, val) => { S.emailConn = S.emailConn || {}; if (val == null) delete S.emailConn[k]; else S.emailConn[k] = val; saveEC(); });
 // BM contents = sum of received moves into BM minus runs out of BM (only 'done' moves count)
 function bmByFull() { const m = {}; Object.values(S.moves || {}).forEach(mv => { if (!mv || mv.st !== 'done') return; const sign = mv.to === 'BM' ? 1 : mv.from === 'BM' ? -1 : 0; if (!sign) return; (mv.lines || []).forEach(l => { const full = l[0], q = +l[1] || 0; if (!full || !q) return; m[full] = (m[full] || 0) + sign * q; }); }); return m; }
 let avSeen = {}; // throttle screen logging this session
@@ -8499,6 +8522,7 @@ document.addEventListener('click', e => {
     case 'pk-undo': { const m = S.moves[d.id]; delMove(d.id); toast(m && m.poNum ? `PO #${m.poNum} is back on the open list.` : 'Undone.'); keep(); break; }
     case 'to-copy': { const f = TODAY - 27, dem = {}; (REAL.orders.list || []).forEach(o => { if (o.t !== 'inv' || !o.l) return; const r = isoRd(o.d); if (r < f || r > TODAY) return; rowsOf(o.l).forEach(([ref, q]) => { if (typeof ref === 'number' && q > 0) dem[ref] = (dem[ref] || 0) + q; }); }); const norm = s => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ''); const onOrder = {}; ((REAL.openPO && REAL.openPO.list) || []).forEach(p => { onOrder[norm(p.name)] = (onOrder[norm(p.name)] || 0) + (p.left || 0); }); const vendorOf = c => /snack|pretzel|tortilla|chip|flat|nugget|crunch|mandlen/i.test((c.group || '') + ' ' + c.name) ? "Bickel's" : 'Winland'; const lines = Object.keys(dem).map(ref => { const c = REAL.catalog[+ref]; if (!c || c.off) return null; const need = Math.max(0, Math.ceil(dem[ref] - (c.stock || 0) - (onOrder[norm(c.name)] || 0))); return (need > 0 && vendorOf(c) === d.v) ? `${c.name}  —  ${need} cases` : null; }).filter(Boolean); const txt = `Purchase order — ${d.v}\nChuster Noodle\n\n` + lines.join('\n'); if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(txt).then(() => toast(`Copied ${d.v} order — paste into an email.`), () => toast('Copy failed.')); } else toast('Copy not supported here.'); break; }
     case 'pk-xrun': { const lines = Object.keys(S.pkxDraft || {}).map(f => [f, Math.round(+S.pkxDraft[f] || 0)]).filter(l => l[1] > 0); if (!lines.length) { toast('Enter how many to bring.'); break; } const bm = bmByFull(); const nm = f => { const c = S.catalog.find(x => x.full === f); return c ? c.name : f; }; putMove({ id: 'mv' + Date.now().toString(36) + Math.floor(Math.random() * 1e4).toString(36), from: 'BM', to: 'Chuster', d: isoOf(TODAY), lines: lines.map(l => [l[0], Math.min(l[1], bm[l[0]] || l[1]), nm(l[0])]), st: 'pending', by: byName(), at: nowIso() }); S.pkxDraft = {}; toast('BM → Chuster run created. Mark it Done when it arrives.'); keep(); break; }
+    case 'email-connect': { const addr = String(S.ecDraft || '').trim(); if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(addr)) { toast('Enter a valid email address.'); break; } S.emailConn = S.emailConn || {}; const me = emMe(); const rec = { email: addr, by: byName(), at: nowIso() }; S.emailConn[me] = rec; saveEC(); try { SYNC.put('ec', me, rec); } catch (e) { } S.ecDraft = ''; toast('Email connected — pulling your mail in.'); keep(); break; }
     case 'count-toggle': S.countMode = !S.countMode; if (S.countMode) { S.invFilter = 'allprod'; S.invSel = null; S.invEdit = null; } keep(); break;
     case 'count-save': { let n = 0; const by = byName(), at = nowIso(); Object.keys(S.countDraft).forEach(full => { const v = S.countDraft[full]; if (v === '' || v == null) return; const q = Math.round(+v); if (!isFinite(q)) return; const rec = { q, at, by }; S.counts[full] = rec; try { SYNC.put('ct', full, rec); } catch (e) { } n++; }); saveCounts(); S.countDraft = {}; S.countMode = false; toast(n ? `Saved ${n} count${n === 1 ? '' : 's'}.` : 'No counts entered.'); keep(); break; }
     case 'inv-fix-cat': {
@@ -8818,6 +8842,7 @@ document.addEventListener('change', e => {
   if (t.id === 'pr-for' || t.id === 'pr-contact') { const pv = document.getElementById('ps-preview'); if (pv) pv.innerHTML = prSheet(S.prKind); }
 });
 document.addEventListener('input', e => {
+  if (e.target.classList && e.target.classList.contains('ec-in')) { S.ecDraft = e.target.value; return; }
   if (e.target.classList && e.target.classList.contains('pkx-in')) { const f = e.target.dataset.full; if (e.target.value === '') delete S.pkxDraft[f]; else S.pkxDraft[f] = e.target.value; return; }
   if (e.target.classList && e.target.classList.contains('pkd-in')) { const n = e.target.dataset.num; if (e.target.value === '') delete S.pkDates[n]; else S.pkDates[n] = e.target.value; return; }
   if (e.target.classList && e.target.classList.contains('pka-in')) { S.apptDraft[e.target.dataset.id] = e.target.value; return; }
