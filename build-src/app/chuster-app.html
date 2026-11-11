@@ -1951,6 +1951,27 @@ function renderLostSales() {
     </tbody><tfoot><tr><th>TOTAL</th><th></th><th></th><th class="num">${money(totLost)}</th><th class="num">${money(totWk)}</th></tr></tfoot></table></div>
   <p class="sub" style="margin:8px 0 0">"Short right now" = cases below zero × price — orders you've already shorted. "Per week" = recent sales pace × price while it stays out. Pick these up to stop the bleed.</p></section>`;
 }
+function renderMovers() {
+  if (S.role !== 'Owner' && !officePlus()) return head('What changed', '') + '<section class="card"><p class="sub" style="margin:0">Only the owner sees this.</p></section>';
+  if (!REAL) return needData('What changed');
+  const wkFrom = isoOf(TODAY - 6), pFrom = isoOf(TODAY - 34), pTo = isoOf(TODAY - 7);
+  const pT = {}, pP = {}, sT = {}, sP = {};
+  (REAL.orders.list || []).forEach(o => { if (o.t !== 'inv') return; const d = o.d; const inWk = d >= wkFrom, inPrior = d >= pFrom && d <= pTo;
+    if (o.a != null) { if (inWk) sT[o.c] = (sT[o.c] || 0) + o.a; else if (inPrior) sP[o.c] = (sP[o.c] || 0) + o.a; }
+    if (o.l) rowsOf(o.l).forEach(([r, q]) => { if (typeof r !== 'number' || !(q > 0)) return; const c = REAL.catalog[r]; if (!c) return; const k = c.name; if (inWk) pT[k] = (pT[k] || 0) + q; else if (inPrior) pP[k] = (pP[k] || 0) + q; }); });
+  const movers = (tm, pm, floor) => { const keys = new Set([...Object.keys(tm), ...Object.keys(pm)]); const arr = []; keys.forEach(k => { const t = tm[k] || 0, usual = (pm[k] || 0) / 4; if (Math.max(t, usual) < floor) return; const ch = t - usual, pct = usual ? ch / usual * 100 : (t ? 100 : 0); arr.push({ k, t, usual, ch, pct }); }); return arr; };
+  const prodM = movers(pT, pP, 4), storeM = movers(sT, sP, 200);
+  const up = a => a.filter(x => x.ch > 0).sort((x, y) => y.pct - x.pct).slice(0, 8);
+  const down = a => a.filter(x => x.ch < 0).sort((x, y) => x.pct - y.pct).slice(0, 8);
+  const tag = x => `<span style="color:${x.ch > 0 ? 'var(--good-text)' : 'var(--bad-text)'}">${x.ch > 0 ? '▲' : '▼'} ${Math.abs(Math.round(x.pct))}%</span>`;
+  const prow = (x, u) => `<tr><td>${esc(x.k)}</td><td class="num">${u === '$' ? money(x.t) : fn(Math.round(x.t))}</td><td class="num">${u === '$' ? money(x.usual) : fn(Math.round(x.usual))}</td><td class="num">${tag(x)}</td></tr>`;
+  const tbl = (title, arr, u) => `<section class="card stack" style="gap:4px"><div class="card-head" style="margin:0"><h2 style="margin:0">${title}</h2></div><div style="overflow-x:auto"><table class="rpt"><thead><tr><th>${u === '$' ? 'Store' : 'Product'}</th><th class="num">This wk</th><th class="num">Usual wk</th><th class="num">Change</th></tr></thead><tbody>${arr.map(x => prow(x, u)).join('') || '<tr><td colspan="4" class="sub">Nothing notable.</td></tr>'}</tbody></table></div></section>`;
+  return `${head('What changed', 'Biggest moves this week vs a usual week')}
+  ${tbl('Products jumping ▲', up(prodM), 'cs')}
+  ${tbl('Products dropping ▼', down(prodM), 'cs')}
+  ${tbl('Stores up ▲', up(storeM), '$')}
+  ${tbl('Stores down ▼', down(storeM), '$')}`;
+}
 function renderCommand() {
   if (S.role !== 'Owner') return head('Command center', '') + '<section class="card"><p class="sub" style="margin:0">Only owners see this.</p></section>';
   if (!REAL) return needData('Command center');
@@ -2051,6 +2072,7 @@ const VIEWS = {
   lostsales: { title: 'Lost sales', r: renderLostSales },
   command: { title: 'Command center', r: renderCommand },
   brandsales: { title: 'Sales by brand', r: renderBrandSales },
+  movers: { title: 'What changed', r: renderMovers },
   inbox: { title: 'Incoming orders', r: renderInbox },
   payments: { title: 'Payments', r: renderPayments },
   packlog: { title: 'Pack log', r: renderPackLog },
@@ -2105,7 +2127,7 @@ const NAV = [
   { items: [['home', 'Dashboard', 'home'], ['command', 'Command center', 'alert'], ['ask', 'Ask AI ✨', 'chat'], ['whatsnew', "What's new", 'star', 'new'], ['calendar', 'Calendar', 'cal']] },
   { h: 'ORDERS', items: [['order', 'New order', 'order'], ['orders', 'Orders', 'order'], ['inbox', 'Incoming orders', 'chat', 'inbox'], ['toqb', 'To QuickBooks', 'check', 'toqb']] },
   { h: 'CUSTOMERS', items: [['visits', "Today's visits", 'clock'], ['coverage', 'Coverage plan', 'clip'], ['pitch', 'New to pitch', 'chart'], ['customers', 'Customers', 'people', 'late'], ['payments', 'Payments', 'card', 'pay'], ['collect', 'Collections', 'card'], ['aging', 'Collections dashboard', 'chart'], ['stmts', 'Statements by email', 'mail'], ['custprofit', 'Profit by store', 'chart'], ['lost', 'Lost items', 'alert'], ['yomtov', 'Yom Tov list', 'cal'], ['ytplan', 'Yom Tov planner', 'chart']] },
-  { h: 'SALES & MONEY', items: [['mysales', 'Salesman dashboard', 'chart'], ['storesales', 'Store sales', 'chart'], ['scorecard', 'Store scorecard', 'people'], ['atrisk', 'At-risk board', 'alert'], ['crosssell', 'Cross-sell', 'chart'], ['newlost', 'New & lost stores', 'people'], ['habits', 'Order habits', 'clock'], ['seasonality', 'Seasonality', 'chart'], ['salesreport', 'Sales report', 'chart'], ['brandsales', 'Sales by brand', 'chart'], ['lostsales', 'Lost sales', 'alert'], ['repscore', 'Salesman scorecard', 'people'], ['reps', 'Sales by rep & commission', 'people'], ['returns', 'Returns & credits', 'card'], ['finance', 'Finance', 'chart']] },
+  { h: 'SALES & MONEY', items: [['mysales', 'Salesman dashboard', 'chart'], ['storesales', 'Store sales', 'chart'], ['scorecard', 'Store scorecard', 'people'], ['movers', 'What changed', 'alert'], ['atrisk', 'At-risk board', 'alert'], ['crosssell', 'Cross-sell', 'chart'], ['newlost', 'New & lost stores', 'people'], ['habits', 'Order habits', 'clock'], ['seasonality', 'Seasonality', 'chart'], ['salesreport', 'Sales report', 'chart'], ['brandsales', 'Sales by brand', 'chart'], ['lostsales', 'Lost sales', 'alert'], ['repscore', 'Salesman scorecard', 'people'], ['reps', 'Sales by rep & commission', 'people'], ['returns', 'Returns & credits', 'card'], ['finance', 'Finance', 'chart']] },
   { h: 'PRODUCTS', items: [['catalog', 'Catalog', 'box'], ['prodsales', 'Product sales', 'chart'], ['winners', 'Winners & losers', 'chart'], ['items', 'Products & profit', 'chart'], ['margin', 'Margins', 'chart'], ['pricelist', 'Price list', 'order'], ['pricecheck', 'Price check', 'card'], ['pricespread', 'Price spread', 'chart']] },
   { h: 'DELIVERIES', items: [['route', 'Deliveries', 'box'], ['stop', 'Driver', 'wheel'], ['pickups', 'Pickups', 'truck'], ['live', 'Live trucks', 'pin'], ['loading', 'Loading', 'truck'], ['dsched', 'Delivery days', 'cal'], ['delivstats', 'Delivery stats', 'chart'], ['routeprofit', 'Route profit', 'chart']] },
   { h: 'WAREHOUSE', items: [['packnext', 'What to pack', 'clip'], ['forecast', 'Week-ahead forecast', 'chart'], ['packing', 'Packing plan', 'clip'], ['stockcover', 'Stock cover', 'box'], ['packlog', 'Pack log', 'clip'], ['packrep', 'Packing report', 'chart'], ['yield', 'Yield', 'chart']] },
@@ -2139,7 +2161,7 @@ const custMineName = n => !salesLocked() || custMine(custByName(n));
 const allowed = v => {
   if (v === 'activity' || v === 'pickups') return isZevi();
   if (S.role === 'Owner') return true;
-  if (S.role === 'Office') { const deny = officePlus() ? ['finance', 'expenses', 'bank', 'journal', 'accounts', 'command'] : ['tools', 'custprofit', 'finance', 'expenses', 'bank', 'journal', 'accounts', 'margin', 'repscore', 'lostsales', 'command', 'brandsales']; return !deny.includes(v); }
+  if (S.role === 'Office') { const deny = officePlus() ? ['finance', 'expenses', 'bank', 'journal', 'accounts', 'command'] : ['tools', 'custprofit', 'finance', 'expenses', 'bank', 'journal', 'accounts', 'margin', 'repscore', 'lostsales', 'command', 'brandsales', 'movers']; return !deny.includes(v); }
   return (ROLE_VIEWS[S.role] || []).includes(v);
 };
 const roleHome = () => S.role === 'Warehouse' ? 'packnext' : S.role === 'Driver' ? 'route' : isSales() ? 'mysales' : 'home';
