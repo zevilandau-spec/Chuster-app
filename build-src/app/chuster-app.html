@@ -2073,6 +2073,7 @@ const VIEWS = {
   command: { title: 'Command center', r: renderCommand },
   brandsales: { title: 'Sales by brand', r: renderBrandSales },
   movers: { title: 'What changed', r: renderMovers },
+  toorder: { title: 'To order', r: renderToOrder },
   inbox: { title: 'Incoming orders', r: renderInbox },
   payments: { title: 'Payments', r: renderPayments },
   packlog: { title: 'Pack log', r: renderPackLog },
@@ -2131,7 +2132,7 @@ const NAV = [
   { h: 'PRODUCTS', items: [['catalog', 'Catalog', 'box'], ['prodsales', 'Product sales', 'chart'], ['winners', 'Winners & losers', 'chart'], ['items', 'Products & profit', 'chart'], ['margin', 'Margins', 'chart'], ['pricelist', 'Price list', 'order'], ['pricecheck', 'Price check', 'card'], ['pricespread', 'Price spread', 'chart']] },
   { h: 'DELIVERIES', items: [['route', 'Deliveries', 'box'], ['stop', 'Driver', 'wheel'], ['pickups', 'Pickups', 'truck'], ['live', 'Live trucks', 'pin'], ['loading', 'Loading', 'truck'], ['dsched', 'Delivery days', 'cal'], ['delivstats', 'Delivery stats', 'chart'], ['routeprofit', 'Route profit', 'chart']] },
   { h: 'WAREHOUSE', items: [['packnext', 'What to pack', 'clip'], ['forecast', 'Week-ahead forecast', 'chart'], ['packing', 'Packing plan', 'clip'], ['stockcover', 'Stock cover', 'box'], ['packlog', 'Pack log', 'clip'], ['packrep', 'Packing report', 'chart'], ['yield', 'Yield', 'chart']] },
-  { h: 'STOCK & BUYING', items: [['inventory', 'Inventory', 'box', 'inv'], ['prodplan', 'Make today', 'box'], ['ordernow', 'Order now', 'alert'], ['reorder', 'Reorder alerts', 'alert'], ['plan', 'Plan a season', 'chart'], ['margin', 'Margin watch', 'chart'], ['buying', 'Buying & suppliers', 'card'], ['polist', 'All purchase orders', 'clip'], ['stockmoves', 'Stock moves', 'box']] },
+  { h: 'STOCK & BUYING', items: [['inventory', 'Inventory', 'box', 'inv'], ['prodplan', 'Make today', 'box'], ['ordernow', 'Order now', 'alert'], ['toorder', 'To order (by vendor)', 'card'], ['reorder', 'Reorder alerts', 'alert'], ['plan', 'Plan a season', 'chart'], ['margin', 'Margin watch', 'chart'], ['buying', 'Buying & suppliers', 'card'], ['polist', 'All purchase orders', 'clip'], ['stockmoves', 'Stock moves', 'box']] },
   { h: 'BOOKS', items: [['expenses', 'Expenses', 'chart'], ['bank', 'Bank & deposits', 'card'], ['vendors', 'Vendors & bills', 'people'], ['salesorders', 'Sales orders & estimates', 'order'], ['journal', 'Journal entries', 'clip'], ['accounts', 'Chart of accounts', 'chart']] }
 ];
 const TABS = [['home', 'Home', 'home'], ['orders', 'Orders', 'order'], ['route', 'Deliveries', 'truck'], ['inventory', 'Stock', 'box']];
@@ -8174,6 +8175,26 @@ function renderMargin() {
   ${rows.map(r => `<tr><td><span class="gdot ${gcls(r.c.brand || r.c.cat || '')}"></span>${esc(r.c.name)}${r.c.pack ? ` <small class="sub">${esc(r.c.pack)}</small>` : ''}</td><td class="num">${money(r.sell)}</td><td class="num">${money(r.cost)}</td><td class="num"><span class="tag ${mcls(r.m)}">${Math.round(r.m * 100)}%</span></td></tr>`).join('') || '<tr><td colspan="4" class="sub">No cost data.</td></tr>'}
   </tbody></table></section>`;
 }
+function renderToOrder() {
+  if (!REAL || !REAL.orders) return needData('To order');
+  const f = TODAY - 27;
+  const dem = {};
+  (REAL.orders.list || []).forEach(o => { if (o.t !== 'inv' || !o.l) return; const r = isoRd(o.d); if (r < f || r > TODAY) return; rowsOf(o.l).forEach(([ref, q]) => { if (typeof ref !== 'number' || !(q > 0)) return; dem[ref] = (dem[ref] || 0) + q; }); });
+  const norm = s => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
+  const onOrder = {}; ((REAL.openPO && REAL.openPO.list) || []).forEach(p => { onOrder[norm(p.name)] = (onOrder[norm(p.name)] || 0) + (p.left || 0); });
+  const vendorOf = c => /snack|pretzel|tortilla|chip|flat|nugget|crunch|mandlen/i.test((c.group || '') + ' ' + c.name) ? "Bickel's" : 'Winland';
+  const rows = Object.keys(dem).map(ref => { const c = REAL.catalog[+ref]; if (!c || c.off) return null; const stock = c.stock || 0; const oo = onOrder[norm(c.name)] || 0; const need = Math.max(0, Math.ceil(dem[ref] - stock - oo)); return need > 0 ? { c, stock, oo, dem: dem[ref], need, vendor: vendorOf(c) } : null; }).filter(Boolean).sort((a, b) => b.need - a.need);
+  const byV = {}; rows.forEach(r => (byV[r.vendor] || (byV[r.vendor] = [])).push(r));
+  const vendors = Object.keys(byV).sort();
+  const totAll = rows.reduce((s, r) => s + r.need, 0);
+  const sect = v => { const rs = byV[v]; const tot = rs.reduce((s, r) => s + r.need, 0); return `<section class="card stack" style="gap:6px"><div class="card-head" style="margin:0"><h2 style="margin:0">${esc(v)}</h2><span class="sub" style="margin:0">${rs.length} items · ${fn(tot)} to order</span></div>
+    <div style="overflow-x:auto"><table class="rpt"><thead><tr><th>Product</th><th class="num">In stock</th><th class="num">On PO</th><th class="num">Sold 4wk</th><th class="num">Order</th></tr></thead><tbody>
+    ${rs.map(r => `<tr><td>${esc(r.c.name)}</td><td class="num"${r.stock < 0 ? ' style="color:var(--bad-text)"' : ''}>${fn(r.stock)}</td><td class="num">${fn(r.oo)}</td><td class="num">${fn(r.dem)}</td><td class="num"><b>${fn(r.need)}</b></td></tr>`).join('')}
+    </tbody></table></div><button class="btn primary sm" data-act="to-copy" data-v="${esc(v)}">Copy ${esc(v)} order</button></section>`; };
+  return `${head('To order', 'What to order from each vendor — 4 weeks of sales, minus stock, minus what is already on an open PO')}
+  <div class="note" style="background:var(--brand-soft);border-color:var(--brand)"><strong>${fn(totAll)} cases</strong> to order across ${vendors.length} vendor${vendors.length === 1 ? '' : 's'} — nothing already on a PO is counted twice.</div>
+  ${vendors.length ? vendors.map(sect).join('') : '<section class="card"><p class="sub" style="margin:0">Nothing to order — you\'re covered for 4 weeks. 👍</p></section>'}`;
+}
 function renderOrderNow() {
   if (!REAL || !REAL.orders) return needData('Order now');
   const f = TODAY - 27;
@@ -8442,6 +8463,7 @@ document.addEventListener('click', e => {
     case 'pk-cancel': delMove(d.id); keep(); break;
     case 'pk-appt': { const m = S.moves[d.id]; if (m) { m.appt = (S.apptDraft[d.id] != null ? S.apptDraft[d.id] : m.appt) || ''; putMove(m); delete S.apptDraft[d.id]; toast('Appointment saved on the pickup.'); } keep(); break; }
     case 'pk-undo': { const m = S.moves[d.id]; delMove(d.id); toast(m && m.poNum ? `PO #${m.poNum} is back on the open list.` : 'Undone.'); keep(); break; }
+    case 'to-copy': { const f = TODAY - 27, dem = {}; (REAL.orders.list || []).forEach(o => { if (o.t !== 'inv' || !o.l) return; const r = isoRd(o.d); if (r < f || r > TODAY) return; rowsOf(o.l).forEach(([ref, q]) => { if (typeof ref === 'number' && q > 0) dem[ref] = (dem[ref] || 0) + q; }); }); const norm = s => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ''); const onOrder = {}; ((REAL.openPO && REAL.openPO.list) || []).forEach(p => { onOrder[norm(p.name)] = (onOrder[norm(p.name)] || 0) + (p.left || 0); }); const vendorOf = c => /snack|pretzel|tortilla|chip|flat|nugget|crunch|mandlen/i.test((c.group || '') + ' ' + c.name) ? "Bickel's" : 'Winland'; const lines = Object.keys(dem).map(ref => { const c = REAL.catalog[+ref]; if (!c || c.off) return null; const need = Math.max(0, Math.ceil(dem[ref] - (c.stock || 0) - (onOrder[norm(c.name)] || 0))); return (need > 0 && vendorOf(c) === d.v) ? `${c.name}  —  ${need} cases` : null; }).filter(Boolean); const txt = `Purchase order — ${d.v}\nChuster Noodle\n\n` + lines.join('\n'); if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(txt).then(() => toast(`Copied ${d.v} order — paste into an email.`), () => toast('Copy failed.')); } else toast('Copy not supported here.'); break; }
     case 'pk-xrun': { const lines = Object.keys(S.pkxDraft || {}).map(f => [f, Math.round(+S.pkxDraft[f] || 0)]).filter(l => l[1] > 0); if (!lines.length) { toast('Enter how many to bring.'); break; } const bm = bmByFull(); const nm = f => { const c = S.catalog.find(x => x.full === f); return c ? c.name : f; }; putMove({ id: 'mv' + Date.now().toString(36) + Math.floor(Math.random() * 1e4).toString(36), from: 'BM', to: 'Chuster', d: isoOf(TODAY), lines: lines.map(l => [l[0], Math.min(l[1], bm[l[0]] || l[1]), nm(l[0])]), st: 'pending', by: byName(), at: nowIso() }); S.pkxDraft = {}; toast('BM → Chuster run created. Mark it Done when it arrives.'); keep(); break; }
     case 'count-toggle': S.countMode = !S.countMode; if (S.countMode) { S.invFilter = 'allprod'; S.invSel = null; S.invEdit = null; } keep(); break;
     case 'count-save': { let n = 0; const by = byName(), at = nowIso(); Object.keys(S.countDraft).forEach(full => { const v = S.countDraft[full]; if (v === '' || v == null) return; const q = Math.round(+v); if (!isFinite(q)) return; const rec = { q, at, by }; S.counts[full] = rec; try { SYNC.put('ct', full, rec); } catch (e) { } n++; }); saveCounts(); S.countDraft = {}; S.countMode = false; toast(n ? `Saved ${n} count${n === 1 ? '' : 's'}.` : 'No counts entered.'); keep(); break; }
