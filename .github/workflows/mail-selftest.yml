@@ -1,0 +1,33 @@
+name: Email instant-path self-test
+on: workflow_dispatch
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install crypto
+        run: pip install cryptography==43.0.3
+      - name: Post a sample email and read it back from the live DB
+        env:
+          CHUSTER_SECRETS: ${{ secrets.CHUSTER_SECRETS }}
+          CHUSTER_MAIL_SECRET: ${{ secrets.CHUSTER_MAIL_SECRET }}
+        run: |
+          if [ -z "$CHUSTER_MAIL_SECRET" ]; then echo "::notice::CHUSTER_MAIL_SECRET not set yet - skipping"; exit 0; fi
+          STAMP="selftest-$(date +%s)"
+          code=$(curl -s -o post.json -w '%{http_code}' -X POST https://chuster.netlify.app/mail/in \
+            -H "content-type: application/json" -H "x-mail-secret: $CHUSTER_MAIL_SECRET" \
+            -d "{\"subject\":\"Items missing: $STAMP #999999 — 1 box: Chuster Medium\",\"from\":\"invoices@chusternoodle.com\",\"name\":\"Self Test\",\"preview\":\"1 of 9 boxes not delivered\",\"received\":\"2026-11-11T23:59:00Z\"}")
+          echo "::notice::POST /mail/in -> $code :: $(head -c 200 post.json)"
+          if [ "$code" = "503" ]; then echo "::notice::function is live but env vars not set yet (expected before setup) - stopping here"; exit 0; fi
+          [ "$code" = "200" ] || { echo "::error::unexpected status $code"; exit 1; }
+          sleep 2
+          python3 - <<'PY'
+          import json, os, base64, urllib.request
+          from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+          S = json.loads(os.environ['CHUSTER_SECRETS'])['sync']; space = S['space']; key = base64.b64decode(S['key'])
+          raw = urllib.request.urlopen(f"https://chuster.netlify.app/db/{space}/ei/z.json").read()
+          rec = json.loads(raw); v = base64.b64decode(rec['v']); pt = AESGCM(key).decrypt(v[:12], v[12:], None)
+          items = json.loads(pt)['val']
+          print("::notice::decoded", len(items), "items; newest subj:", items[0]['subj'])
+          assert any('selftest-' in i.get('subj','') for i in items), "sample item not found in feed"
+          print("::notice::self-test PASSED - instant email path works end to end")
+          PY
