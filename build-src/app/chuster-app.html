@@ -3235,7 +3235,7 @@ function renderLoading() {
   }).join('');
   return `
   ${head('Trucks & loading', `${fmtShort(TODAY)} · ${hebStr(TODAY, false)}`, `<button class="btn ghost" data-act="soon" data-name="History">History</button>`)}
-  <div class="chips" role="group" aria-label="Truck">${S.trucks.map((tr, i) => `<button class="chip" data-act="ld-truck" data-n="${i + 1}" aria-pressed="${S.loadTruck === i + 1}">${esc(tr.name)}${i < 2 ? ' ✓' : ''}</button>`).join('')}</div>
+  <div class="chips" role="group" aria-label="Truck">${S.trucks.map((tr, i) => `<button class="chip" data-act="ld-truck" data-n="${i + 1}" aria-pressed="${S.loadTruck === i + 1}">${esc(truckLabel(tr))}${i < 2 ? ' ✓' : ''}</button>`).join('')}</div>
   <div class="split">
     <div class="stack" style="gap:12px">
       <div class="seg" role="group" aria-label="Load type">${types.map(([n, c]) => `<button data-act="ld-type" data-t="${n}" aria-pressed="${S.loadType === n}">${n}<span>${c}</span></button>`).join('')}</div>
@@ -3452,7 +3452,8 @@ function renderTools() {
     <div class="grid-2">
       <section class="card stack"><h2>Trucks</h2>
         <form id="f-truck" class="form-grid" autocomplete="off"><div><label class="lbl" for="t-name">Truck name</label><input class="inp" id="t-name" required placeholder="Truck 5"></div><div><label class="lbl" for="t-driver">Driver</label><input class="inp" id="t-driver"></div><div class="wide"><button class="btn primary" type="submit">Add truck</button></div></form>
-        <div class="list">${S.trucks.map((x, i) => `<div class="row"><div class="main"><div class="name">${esc(x.name)}</div><div class="meta">${x.driver ? 'Driver: ' + esc(x.driver) : 'No driver set'}</div></div>${rm('trucks', i, x.name)}</div>`).join('')}</div>
+        <div class="list">${S.trucks.map((x, i) => `<div class="row"><div class="main"><div class="name">${esc(x.name)}</div><input class="inp tk-driver" data-i="${i}" value="${esc(x.driver || '')}" placeholder="Driver (e.g. Motty)" style="font-size:13px;padding:4px 8px;margin-top:4px;max-width:220px"></div>${rm('trucks', i, x.name)}</div>`).join('')}</div>
+        <p class="sub" style="margin:0;font-size:12px">Set a driver and their name shows on Deliveries &amp; Loading instead of the truck number.</p>
       </section>
       <section class="card stack"><h2>People</h2>
         <form id="f-person" class="form-grid" autocomplete="off"><div><label class="lbl" for="w-name">Name</label><input class="inp" id="w-name" required></div><div><label class="lbl" for="w-role">Job</label><select class="sel" id="w-role">${opt(['Office', 'Warehouse', 'Packer', 'Driver'])}</select></div><div class="wide"><button class="btn primary" type="submit">Add person</button></div></form>
@@ -5587,9 +5588,9 @@ function renderLoadList() {
   return `${head('Loading list', 'From your real invoices · each area goes on a truck you pick', `<button class="btn gold" data-act="ll-print">Print</button>`)}
   <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">${SYNC.pillHtml()}<span class="sub" style="margin:0;font-size:13px">Tap each product as it goes on, then mark each stop <b>Loaded</b>. The office sees it on Deliveries.</span></div>
   <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><select class="sel" id="ll-date" style="width:auto" aria-label="Day">${days.slice(0, 30).map(d => `<option value="${d}"${d === S.llDate ? ' selected' : ''}>${fmtShort(isoRd(d))} · ${REAL.orders.list.filter(o => o.t === 'inv' && o.d === d).length} invoices</option>`).join('')}</select>
-    <div class="chips">${trucks.map(t => `<button class="chip" data-act="ll-truck" data-i="${t.i}" aria-pressed="${T.i === t.i}">${esc(t.t.name)} · ${t.inv.length}</button>`).join('')}</div></div>
+    <div class="chips">${trucks.map(t => `<button class="chip" data-act="ll-truck" data-i="${t.i}" aria-pressed="${T.i === t.i}">${esc(truckLabel(t.t))} · ${t.inv.length}</button>`).join('')}</div></div>
   <div class="split">
-    <section class="card stack" style="gap:0"><div class="card-head"><h2>${esc(T.t.name)} · ${fn(items.reduce((s, x) => s + (bulkOf(x.c.full) ? 0 : x.q), 0))} cases</h2><span class="sub" style="margin:0">${nDone} of ${items.length} loaded</span></div>
+    <section class="card stack" style="gap:0"><div class="card-head"><h2>${esc(truckLabel(T.t))} · ${fn(items.reduce((s, x) => s + (bulkOf(x.c.full) ? 0 : x.q), 0))} cases</h2><span class="sub" style="margin:0">${nDone} of ${items.length} loaded</span></div>
       ${items.map(x => { const hdr = x.c.group !== last ? `<div class="ghead ${gcls(x.c.group)}" style="margin-top:${last === null ? 0 : 10}px"><span>${esc(x.c.group.toUpperCase())}</span></div>` : ''; last = x.c.group; const d = S.llDone[doneK(x.i)];
         return hdr + `<button class="irow ${gcls(x.c.group)}${d ? '' : ' on'}" data-act="ll-done" data-k="${esc(doneK(x.i))}" style="width:100%;text-align:left;font:inherit;color:inherit;cursor:pointer;${d ? 'opacity:.55' : ''}"><span class="icode">${esc(x.c.code || '·')}</span><div class="main"><div class="name" style="font-size:14px;${d ? 'text-decoration:line-through' : ''}">${itName(x.c)}</div></div><strong class="num" style="font-size:20px">${casesTxt(x.c, x.q)}</strong><span class="tag ${d ? 'green' : 'grey'}">${d ? '✓ loaded' : 'tap when loaded'}</span></button>`; }).join('') || '<p class="sub">No invoices for this truck on this day. Pick areas for it on the right.</p>'}
     </section>
@@ -5606,7 +5607,7 @@ function loadListDoc() {
   const tmap = llTruckMap(S.llDate); const mine = inv.filter(o => (tmap[o.n] >= 0 ? tmap[o.n] : -1) === ti);
   const tot = {}; mine.forEach(o => o.l.forEach(([ref, q]) => { if (typeof ref === 'number') tot[ref] = (tot[ref] || 0) + q; }));
   const items = Object.keys(tot).map(Number).map(i => ({ c: REAL.catalog[i], q: tot[i] })).sort((x, y) => grank(x.c.group) - grank(y.c.group) || String(x.c.code).localeCompare(String(y.c.code), 'en', { numeric: true }));
-  return docSheet({ title: 'Loading list', meta: [['Truck', ti < 0 ? 'Pick up' : (DTRUCKS()[ti] || {}).name || ''], ['Day', fmtLong(isoRd(S.llDate))]], parties: [['Stops', mine.map(o => o.c)]], cols: ['Code', 'Product', 'Cases', '✓'], right: 2, code: true,
+  return docSheet({ title: 'Loading list', meta: [['Truck', ti < 0 ? 'Pick up' : truckLabel(DTRUCKS()[ti] || {})], ['Day', fmtLong(isoRd(S.llDate))]], parties: [['Stops', mine.map(o => o.c)]], cols: ['Code', 'Product', 'Cases', '✓'], right: 2, code: true,
     rows: items.map(x => ({ cells: [esc(x.c.code || ''), itName(x.c), casesTxt(x.c, x.q), '☐'] })), totals: [['Total cases', fn(items.reduce((s, x) => s + (bulkOf(x.c.full) ? 0 : x.q), 0)), true]] });
 }
 
@@ -6576,6 +6577,8 @@ function driveModeView(list, Tname) {
 const PRETRIP = ['Tires', 'Lights', 'Oil / fuel', 'Brakes', 'Load tied down'];
 const nowClock = () => { const d = new Date(); let h = d.getHours(), m = d.getMinutes(); const ap = h >= 12 ? 'PM' : 'AM'; h = h % 12 || 12; return h + ':' + String(m).padStart(2, '0') + ' ' + ap; };
 const DTRUCKS = () => { const n = Math.max(1, Math.min(4, +S.dsched.n || 1)); const T = (S.trucks.length ? S.trucks : []).slice(0, n); while (T.length < n) T.push({ name: 'Truck ' + (T.length + 1) }); return T; };
+// Show the driver's name on a truck when one is set (e.g. "Motty"), else the truck name.
+const truckLabel = tr => (tr && tr.driver && String(tr.driver).trim()) ? String(tr.driver).trim() : ((tr && tr.name) || 'Truck');
 let ddCache = null;
 // an area with months set (Country: only in the summer) has the truck only in those months
 const areaOn = (w, area, iso) => { if ((S.dsched[w] || {})[area] == null) return false; const ms = (S.dsched.season || {})[area]; return !ms || !ms.length || ms.includes(+String(iso).slice(5, 7)); };
@@ -6783,7 +6786,7 @@ function renderDeliveries() {
           <div class="dlv-row"><span class="dlv-inv">#${esc(x.o.label || x.o.n)}</span>${ct.total > 0 ? `<span class="dlv-box">▣ ${fn(ct.total)}</span>` : `<span class="dlv-box">${fm(x.o.a)}</span>`}${ct.loose > 0 ? `<span class="dlv-chip pallet">Pallet ${fn(ct.loose)}</span>` : ''}${ct.cases > 0 ? `<span class="dlv-chip">Cases ${fn(ct.cases)}</span>` : ''}<span class="dlv-area">${esc((x.area || 'Other').toUpperCase())}</span></div>
           ${dn ? '<div style="margin-top:6px">' + stTag(x.st) + '</div>' : ''}
         </div>
-        ${tf == null ? `<select class="sel d-truck dlv-tsel" data-k="${esc(x.k)}" aria-label="Truck for ${esc(x.o.c)}">${T.map((tr, n) => `<option value="${n}"${n === t ? ' selected' : ''}>${esc(tr.name)}</option>`).join('')}<option value="-1"${t < 0 ? ' selected' : ''}>Pick up</option></select>` : ''}
+        ${tf == null ? `<select class="sel d-truck dlv-tsel" data-k="${esc(x.k)}" aria-label="Truck for ${esc(x.o.c)}">${T.map((tr, n) => `<option value="${n}"${n === t ? ' selected' : ''}>${esc(truckLabel(tr))}</option>`).join('')}<option value="-1"${t < 0 ? ' selected' : ''}>Pick up</option></select>` : ''}
       </div>
       <div class="dlv-acts">
         ${x.c.phone ? `<a class="dlv-btn ph" href="${telHref(x.c.phone)}" aria-label="Call ${esc(x.o.c)}" onclick="event.stopPropagation()">${SVG_PHONE}</a>` : ''}
@@ -6798,7 +6801,7 @@ function renderDeliveries() {
   return `${head('Deliveries', `${hebStr(isoRd(date), false)}`, `<a class="btn ghost" href="#dsched" data-go="dsched">Delivery days</a><button class="btn gold" data-act="d-report">Daily report PDF</button>`)}
   <div class="stack" style="gap:12px">
     <div class="dlv-head"><button class="dlv-date" data-act="d-daypop" data-v="open">${fmtLong(isoRd(date))} <span aria-hidden="true">▾</span></button><button class="btn ghost sm" data-act="d-day" data-d="${days[i + 1] || ''}"${days[i + 1] ? '' : ' disabled'} aria-label="Day before">‹</button><button class="btn ghost sm" data-act="d-day" data-d="${days[i - 1] || ''}"${i > 0 ? '' : ' disabled'} aria-label="Next day">›</button>${tf != null && tf >= 0 && todo.length > 1 ? `<button class="btn ghost sm" data-act="r-best" data-t="${tf}"${S.routeBusy ? ' disabled' : ''}>${S.routeBusy ? esc(S.routeBusy) : '🧭 Shortest'}</button>` : ''}</div>
-    <div class="chips">${tchip('all', 'All trucks', all.length)}${T.map((tr, n) => tchip(String(n), tr.name, (byT[n] || []).length)).join('')}${byT[-1] && byT[-1].length ? tchip('-1', 'Pick up', byT[-1].length) : ''}</div>
+    <div class="chips">${tchip('all', 'All trucks', all.length)}${T.map((tr, n) => tchip(String(n), truckLabel(tr), (byT[n] || []).length)).join('')}${byT[-1] && byT[-1].length ? tchip('-1', 'Pick up', byT[-1].length) : ''}</div>
     <div class="dlv-toggle"><button class="${S.dShow !== 'done' ? 'on' : ''}" data-act="d-show" data-v="todo">To deliver · ${todo.length}</button><button class="${S.dShow === 'done' ? 'on' : ''}" data-act="d-show" data-v="done">Delivered · ${doneL.length}</button></div>
     <div class="dlv-srow"><div class="field">${ic('search')}<label class="sr" for="d-q">Find a stop</label><input id="d-q" value="${esc(S.dQ || '')}" placeholder="Find a stop" autocomplete="off"></div><div class="dlv-count"><b>${fn(boxes)}</b> boxes · <b>${view.length}</b> stops</div></div>
     <div class="dlv-list">${view.map(card).join('') || `<p class="sub" style="margin:0">${S.dShow === 'done' ? 'Nothing delivered yet.' : 'All stops delivered. 🎉'}</p>`}</div>
@@ -6862,7 +6865,7 @@ function renderDriver() {
   ${estHtml}
   ${S.truckRoute && S.truckRoute.line && S.truckRoute.line.length ? `<p class="sub" style="margin:0;color:var(--brand);font-weight:700">🚛 Truck route: ${fn(S.truckRoute.miles)} mi · about ${S.truckRoute.minutes >= 60 ? Math.floor(S.truckRoute.minutes / 60) + 'h ' + (S.truckRoute.minutes % 60) + 'm' : S.truckRoute.minutes + 'm'}${S.truckRoute.roundTrip ? ' (round trip)' : ''} · <span style="font-weight:400">${esc(S.truckRoute.note || '')}</span></p>` : ''}
   ${legs.length > 1 ? `<p class="sub" style="margin:0">Google Maps fits about 9 stops at a time. Drive the first 9 in order, then tap <b>Continue</b> for the next 9.</p>` : ''}
-  <div class="chips" style="align-items:center">${T.map((tr, n) => `<button class="chip" data-act="d-truck" data-t="${n}" aria-pressed="${t === n}">${esc(tr.name)} · ${(byT[n] || []).length}</button>`).join('')}${T.length > 1 ? `<button class="btn ghost sm" data-act="d-balance" data-date="${date}">⚖️ Even out trucks</button>${Object.keys(S.dstat).some(k => k.startsWith(date + '|') && S.dstat[k].truck != null) ? `<button class="btn ghost sm" data-act="d-balance-reset" data-date="${date}">↺ Reset</button>` : ''}` : ''}</div>
+  <div class="chips" style="align-items:center">${T.map((tr, n) => `<button class="chip" data-act="d-truck" data-t="${n}" aria-pressed="${t === n}">${esc(truckLabel(tr))} · ${(byT[n] || []).length}</button>`).join('')}${T.length > 1 ? `<button class="btn ghost sm" data-act="d-balance" data-date="${date}">⚖️ Even out trucks</button>${Object.keys(S.dstat).some(k => k.startsWith(date + '|') && S.dstat[k].truck != null) ? `<button class="btn ghost sm" data-act="d-balance-reset" data-date="${date}">↺ Reset</button>` : ''}` : ''}</div>
   <div class="tiles"><div class="tile${over ? ' bad' : ''}"><div class="k">Stops left</div><div class="v">${left} of ${list.length}</div><div class="s">${fn(truckCases)} cases on the truck${capNote}</div></div>
     ${next ? `<button class="tile good" data-act="d-open" data-k="${esc(next.k)}" style="text-align:left;font:inherit;cursor:pointer"><div class="k">Next stop</div><div class="v" style="font-size:20px">${esc(next.o.c)}</div><div class="s">${esc(dlvAddr(next))} · tap to start</div></button>` : `<div class="tile good"><div class="k">All done</div><div class="v">🎉</div><div class="s">Send your day to the office</div></div>`}</div>
   ${(() => {
@@ -8874,6 +8877,7 @@ document.addEventListener('change', e => {
   if (t.id === 'pa10-on') { const v = parseInt(t.value.replace(/\D/g, ''), 10); if (v >= 0) S.supplies.pa10 = v; else delete S.supplies.pa10; saveLS('chuster-supplies-v1', S.supplies); render(); }
   if (t.id === 'fin-mon') { S.finMon = +t.value; render(); }
   if (cl.contains('d-truck')) { const k = t.dataset.k; S.dstat[k] = Object.assign({}, S.dstat[k] || {}, { truck: +t.value }); saveDstat(); dsShare(k); render(); }
+  if (cl.contains('tk-driver')) { const i = +t.dataset.i; if (S.trucks[i]) { S.trucks[i].driver = t.value.trim(); save(); render(); toast(S.trucks[i].driver ? S.trucks[i].name + ' → ' + S.trucks[i].driver : 'Driver cleared.'); } }
   if (t.id === 'ds-start') { S.dsched.start = t.value.trim(); saveLS('chuster-dsched-v1', S.dsched); SYNC.put('sc', 'all', S.dsched); toast('Start address saved.'); return; }
   if (t.id === 'ds-cap') { S.dsched.cap = parseInt(t.value, 10) || 0; saveLS('chuster-dsched-v1', S.dsched); SYNC.put('sc', 'all', S.dsched); return; }
   if (['ds-th', 'ds-twt', 'ds-tl', 'ds-twd'].includes(t.id)) { const key = { 'ds-th': 'truckH', 'ds-twt': 'truckWt', 'ds-tl': 'truckL', 'ds-twd': 'truckWd' }[t.id]; const v = parseFloat(t.value); if (v > 0) S.dsched[key] = v; else delete S.dsched[key]; saveLS('chuster-dsched-v1', S.dsched); SYNC.put('sc', 'all', S.dsched); return; }
