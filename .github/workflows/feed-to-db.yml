@@ -1,0 +1,54 @@
+name: Email feed → live DB
+on:
+  push:
+    branches: [main]
+    paths: ['feed/**']
+  workflow_dispatch:
+concurrency:
+  group: feed-to-db
+  cancel-in-progress: false
+jobs:
+  write:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip install cryptography==43.0.3
+      - name: Encrypt the feed and write it to the live database
+        env:
+          CHUSTER_SECRETS: ${{ secrets.CHUSTER_SECRETS }}
+        run: |
+          python3 - <<'PY'
+          import json, os, base64, urllib.request
+          from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+          S = json.loads(os.environ['CHUSTER_SECRETS'])['sync']
+          space = S['space']; key = base64.b64decode(S['key'])
+          BASE = f"https://chuster.netlify.app/db/{space}"
+          feed = json.load(open('feed/email-feed.json', encoding='utf-8')).get('feed', {})
+          aes = AESGCM(key)
+          def enc(obj):
+            iv = os.urandom(12)
+            ct = aes.encrypt(iv, json.dumps(obj).encode('utf-8'), None)
+            return base64.b64encode(iv + ct).decode()
+          def put(path, body):
+            req = urllib.request.Request(f"{BASE}/{path}", data=json.dumps(body).encode(), method='PUT', headers={'content-type': 'application/json'})
+            return urllib.request.urlopen(req).read()
+          wrote = 0
+          for user, items in feed.items():
+            uid = ''.join(c for c in user.lower() if c.isalnum()) or 'u'
+            v = enc({'k': user.lower(), 'val': items, 'by': 'watcher'})
+            put(f"ei/{uid}.json", {'v': v, 't': {'.sv': 'timestamp'}})
+            wrote += 1
+            print(f"::notice::wrote ei/{uid} for {user}: {len(items)} items")
+          put("_t.json", {'.sv': 'timestamp'})  # bump sync marker so open apps pull now
+          # verify round-trip for the first user
+          first = next(iter(feed)) if feed else None
+          if first:
+            uid = ''.join(c for c in first.lower() if c.isalnum()) or 'u'
+            raw = urllib.request.urlopen(f"{BASE}/ei/{uid}.json").read()
+            rec = json.loads(raw); b = base64.b64decode(rec['v'])
+            back = json.loads(aes.decrypt(b[:12], b[12:], None))
+            assert len(back['val']) == len(feed[first]), "verify count mismatch"
+            print(f"::notice::verified {first}: {len(back['val'])} items readable from live DB — OK")
+          print(f"::notice::feed→DB done; {wrote} user feed(s) written")
+          PY
