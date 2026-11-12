@@ -1996,7 +1996,9 @@ const EMAIL_SEED = [
 function emMe() { return String(S.user || S.realUser || S.baseRole || '').trim().toLowerCase(); }
 function emAddr() { S.emailConn = S.emailConn || {}; const me = emMe(); const a = S.emailConn[me] && S.emailConn[me].email; if (a) return a; if (me === 'zevi') return 'zevi@chusternoodle.com'; return ''; }
 function emFeedFor() {
-  const me = emMe(); const live = REAL && REAL.emailFeed;
+  const me = emMe();
+  if (S.emailLive && S.emailLive[me] && S.emailLive[me].length) return S.emailLive[me];
+  const live = REAL && REAL.emailFeed;
   if (live && !Array.isArray(REAL.emailFeed)) { const addr = emAddr().toLowerCase(); return REAL.emailFeed[me] || (addr ? REAL.emailFeed[addr] : null) || []; }
   if (live) return me === 'zevi' ? REAL.emailFeed : [];
   return me === 'zevi' ? EMAIL_SEED : [];
@@ -7005,7 +7007,7 @@ const SYNC = (function () {
     if (!viaApp && onNetlify && e && e.name === 'TypeError') { viaApp = true; try { localStorage.setItem('chuster-db-via-app', '1'); } catch (x) { /* ignore */ } setTimeout(() => tick(), 500); }
   }
   const st = { ok: null, err: '', last: 0, since: loadLS('chuster-sync-since', {}), out: loadLS('chuster-sync-out', {}), seen: {}, key: null, flushing: false, pulling: false, started: false };
-  const COLLS = ['gc', 'ds', 'rd', 'll', 'do', 'sc', 'tr', 'lq', 'ls', 'lm', 'lx', 'lh', 'qi', 'qo', 'qc', 'qs', 'qp', 'qh', 'qw', 'qr', 'ps', 'pp', 'pn', 'pq', 'sx', 'sl', 'vn', 'pt', 'cv', 'cg', 'df', 'cut', 'av', 'ct', 'mv', 'ec'];
+  const COLLS = ['gc', 'ds', 'rd', 'll', 'do', 'sc', 'tr', 'lq', 'ls', 'lm', 'lx', 'lh', 'qi', 'qo', 'qc', 'qs', 'qp', 'qh', 'qw', 'qr', 'ps', 'pp', 'pn', 'pq', 'sx', 'sl', 'vn', 'pt', 'cv', 'cg', 'df', 'cut', 'av', 'ct', 'mv', 'ec', 'ei'];
   const h = s => { let a = 0x811c9dc5, b = 0x9e3779b9; for (let i = 0; i < s.length; i++) { const c = s.charCodeAt(i); a = Math.imul(a ^ c, 16777619) >>> 0; b = Math.imul(b ^ c, 2246822519) >>> 0; } return a.toString(36) + b.toString(36); };
   const b64 = u8 => { let s = ''; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); return btoa(s); };
   const unb64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -7082,7 +7084,7 @@ const SYNC = (function () {
     st.pulling = false; badge();
     if (changed) refresh();
   }
-  const LIVE = ['route', 'stop', 'loadlist', 'loading', 'toqb', 'dsched', 'home', 'orders', 'customers', 'collect', 'inventory', 'mysales', 'payments', 'tools', 'reorder', 'packing', 'visits', 'coverage', 'pitch'];
+  const LIVE = ['route', 'stop', 'loadlist', 'loading', 'toqb', 'dsched', 'home', 'orders', 'customers', 'collect', 'inventory', 'mysales', 'payments', 'tools', 'reorder', 'packing', 'visits', 'coverage', 'pitch', 'email'];
   function refresh() {
     const a = document.activeElement; if (S.sigOpen || (a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) && a.id !== 'ms-end')) { st.pend = true; return; }
     st.pend = false; if (typeof qbAfterPull === 'function') qbAfterPull(); if (LIVE.includes(S.view)) { const y = window.scrollY; render(); window.scrollTo(0, y); }
@@ -7356,6 +7358,8 @@ SYNC.on('mv', (k, val) => { if (val == null) delete S.moves[k]; else S.moves[k] 
 S.emailConn = (() => { try { return JSON.parse(localStorage.getItem('chuster-ec-v1')) || {}; } catch (e) { return {}; } })();
 const saveEC = () => { try { localStorage.setItem('chuster-ec-v1', JSON.stringify(S.emailConn)); } catch (e) { } };
 SYNC.on('ec', (k, val) => { S.emailConn = S.emailConn || {}; if (val == null) delete S.emailConn[k]; else S.emailConn[k] = val; saveEC(); });
+S.emailLive = {};
+SYNC.on('ei', (k, val) => { S.emailLive = S.emailLive || {}; if (val == null) delete S.emailLive[k]; else S.emailLive[k] = val; });
 // BM contents = sum of received moves into BM minus runs out of BM (only 'done' moves count)
 function bmByFull() { const m = {}; Object.values(S.moves || {}).forEach(mv => { if (!mv || mv.st !== 'done') return; const sign = mv.to === 'BM' ? 1 : mv.from === 'BM' ? -1 : 0; if (!sign) return; (mv.lines || []).forEach(l => { const full = l[0], q = +l[1] || 0; if (!full || !q) return; m[full] = (m[full] || 0) + sign * q; }); }); return m; }
 let avSeen = {}; // throttle screen logging this session
