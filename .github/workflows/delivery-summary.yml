@@ -24,7 +24,7 @@ jobs:
         run: |
           set -e
           python3 - <<'PY'
-          import os, json, base64, datetime, zoneinfo, urllib.request, subprocess
+          import os, json, base64, datetime, zoneinfo, urllib.request, subprocess, glob
           from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
           S = json.loads(os.environ['CHUSTER_SECRETS'])['sync']
@@ -42,7 +42,13 @@ jobs:
           # ---- pull QB invoices + customers (same source as nightly) ----
           json.dump(S, open('sync.json', 'w'))
           subprocess.run(['python3', 'build-src/tools/fetch_history.py', db, 'sync.json', 'raw'], check=True)
-          def raw(name):
+          def raw_sets(prefix):  # inv_YYYY.json, cm_YYYY.json, ... (one per year)
+              out = []
+              for p in sorted(glob.glob(f"raw/{prefix}_*.json")):
+                  try: out.extend(json.load(open(p, encoding='utf-8')))
+                  except Exception: pass
+              return out
+          def raw_one(name):  # customers.json, items.json
               p = f"raw/{name}.json"
               if not os.path.exists(p): return []
               d = json.load(open(p, encoding='utf-8'))
@@ -51,7 +57,8 @@ jobs:
                       if isinstance(v, list): return v
                   return []
               return d
-          invs = raw('inv'); custs = raw('customers')
+          invs = raw_sets('inv'); custs = raw_one('customers')
+          print(f"::notice::loaded {len(invs)} invoices, {len(custs)} customers")
           cust = {}
           for c in custs:
               area = (c.get('type') or '').replace('Retail:', '').replace('Cataring', 'Catering') or 'Other'
@@ -123,6 +130,7 @@ jobs:
               if not g:
                   g = groups[gk] = {'c': o['c'], 'nums': []}
               g['nums'].append(o['n'])
+          print(f"::notice::{len(groups)} stops match {target} | ds={len(ds)} lm={len(lm)} dsched_days={len([k for k in dsched if str(k).isdigit()])}")
           # assign truck + status
           out_trucks = {i: {'name': trucks[i]['name'], 'driver': (trucks[i].get('driver') or '').strip(), 'delivered': [], 'notDelivered': []} for i in range(nT)}
           out_trucks[-1] = {'name': 'Pick up', 'driver': '', 'delivered': [], 'notDelivered': []}
