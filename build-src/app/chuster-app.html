@@ -1926,6 +1926,7 @@ function renderSalesReport() {
 
 // What's new — a running list of what shipped, newest first. r: role that sees it (Owner-only if set).
 const CHANGELOG = [
+  { d: '2026-11-12', t: 'Check address', b: "A scratchpad to look up any addresses that aren't orders: paste a few, see them on a live-traffic Google map, and \u2014 for two or more \u2014 get the shortest truck-legal route and order, with Navigate buttons. Makes no orders." },
   { d: '2026-11-11', t: 'Test mode', b: "On the To-QuickBooks screen, Owner/Office can flip Test mode on to try orders and payments without anything reaching QuickBooks \u2014 test records are marked TEST and never sent. Flip it off to go live.", r: 'Owner' },
   { d: '2026-11-11', t: 'Truck route (TomTom)', b: "New \u{1F69B} Truck route button on the Driver screen: puts your stops in the shortest truck-legal order and steers around low bridges and no-truck roads. A free TomTom key has to be switched on first.", r: 'Owner' },
   { d: '2026-11-11', t: "Driver's name on trucks", b: "Set a driver on a truck in Tools \u2192 Team, and their name (like Motty) shows on Deliveries and Loading instead of the truck number." },
@@ -2120,6 +2121,7 @@ const VIEWS = {
   journal: { title: 'Journal entries', r: renderJournal },
   accounts: { title: 'Chart of accounts', r: renderAccounts },
   route: { title: 'Deliveries', r: () => renderDeliveries() },
+  addrcheck: { title: 'Check address', r: renderAddrCheck },
   stop: { title: 'Driver', r: () => renderDriver() },
   dsched: { title: 'Delivery days', r: () => renderDSched() },
   delivstats: { title: 'Delivery stats', r: renderDelivStats },
@@ -2189,7 +2191,7 @@ const NAV = [
   { h: 'CUSTOMERS', items: [['visits', "Today's visits", 'clock'], ['coverage', 'Coverage plan', 'clip'], ['pitch', 'New to pitch', 'chart'], ['customers', 'Customers', 'people', 'late'], ['payments', 'Payments', 'card', 'pay'], ['collect', 'Collections', 'card'], ['aging', 'Collections dashboard', 'chart'], ['stmts', 'Statements by email', 'mail'], ['custprofit', 'Profit by store', 'chart'], ['lost', 'Lost items', 'alert'], ['yomtov', 'Yom Tov list', 'cal'], ['ytplan', 'Yom Tov planner', 'chart']] },
   { h: 'SALES & MONEY', items: [['mysales', 'Salesman dashboard', 'chart'], ['storesales', 'Store sales', 'chart'], ['scorecard', 'Store scorecard', 'people'], ['movers', 'What changed', 'alert'], ['atrisk', 'At-risk board', 'alert'], ['crosssell', 'Cross-sell', 'chart'], ['newlost', 'New & lost stores', 'people'], ['habits', 'Order habits', 'clock'], ['seasonality', 'Seasonality', 'chart'], ['salesreport', 'Sales report', 'chart'], ['brandsales', 'Sales by brand', 'chart'], ['lostsales', 'Lost sales', 'alert'], ['repscore', 'Salesman scorecard', 'people'], ['reps', 'Sales by rep & commission', 'people'], ['returns', 'Returns & credits', 'card'], ['finance', 'Finance', 'chart']] },
   { h: 'PRODUCTS', items: [['catalog', 'Catalog', 'box'], ['prodsales', 'Product sales', 'chart'], ['winners', 'Winners & losers', 'chart'], ['items', 'Products & profit', 'chart'], ['margin', 'Margins', 'chart'], ['pricelist', 'Price list', 'order'], ['pricecheck', 'Price check', 'card'], ['pricespread', 'Price spread', 'chart']] },
-  { h: 'DELIVERIES', items: [['route', 'Deliveries', 'box'], ['stop', 'Driver', 'wheel'], ['pickups', 'Pickups', 'truck'], ['live', 'Live trucks', 'pin'], ['loading', 'Loading', 'truck'], ['dsched', 'Delivery days', 'cal'], ['delivstats', 'Delivery stats', 'chart'], ['routeprofit', 'Route profit', 'chart']] },
+  { h: 'DELIVERIES', items: [['route', 'Deliveries', 'box'], ['addrcheck', 'Check address', 'pin'], ['stop', 'Driver', 'wheel'], ['pickups', 'Pickups', 'truck'], ['live', 'Live trucks', 'pin'], ['loading', 'Loading', 'truck'], ['dsched', 'Delivery days', 'cal'], ['delivstats', 'Delivery stats', 'chart'], ['routeprofit', 'Route profit', 'chart']] },
   { h: 'WAREHOUSE', items: [['packnext', 'What to pack', 'clip'], ['forecast', 'Week-ahead forecast', 'chart'], ['packing', 'Packing plan', 'clip'], ['stockcover', 'Stock cover', 'box'], ['packlog', 'Pack log', 'clip'], ['packrep', 'Packing report', 'chart'], ['yield', 'Yield', 'chart']] },
   { h: 'STOCK & BUYING', items: [['inventory', 'Inventory', 'box', 'inv'], ['prodplan', 'Make today', 'box'], ['ordernow', 'Order now', 'alert'], ['toorder', 'To order (by vendor)', 'card'], ['reorder', 'Reorder alerts', 'alert'], ['plan', 'Plan a season', 'chart'], ['margin', 'Margin watch', 'chart'], ['buying', 'Buying & suppliers', 'card'], ['polist', 'All purchase orders', 'clip'], ['stockmoves', 'Stock moves', 'box']] },
   { h: 'BOOKS', items: [['expenses', 'Expenses', 'chart'], ['bank', 'Bank & deposits', 'card'], ['vendors', 'Vendors & bills', 'people'], ['salesorders', 'Sales orders & estimates', 'order'], ['journal', 'Journal entries', 'clip'], ['accounts', 'Chart of accounts', 'chart']] }
@@ -2208,9 +2210,9 @@ const isZevi = () => S.baseRole === 'Owner' && S.realUser === 'Zevi';
 try { S.lang = localStorage.getItem('chuster-lang') || 'en'; } catch (e) { S.lang = 'en'; }
 const ROLE_VIEWS = {
   Warehouse: ['ask', 'catalog', 'packnext', 'packing', 'stockcover', 'packlog', 'packrep', 'yield', 'inventory', 'prodplan', 'ordernow', 'reorder', 'plan', 'margin', 'loading', 'loadlist', 'calendar', 'stockmoves', 'polist'],
-  Driver: ['route', 'stop', 'loading', 'loadlist', 'calendar'],
+  Driver: ['route', 'addrcheck', 'stop', 'loading', 'loadlist', 'calendar'],
   Sales: ['ask', 'catalog', 'mysales', 'visits', 'coverage', 'mycomm', 'pitch', 'customers', 'collect', 'orders', 'order', 'inbox', 'toqb', 'payments', 'yomtov', 'lost', 'pricelist', 'pricecheck', 'calendar', 'salesorders', 'prodsales', 'scorecard', 'crosssell', 'atrisk', 'returns'],
-  SalesDriver: ['ask', 'catalog', 'mysales', 'visits', 'coverage', 'mycomm', 'pitch', 'customers', 'collect', 'orders', 'order', 'inbox', 'toqb', 'payments', 'yomtov', 'lost', 'pricelist', 'pricecheck', 'calendar', 'route', 'stop', 'loading', 'loadlist', 'salesorders', 'prodsales', 'scorecard', 'crosssell', 'atrisk', 'returns']
+  SalesDriver: ['ask', 'catalog', 'mysales', 'visits', 'coverage', 'mycomm', 'pitch', 'customers', 'collect', 'orders', 'order', 'inbox', 'toqb', 'payments', 'yomtov', 'lost', 'pricelist', 'pricecheck', 'calendar', 'route', 'addrcheck', 'stop', 'loading', 'loadlist', 'salesorders', 'prodsales', 'scorecard', 'crosssell', 'atrisk', 'returns']
 };
 const isSales = () => S.role === 'Sales' || S.role === 'SalesDriver';
 // a salesman is locked to his own customers (the rep codes set for his name); owners/office see everyone
@@ -2252,7 +2254,7 @@ function drawChrome() {
     { label: 'Customers', items: [['mysales', 'Salesman dashboard', 'chart'], ['visits', "Today's visits", 'clock'], ['coverage', 'Coverage plan', 'clip'], ['mycomm', 'My commission', 'chart'], ['pitch', 'New to pitch', 'chart'], ['customers', 'Customers', 'people', 'late'], ['collect', 'Collections', 'card'], ['stmts', 'Statements by email', 'mail'], ['yomtov', 'Yom Tov list', 'cal'], ['lost', 'Lost items', 'alert'], ['custprofit', 'Profit by store', 'chart'], ['pricecheck', 'Price check', 'card'], ['reps', 'Sales by rep & commission', 'people']] },
     { label: 'Products', items: [['items', 'Products & profit', 'chart'], ['pricelist', 'Price list', 'order'], ['inventory', 'Inventory', 'box', 'inv'], ['reorder', 'Reorder alerts', 'alert'], ['buying', 'Buying & suppliers', 'card']] },
     { label: 'Packing', items: [['packnext', 'What to pack', 'clip'], ['packing', 'Packing plan', 'clip'], ['packlog', 'Pack log', 'clip'], ['packrep', 'Packing report', 'chart'], ['yield', 'Yield', 'chart']] },
-    { label: 'Deliveries', items: [['route', 'Deliveries', 'box'], ['stop', 'Driver', 'wheel'], ['loading', 'Loading', 'truck'], ['dsched', 'Delivery days', 'cal'], ['live', 'Live trucks', 'pin']] },
+    { label: 'Deliveries', items: [['route', 'Deliveries', 'box'], ['addrcheck', 'Check address', 'pin'], ['stop', 'Driver', 'wheel'], ['loading', 'Loading', 'truck'], ['dsched', 'Delivery days', 'cal'], ['live', 'Live trucks', 'pin']] },
     ['calendar', 'Calendar']
   ];
   const TN2 = TN.map(g => Array.isArray(g) ? g : Object.assign({}, g, { items: g.items.filter(navOk) })).filter(g => Array.isArray(g) ? allowed(g[0]) : g.items.length);
@@ -2317,7 +2319,7 @@ function crashBox(e) {
   v.innerHTML = `<section class="card stack" style="border:2px solid var(--bad-text)"><h2>Something broke on this screen</h2><p class="sub" style="margin:0">Send a screenshot of this to Claude.</p><pre style="white-space:pre-wrap;font-size:12px;margin:0">${esc(String(e && (e.stack || e.message) || e)).slice(0, 1500)}</pre><div class="actions"><a class="btn primary" href="#home" onclick="setTimeout(()=>location.reload(),50)">Try again</a><button class="btn ghost" onclick="try{['chuster-qb-v1','chuster-sync-since','chuster-sync-out'].forEach(k=>localStorage.removeItem(k))}catch(x){};location.reload()">Clear saved data and reload</button></div></section>`;
 }
 window.addEventListener('error', ev => { try { if (!document.getElementById('view').innerHTML.trim()) crashBox(ev.error || ev.message); } catch (x) { /* ignore */ } });
-function render() { try { drawChrome(); } catch (e) { crashBox(e); return; } try { document.getElementById('view').innerHTML = VIEWS[S.view].r() + (typeof sigModal === 'function' ? sigModal() : ''); } catch (e) { crashBox(e); return; } document.title = 'Chuster Noodle App'; aiFab(); if (S.sigOpen) initSig(); if (S.view === 'live' && typeof geoMount === 'function') { geoMap = null; gGeoMap = null; geoMount(); } if (S.view === 'stop' && S.drvMap && typeof drvMount === 'function') { drvMap = null; gDrvMap = null; drvMount(); } }
+function render() { try { drawChrome(); } catch (e) { crashBox(e); return; } try { document.getElementById('view').innerHTML = VIEWS[S.view].r() + (typeof sigModal === 'function' ? sigModal() : ''); } catch (e) { crashBox(e); return; } document.title = 'Chuster Noodle App'; aiFab(); if (S.sigOpen) initSig(); if (S.view === 'live' && typeof geoMount === 'function') { geoMap = null; gGeoMap = null; geoMount(); } if (S.view === 'stop' && S.drvMap && typeof drvMount === 'function') { drvMap = null; gDrvMap = null; drvMount(); } if (S.view === 'addrcheck' && S.acRes && typeof acMount === 'function') { gAcMap = null; acLeaf = null; acMount(); } }
 function openMenu() { document.getElementById('app').classList.add('menu-open'); document.getElementById('scrim').hidden = false; }
 function closeMenu() { document.getElementById('app').classList.remove('menu-open'); document.getElementById('scrim').hidden = true; }
 let toastTimer;
@@ -5782,6 +5784,7 @@ function geoMount() {
 const GMAPS_KEY = 'AIzaSyDmdj6cp_SK34Bjv8K_IOXMDXG0YcxyQQM';
 let gmaps = 0; const gmapsCbs = []; // 0 idle, 1 loading, 2 ready, 3 failed
 let gDrvMap = null, gGeoMap = null, gDrvMarks = [], gGeoMarks = [], gDrvLine = null, gInfo = null;
+let gAcMap = null, gAcMarks = [], gAcLine = null, gAcTraffic = null, acLeaf = null, acLeafLayer = null;
 function loadGmaps(ok, fail) {
   if (window.google && google.maps) { ok(); return; }
   if (gmaps === 3) { if (fail) fail(); return; }
@@ -5836,6 +5839,58 @@ async function gGeoPaint() {
       if (S.geoSel === t.id) { gGeoMap.setCenter({ lat: t.lat, lng: t.lng }); gGeoMap.setZoom(14); } });
     if (!S.geoSel && any && !gGeoMap._fit) { gGeoMap.fitBounds(bounds, 48); gGeoMap._fit = true; }
   } catch (e) { gGeoMap = null; gmaps = 3; geoSimple = false; geoMount(); }
+}
+/* ---- Check-address scratchpad map (Google Maps + live traffic, Leaflet/OSM fallback) ---- */
+function acMount() {
+  if (S.view !== 'addrcheck' || !S.acRes) return;
+  const el = document.getElementById('ac-map'); if (!el) return;
+  if (GMAPS_KEY && gmaps !== 3) {
+    loadGmaps(() => {
+      const e2 = document.getElementById('ac-map'); if (!e2 || S.view !== 'addrcheck') return;
+      try { gAcMap = new google.maps.Map(e2, { center: { lat: 40.85, lng: -74.0 }, zoom: 10, mapTypeControl: false, streetViewControl: false, fullscreenControl: false, clickableIcons: false }); gAcMap._fit = false; gAcTraffic = null; acPaintG(); }
+      catch (e) { gAcMap = null; gmaps = 3; acMountLeaflet(e2); }
+    }, () => { const e2 = document.getElementById('ac-map'); if (e2) acMountLeaflet(e2); });
+    return;
+  }
+  acMountLeaflet(el);
+}
+async function acPaintG() {
+  try {
+    if (!gAcMap || !S.acRes) return;
+    gAcMarks.forEach(m => m.setMap(null)); gAcMarks = []; if (gAcLine) { gAcLine.setMap(null); gAcLine = null; }
+    if (!gAcTraffic) { try { gAcTraffic = new google.maps.TrafficLayer(); gAcTraffic.setMap(gAcMap); } catch (e) { } }
+    const res = S.acRes, rt = S.acRoute;
+    const found = res.items.filter(x => x.p && !x.p.none);
+    const order = (rt && rt.order && rt.order.length === found.length) ? rt.order : found.map((_, i) => i);
+    const bounds = new google.maps.LatLngBounds(); let any = false;
+    if (res.start) { const sp = S.gc[gcKey(res.start)]; if (sp && !sp.none) { gAcMarks.push(gMark(gAcMap, sp.lat, sp.lng, '🏭', '#16204A', '<b>Start</b><br>' + esc(res.start))); bounds.extend({ lat: sp.lat, lng: sp.lng }); any = true; } }
+    order.forEach((idx, pos) => { const it = found[idx]; const p = it.p; gAcMarks.push(gMark(gAcMap, p.lat, p.lng, String(pos + 1), '#21409A', esc(it.addr))); bounds.extend({ lat: p.lat, lng: p.lng }); any = true; });
+    const line = (rt && rt.line && rt.line.length > 1) ? rt.line : null;
+    if (line) gAcLine = new google.maps.Polyline({ path: line, map: gAcMap, strokeColor: '#1E7A45', strokeOpacity: .85, strokeWeight: 5 });
+    if (any && !gAcMap._fit) { gAcMap.fitBounds(bounds, 48); gAcMap._fit = true; google.maps.event.addListenerOnce(gAcMap, 'idle', () => { if (gAcMap.getZoom() > 15) gAcMap.setZoom(15); }); }
+  } catch (e) { gAcMap = null; gmaps = 3; const el = document.getElementById('ac-map'); if (el) acMountLeaflet(el); }
+}
+function acMountLeaflet(el) {
+  if (!window.L) {
+    if (!document.getElementById('leaflet-js')) {
+      const css = document.createElement('link'); css.rel = 'stylesheet'; css.href = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css'; document.head.appendChild(css);
+      const js = document.createElement('script'); js.id = 'leaflet-js'; js.src = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js'; js.onload = () => { if (S.view === 'addrcheck') acMount(); }; js.onerror = () => { el.innerHTML = '<p class="sub" style="padding:16px;margin:0">The map needs internet. Use the Google Maps button below instead.</p>'; }; document.head.appendChild(js);
+    }
+    return;
+  }
+  try { acLeaf = L.map(el, { zoomControl: true }).setView([40.85, -74.0], 10); L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(acLeaf); acLeafLayer = L.layerGroup().addTo(acLeaf); acPaintLeaf(); } catch (e) { }
+}
+function acPaintLeaf() {
+  if (!acLeaf || !acLeafLayer || !S.acRes) return;
+  acLeafLayer.clearLayers(); const pts = [];
+  const res = S.acRes, rt = S.acRoute; const found = res.items.filter(x => x.p && !x.p.none);
+  const order = (rt && rt.order && rt.order.length === found.length) ? rt.order : found.map((_, i) => i);
+  if (res.start) { const sp = S.gc[gcKey(res.start)]; if (sp && !sp.none) { L.marker([sp.lat, sp.lng], { icon: L.divIcon({ className: '', html: '<div style="background:#16204A;color:#fff;font:800 11px Manrope,sans-serif;padding:3px 7px;border-radius:9px;border:2px solid #F4BC3A;white-space:nowrap">🏭 Start</div>', iconAnchor: [18, 12] }) }).addTo(acLeafLayer); pts.push([sp.lat, sp.lng]); } }
+  order.forEach((idx, pos) => { const p = found[idx].p; L.marker([p.lat, p.lng], { icon: L.divIcon({ className: '', html: '<div style="background:#21409A;color:#fff;font:800 12px Manrope,sans-serif;width:24px;height:24px;border-radius:50%;border:2px solid #F4BC3A;display:flex;align-items:center;justify-content:center">' + (pos + 1) + '</div>', iconAnchor: [12, 12] }) }).addTo(acLeafLayer); pts.push([p.lat, p.lng]); });
+  const line = (rt && rt.line && rt.line.length > 1) ? rt.line : null;
+  if (line) L.polyline(line.map(q => [q.lat, q.lng]), { color: '#1E7A45', weight: 5, opacity: .85 }).addTo(acLeafLayer);
+  if (pts.length) acLeaf.fitBounds(pts, { padding: [40, 40], maxZoom: 14 });
+  setTimeout(() => { if (acLeaf) acLeaf.invalidateSize(); }, 120);
 }
 /* ---- Driver route map (real Google Maps, Leaflet/OSM fallback) ---- */
 let drvMap = null, drvLayer = null;
@@ -6557,7 +6612,7 @@ function renderMySales() {
 // An invoice goes on the first day ON or AFTER its date when its area has the truck.
 const DSCHED_DEFAULT = { v: 3, n: 1, start: '65 Steuben St, Brooklyn, NY 11249', 0: { Monsey: 0, Monroe: 0 }, 1: { Williamsburg: 0 }, 2: { 'Boro Park': 0 }, 3: { Country: 0, 'Boro Park': 0 }, 4: { Lakewood: 0, 'Boro Park': 0 }, 5: {}, season: { Country: [7, 8] } };
 const dsFix = v => (v && v.v === 3) ? Object.assign(v, v.season ? {} : { season: { Country: [7, 8] } }, (/4706 10th/.test(v.start || '') || /11205/.test(v.start || '')) ? { start: '65 Steuben St, Brooklyn, NY 11249' } : {}) : JSON.parse(JSON.stringify(DSCHED_DEFAULT));
-Object.assign(S, { dsched: dsFix(loadLS('chuster-dsched-v1', null)), gc: loadLS('chuster-gc-v1', {}), routeBusy: '', dstat: loadLS('chuster-dstat-v1', {}), dorder: loadLS('chuster-dorder-v1', {}), dDate: null, dTruck: 0, dStop: null, dShort: {}, dDrop: {}, dStopQ: '', drvShow: 'todo', autoRoute: {}, dSigOpen: false, dPhotos: [], drvMap: false });
+Object.assign(S, { dsched: dsFix(loadLS('chuster-dsched-v1', null)), gc: loadLS('chuster-gc-v1', {}), routeBusy: '', dstat: loadLS('chuster-dstat-v1', {}), dorder: loadLS('chuster-dorder-v1', {}), dDate: null, dTruck: 0, dStop: null, dShort: {}, dDrop: {}, dStopQ: '', drvShow: 'todo', autoRoute: {}, dSigOpen: false, dPhotos: [], drvMap: false, acText: '', acStart: null, acRes: null, acRoute: null, acBusy: '' });
 (function prune() { const cut = isoOf(TODAY - 21); let ch = false; Object.keys(S.dstat).forEach(k => { if (k.slice(0, 10) < cut) { delete S.dstat[k]; ch = true; } }); if (ch) saveLS('chuster-dstat-v1', S.dstat); })();
 const saveDstat = () => { try { localStorage.setItem('chuster-dstat-v1', JSON.stringify(S.dstat)); } catch (e) { toast('This device is full. Old photos were not saved.'); } };
 Object.assign(S, { clock: loadLS('chuster-clock-v1', {}), dcheck: loadLS('chuster-dcheck-v1', {}), dcheckOpen: false, backhaul: loadLS('chuster-backhaul-v1', {}), bhEdit: false, driveMode: false });
@@ -6702,6 +6757,74 @@ async function routeTruck(date, t) {
   S.routeBusy = ''; render();
 }
 const tomtomHref = p => (p && p.lat != null) ? `https://plan.tomtom.com/en/route?coordinate=${p.lat},${p.lng}&travelMode=truck` : '';
+// ---- Check address: a scratchpad to locate + truck-route any addresses (not orders) ----
+function acGmapsUrl() {
+  const res = S.acRes; if (!res) return '';
+  const found = res.items.filter(x => x.p && !x.p.none); if (!found.length) return '';
+  const rt = S.acRoute; const order = (rt && rt.order && rt.order.length === found.length) ? rt.order : found.map((_, i) => i);
+  const ordered = order.map(i => found[i].addr);
+  const pts = (res.start ? [res.start] : []).concat(ordered);
+  if (pts.length < 2) return 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(pts[0] || ordered[0] || '');
+  const origin = pts[0], dest = pts[pts.length - 1], mid = pts.slice(1, -1).slice(0, 9);
+  return 'https://www.google.com/maps/dir/?api=1&travelmode=driving&origin=' + encodeURIComponent(origin) + '&destination=' + encodeURIComponent(dest) + (mid.length ? '&waypoints=' + encodeURIComponent(mid.join('|')) : '');
+}
+async function acCheck() {
+  const lines = String(S.acText || '').split('\n').map(s => s.trim()).filter(Boolean);
+  if (!lines.length) { toast('Type at least one address.'); return; }
+  const start = String((S.acStart != null ? S.acStart : ((S.dsched && S.dsched.start) || '')) || '').trim();
+  S.acBusy = 'Finding…'; S.acRoute = null; render();
+  try {
+    await geoPoints((start ? [start] : []).concat(lines));
+    const items = lines.map(a => ({ addr: a, p: S.gc[gcKey(a)] || { none: 1 } }));
+    S.acRes = { items, start };
+    const found = items.filter(x => x.p && !x.p.none);
+    if (found.length >= 2) {
+      const sp = start ? S.gc[gcKey(start)] : null;
+      const payload = { stops: found.map(x => ({ lat: x.p.lat, lng: x.p.lng, label: x.addr })), truck: truckDims() };
+      if (sp && !sp.none) payload.start = { lat: sp.lat, lng: sp.lng };
+      try {
+        const r = await fetch('/route', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) });
+        const j = await r.json();
+        if (r.ok && j.ok) S.acRoute = { order: j.order, miles: j.miles, minutes: j.minutes, line: j.line || [], note: j.note, roundTrip: j.roundTrip };
+      } catch (e) { }
+    }
+    const nf = found.length, miss = items.length - nf;
+    toast(`${nf} found${miss ? `, ${miss} not found` : ''}${S.acRoute ? ` · ${fn(S.acRoute.miles)} mi` : ''}.`);
+  } catch (e) { toast('Lookup failed: ' + (e.message || e)); }
+  S.acBusy = ''; render();
+}
+function renderAddrCheck() {
+  const res = S.acRes, rt = S.acRoute;
+  const defStart = S.acStart != null ? S.acStart : ((S.dsched && S.dsched.start) || '');
+  let resultHtml = '';
+  if (res) {
+    const found = res.items.filter(x => x.p && !x.p.none);
+    const order = (rt && rt.order && rt.order.length === found.length) ? rt.order : found.map((_, i) => i);
+    const miss = res.items.filter(x => !(x.p && !x.p.none));
+    const numStyle = 'min-width:24px;height:24px;border-radius:50%;background:#21409A;color:#fff;font-weight:800;font-size:12px;display:flex;align-items:center;justify-content:center;flex:none';
+    const rowStyle = 'display:flex;gap:10px;align-items:center;padding:7px 2px;border-top:1px solid var(--line)';
+    const rows = order.map((idx, pos) => { const it = found[idx]; const tt = tomtomHref(it.p); const gm = 'https://www.google.com/maps/dir/?api=1&travelmode=driving&destination=' + encodeURIComponent(it.addr);
+      return `<div style="${rowStyle}"><span style="${numStyle}">${pos + 1}</span><div style="flex:1;min-width:0">${esc(it.addr)}</div><span style="display:flex;gap:6px;flex:none">${tt ? `<a class="btn ghost sm" href="${esc(tt)}" target="_blank" rel="noopener" title="Truck route (TomTom)">🚛</a>` : ''}<a class="btn ghost sm" href="${esc(gm)}" target="_blank" rel="noopener">Maps</a></span></div>`; }).join('');
+    const missRows = miss.map(x => `<div style="${rowStyle}"><span style="${numStyle};background:var(--muted)">?</span><div style="flex:1;min-width:0">${esc(x.addr)}<div class="sub" style="margin:0;font-size:12px">Not found — check the spelling</div></div></div>`).join('');
+    const gurl = acGmapsUrl();
+    resultHtml = `<section class="card stack">
+      ${rt ? `<p class="sub" style="margin:0;color:var(--brand);font-weight:700">🚛 Truck route: ${fn(rt.miles)} mi · about ${rt.minutes >= 60 ? Math.floor(rt.minutes / 60) + 'h ' + (rt.minutes % 60) + 'm' : rt.minutes + 'm'}${rt.roundTrip ? ' (round trip)' : ''}${rt.note ? ` · <span style="font-weight:400">${esc(rt.note)}</span>` : ''}</p>` : (found.length >= 2 ? '<p class="sub" style="margin:0">Truck routing is off (it needs the TomTom key). Showing the addresses in the order you typed.</p>' : '')}
+      <div id="ac-map" style="height:340px;border-radius:12px;overflow:hidden;background:#e8ecf7"></div>
+      ${gurl ? `<a class="btn primary" href="${esc(gurl)}" target="_blank" rel="noopener">🗺️ Open in Google Maps (live traffic)</a>` : ''}
+      <div class="stack" style="gap:0">${rows}${missRows}</div>
+    </section>`;
+  }
+  return `${head('Check address', 'Look up and truck-route any addresses — this makes no orders')}
+  <section class="card stack">
+    <div><label class="lbl" for="ac-text">Addresses — one per line</label>
+    <textarea class="inp ac-text" id="ac-text" rows="5" placeholder="123 Main St, Brooklyn NY 11219&#10;45 Market Ave, Lakewood NJ 08701" style="font-size:15px;width:100%;resize:vertical">${esc(S.acText || '')}</textarea></div>
+    <div><label class="lbl" for="ac-start">Start from (optional)</label>
+    <input class="inp ac-start" id="ac-start" placeholder="Your shop / depot" value="${esc(defStart)}" style="font-size:15px"></div>
+    <div class="actions"><button class="btn primary" data-act="ac-check"${S.acBusy ? ' disabled' : ''}>${S.acBusy ? esc(S.acBusy) : 'Check'}</button>${res ? '<button class="btn ghost" data-act="ac-clear">Clear</button>' : ''}</div>
+    <p class="sub" style="margin:0;font-size:12px">Nothing here creates an order or a delivery. Truck routing uses your truck size from <a href="#dsched" data-go="dsched">Delivery days</a>.</p>
+  </section>
+  ${resultHtml}`;
+}
 // Google Maps directions for one leg (origin = the phone's location)
 function navLegHref(stops) { const A = stops.filter(x => x.c.address).map(x => dlvAddr(x)); if (!A.length) return ''; const dest = A[A.length - 1]; const w = A.slice(0, -1);
   return 'https://www.google.com/maps/dir/?api=1&travelmode=driving&destination=' + encodeURIComponent(dest) + (w.length ? '&waypoints=' + encodeURIComponent(w.join('|')) : ''); }
@@ -6864,6 +6987,7 @@ function renderDriver() {
     ${nsms ? `<a class="btn gold" href="${esc(nsms)}">💬 Text ${esc(next.o.c)}: on the way</a>` : ''}
     <button class="btn ghost" data-act="r-best" data-t="${t}"${S.routeBusy ? ' disabled' : ''}>${S.routeBusy ? esc(S.routeBusy) : '🧭 Re-sort shortest'}</button>
     <button class="btn ghost" data-act="r-truck" data-t="${t}"${S.routeBusy ? ' disabled' : ''}>🚛 Truck route</button>
+    <a class="btn ghost" href="#addrcheck" data-go="addrcheck">📍 Check an address</a>
     ${undel.length ? `<button class="btn ghost" data-act="d-copy-route" data-t="${t}">${ic('clip')} Copy stops for a route app</button>` : ''}
   </section>
   ${estHtml}
@@ -8835,6 +8959,8 @@ document.addEventListener('click', e => {
     case 'd-undo': { const o = S.dstat[d.k] || {}; S.dstat[d.k] = o.truck != null ? { truck: o.truck } : {}; saveDstat(); dsShare(d.k); keep(); break; }
     case 'r-best': { S.routeBusy = 'Working…'; render(); routeBest(S.dDate, +d.t); break; }
     case 'r-truck': { S.routeBusy = 'Finding the truck route…'; render(); routeTruck(S.dDate, +d.t); break; }
+    case 'ac-check': acCheck(); break;
+    case 'ac-clear': S.acText = ''; S.acStart = null; S.acRes = null; S.acRoute = null; render(); break;
     case 'd-send': { const t = driverDayText(); window.open('https://wa.me/?text=' + encodeURIComponent(t), '_blank'); break; }
     case 'd-report': printDoc(deliveryReportDoc(), `Chuster delivery report ${S.dDate}`); break;
     case 'ds-mon': { const se = S.dsched.season = S.dsched.season || {}; const L = se[d.a] = se[d.a] || []; const m = +d.m; const i = L.indexOf(m); if (i >= 0) L.splice(i, 1); else L.push(m); L.sort((a, b) => a - b); saveLS('chuster-dsched-v1', S.dsched); SYNC.put('sc', 'all', S.dsched); ddCache = null; keep(); break; }
@@ -8909,6 +9035,8 @@ document.addEventListener('change', e => {
 });
 document.addEventListener('input', e => {
   if (e.target.classList && e.target.classList.contains('ec-in')) { S.ecDraft = e.target.value; return; }
+  if (e.target.classList && e.target.classList.contains('ac-text')) { S.acText = e.target.value; return; }
+  if (e.target.classList && e.target.classList.contains('ac-start')) { S.acStart = e.target.value; return; }
   if (e.target.classList && e.target.classList.contains('pkx-in')) { const f = e.target.dataset.full; if (e.target.value === '') delete S.pkxDraft[f]; else S.pkxDraft[f] = e.target.value; return; }
   if (e.target.classList && e.target.classList.contains('pkd-in')) { const n = e.target.dataset.num; if (e.target.value === '') delete S.pkDates[n]; else S.pkDates[n] = e.target.value; return; }
   if (e.target.classList && e.target.classList.contains('pka-in')) { S.apptDraft[e.target.dataset.id] = e.target.value; return; }
