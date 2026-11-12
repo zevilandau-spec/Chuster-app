@@ -1,0 +1,179 @@
+name: Daily delivery summary
+on:
+  workflow_dispatch:
+    inputs:
+      date:
+        description: "Delivery date YYYY-MM-DD (blank = today, America/Chicago)"
+        required: false
+        default: ""
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install cryptography==43.0.3
+      - name: Build the delivery summary
+        env:
+          CHUSTER_SECRETS: ${{ secrets.CHUSTER_SECRETS }}
+          CHUSTER_DB_URL: ${{ secrets.CHUSTER_DB_URL }}
+          IN_DATE: ${{ github.event.inputs.date }}
+        run: |
+          set -e
+          python3 - <<'PY'
+          import os, json, base64, datetime, zoneinfo, urllib.request, subprocess
+          from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+
+          S = json.loads(os.environ['CHUSTER_SECRETS'])['sync']
+          db = (os.environ.get('CHUSTER_DB_URL') or S.get('url') or '').strip().rstrip('/')
+          space, key = S['space'], base64.b64decode(S['key'])
+          BASE = f"{db}/{space}"
+          aes = AESGCM(key)
+
+          # ---- target delivery date (America/Chicago) ----
+          target = (os.environ.get('IN_DATE') or '').strip()
+          if not target:
+              target = datetime.datetime.now(zoneinfo.ZoneInfo('America/Chicago')).date().isoformat()
+          print(f"::notice::Delivery summary for {target}")
+
+          # ---- pull QB invoices + customers (same source as nightly) ----
+          json.dump(S, open('sync.json', 'w'))
+          subprocess.run(['python3', 'build-src/tools/fetch_history.py', db, 'sync.json', 'raw'], check=True)
+          def raw(name):
+              p = f"raw/{name}.json"
+              if not os.path.exists(p): return []
+              d = json.load(open(p, encoding='utf-8'))
+              if isinstance(d, dict):
+                  for v in d.values():
+                      if isinstance(v, list): return v
+                  return []
+              return d
+          invs = raw('inv'); custs = raw('customers')
+          cust = {}
+          for c in custs:
+              area = (c.get('type') or '').replace('Retail:', '').replace('Cataring', 'Catering') or 'Other'
+              cust[c.get('n', '')] = {'area': area, 'rep': c.get('rep', '')}
+
+          # ---- live DB collections (AES-GCM SYNC records) ----
+          def coll(name):
+              try:
+                  raw_ = urllib.request.urlopen(f"{BASE}/{name}.json", timeout=60).read()
+              except Exception as e:
+                  print(f"::warning::could not read {name}: {e}"); return {}
+              j = json.loads(raw_) or {}
+              out = {}
+              for _id, rec in (j.items() if isinstance(j, dict) else []):
+                  if not rec or 'v' not in rec: continue
+                  try:
+                      b = base64.b64decode(rec['v']); o = json.loads(aes.decrypt(b[:12], b[12:], None))
+                      out[o.get('k')] = o.get('val')
+                  except Exception: pass
+              return out
+          sc = coll('sc'); tr_c = coll('tr'); lm = coll('lm'); ds = coll('ds'); ls = coll('ls')
+          dsched = sc.get('all') or {}
+          trucks = tr_c.get('all') or [{'name': 'Truck 1', 'driver': ''}]
+          nT = max(1, min(4, int(dsched.get('n') or 1)))
+          trucks = (trucks or [])[:nT]
+          while len(trucks) < nT: trucks.append({'name': f'Truck {len(trucks)+1}', 'driver': ''})
+
+          def dsched_w(w):
+              return dsched.get(str(w)) or dsched.get(w) or {}
+          def dow(d):  # 0=Sun .. 6=Sat (JS getDay)
+              return (d.weekday() + 1) % 7
+          def area_on(w, area, d):
+              m = dsched_w(w)
+              if m.get(area) is None: return False
+              season = (dsched.get('season') or {}).get(area)
+              if season and len(season): return d.month in [int(x) for x in season]
+              return True
+          def ddate_auto(o):
+              area = cust.get(o['c'], {}).get('area', 'Other')
+              r0 = datetime.date.fromisoformat(o['d'][:10])
+              for k in range(0, 8):
+                  d = r0 + datetime.timedelta(days=k)
+                  if dow(d) == 6: continue
+                  if area_on(dow(d), area, d): return d.isoformat()
+              return o['d'][:10]
+          def ddate_of(o):
+              if lm.get(o.get('n')): return lm[o['n']][:10] if isinstance(lm[o['n']], str) else lm[o['n']]
+              return ddate_auto(o)
+          def truck_for(area):
+              d = datetime.date.fromisoformat(target)
+              m = dsched_w(dow(d))
+              if area_on(dow(d), area, d) and m.get(area) is not None:
+                  return min(int(m[area]), nT - 1)
+              return -1
+
+          # ---- today's stops, grouped by customer+ship (like dayStops) ----
+          groups = {}
+          for o in invs:
+              if not isinstance(o, dict) or not o.get('n'): continue
+              amt = float(o.get('sub', 0) or 0) + float(o.get('tax', 0) or 0)
+              if amt <= 0: continue
+              if ddate_of(o) != target: continue
+              shipd = o.get('ship')
+              shipkey = ''
+              if isinstance(shipd, dict):
+                  shipkey = ' '.join(str(x) for x in (shipd.get('a') or []))
+              gk = o['c'] + '\x01' + shipkey
+              g = groups.get(gk)
+              if not g:
+                  g = groups[gk] = {'c': o['c'], 'nums': []}
+              g['nums'].append(o['n'])
+          # assign truck + status
+          out_trucks = {i: {'name': trucks[i]['name'], 'driver': (trucks[i].get('driver') or '').strip(), 'delivered': [], 'notDelivered': []} for i in range(nT)}
+          out_trucks[-1] = {'name': 'Pick up', 'driver': '', 'delivered': [], 'notDelivered': []}
+          for gk, g in groups.items():
+              nums = sorted(g['nums'])
+              k = f"{target}|{nums[0]}"
+              area = cust.get(g['c'], {}).get('area', 'Other')
+              rep = cust.get(g['c'], {}).get('rep', '')
+              lsv = ls.get(k)
+              st_rec = ds.get(k) or {}
+              if lsv and lsv != 'truck':
+                  t = -1
+              elif st_rec.get('truck') is not None:
+                  t = int(st_rec['truck'])
+              elif rep == 'PU':
+                  t = -1
+              else:
+                  t = truck_for(area)
+              if t not in out_trucks: t = -1
+              label = g['c'] + (f"  (#{' + '.join(nums)})" if len(nums) <= 3 else f"  ({len(nums)} invoices)")
+              stt = st_rec.get('st')
+              if stt in ('done', 'partial'):
+                  at = (st_rec.get('at') or '')[11:16]
+                  extra = f" — {at}" if at else ''
+                  if stt == 'partial' and st_rec.get('shortTxt'): extra += f" (short: {st_rec['shortTxt']})"
+                  out_trucks[t]['delivered'].append(label + extra)
+              else:
+                  extra = ' — marked not delivered' if stt == 'skip' else ''
+                  out_trucks[t]['notDelivered'].append(label + extra)
+
+          result = {'date': target, 'generatedAt': datetime.datetime.utcnow().isoformat() + 'Z', 'trucks': [], 'totals': {'delivered': 0, 'notDelivered': 0}}
+          for i in sorted(out_trucks.keys()):
+              tk = out_trucks[i]
+              if not tk['delivered'] and not tk['notDelivered']: continue
+              result['trucks'].append(tk)
+              result['totals']['delivered'] += len(tk['delivered'])
+              result['totals']['notDelivered'] += len(tk['notDelivered'])
+              who = tk['name'] + (f" / {tk['driver']}" if tk['driver'] else '')
+              print(f"::notice::{who}: {len(tk['delivered'])} delivered, {len(tk['notDelivered'])} not")
+              for s in tk['delivered']: print(f"::notice::   DELIVERED  {s}")
+              for s in tk['notDelivered']: print(f"::notice::   NOT        {s}")
+          print(f"::notice::TOTAL {result['totals']['delivered']} delivered, {result['totals']['notDelivered']} not delivered")
+          os.makedirs('reports', exist_ok=True)
+          json.dump(result, open('reports/delivery-summary.json', 'w'), indent=1)
+          print("wrote reports/delivery-summary.json")
+          PY
+      - name: Commit the summary
+        run: |
+          git config user.name "Chuster delivery"
+          git config user.email "noreply@anthropic.com"
+          git add reports/delivery-summary.json
+          if git diff --cached --quiet; then echo "no change"; exit 0; fi
+          git commit -q -m "Delivery summary"
+          for i in 1 2 3; do git push -q origin HEAD:main && break; git pull -q --rebase origin main; done
