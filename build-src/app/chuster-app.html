@@ -1926,6 +1926,7 @@ function renderSalesReport() {
 
 // What's new — a running list of what shipped, newest first. r: role that sees it (Owner-only if set).
 const CHANGELOG = [
+  { d: '2026-11-11', t: 'Test mode', b: "On the To-QuickBooks screen, Owner/Office can flip Test mode on to try orders and payments without anything reaching QuickBooks \u2014 test records are marked TEST and never sent. Flip it off to go live.", r: 'Owner' },
   { d: '2026-11-11', t: 'Truck route (TomTom)', b: "New \u{1F69B} Truck route button on the Driver screen: puts your stops in the shortest truck-legal order and steers around low bridges and no-truck roads. A free TomTom key has to be switched on first.", r: 'Owner' },
   { d: '2026-11-11', t: "Driver's name on trucks", b: "Set a driver on a truck in Tools \u2192 Team, and their name (like Motty) shows on Deliveries and Loading instead of the truck number." },
   { d: '2026-11-11', t: 'Email inbox', b: "Your Outlook, right in the app \u2014 pickups, orders, bills and shortages pulled in and sorted, refreshing on its own through the day. Each person sees only their own mailbox." },
@@ -7857,8 +7858,10 @@ SYNC.on('qr', (k, v) => { const was = S.qr[k]; if (v == null) delete S.qr[k]; el
 const QB_KIND = { inv: 'Invoice', invmod: 'Invoice change', invvoid: 'Cancel invoice', pay: 'Payment', cm: 'Credit memo' };
 const qwId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 const nowIso = () => { const n = new Date(); return isoOf(TODAY) + 'T' + String(n.getHours()).padStart(2, '0') + ':' + String(n.getMinutes()).padStart(2, '0'); };
-function qwSave(rec) { rec.upd = Date.now(); S.qw[rec.id] = rec; saveLS('chuster-qw-v1', S.qw); SYNC.put('qw', rec.id, rec); }
+function qwSave(rec) { if (S.testMode && rec.test == null) rec.test = true; rec.upd = Date.now(); S.qw[rec.id] = rec; saveLS('chuster-qw-v1', S.qw); if (!rec.test) SYNC.put('qw', rec.id, rec); }
+try { S.testMode = localStorage.getItem('chuster-testmode') === '1'; } catch (e) { S.testMode = false; }
 function qwState(rec) {
+  if (rec.test) return 'test';
   const r = S.qr[rec.id];
   if (r && r.st === 'done') return 'done';
   if (rec.st === 'cancel') return 'cancel';
@@ -7923,7 +7926,7 @@ function ordLocLine(rec) {
 function ordLocFor(n) { const recs = Object.values(S.qw || {}).filter(r => r.kind === 'inv' && r.loc && ((S.qr[r.id] || {}).num === n || r.ref === n)); return recs.sort((a, b) => (b.upd || 0) - (a.upd || 0))[0] || null; }
 function qwCard(rec) {
   const s = qwState(rec); const r = S.qr[rec.id] || {};
-  const tag = { wait: '<span class="tag gold">Waiting for OK</span>', sending: '<span class="tag blue">Sending… in QuickBooks in a few seconds</span>', done: `<span class="tag green">✓ In QuickBooks${r.num ? ' #' + esc(r.num) : ''}</span>`, error: '<span class="tag red">Problem</span>', cancel: '<span class="tag grey">Deleted</span>' }[s];
+  const tag = { wait: '<span class="tag gold">Waiting for OK</span>', sending: '<span class="tag blue">Sending… in QuickBooks in a few seconds</span>', done: `<span class="tag green">✓ In QuickBooks${r.num ? ' #' + esc(r.num) : ''}</span>`, error: '<span class="tag red">Problem</span>', cancel: '<span class="tag grey">Deleted</span>', test: '<span class="tag" style="background:#7c3aed;color:#fff">TEST · not sent to QuickBooks</span>' }[s];
   const amt = rec.kind === 'pay' ? rec.amt : rec.total;
   const lines = (rec.lines || []).slice(0, 6).map(l => `<div class="qw-line"><span class="num">${fnu(l[1])}</span><span>${esc(l[3] || nameOfFull(l[0]))}</span><span class="num">${l[2] ? money(l[2]) : ''}</span></div>`).join('') + ((rec.lines || []).length > 6 ? `<div class="sub" style="margin:0">+ ${(rec.lines.length - 6)} more</div>` : '');
   const pay = rec.kind === 'pay' ? `<div class="sub" style="margin:0">${esc(rec.method || '')}${rec.ref ? ' #' + esc(rec.ref) : ''} · ${rec.apply && rec.apply.length ? 'applied to ' + rec.apply.map(a => '#' + esc(a[2] || '') + ' ' + money(a[1])).join(', ') : 'QuickBooks applies it to the oldest invoices'}</div>` : '';
@@ -7937,6 +7940,7 @@ function qwCard(rec) {
     ${s === 'error' ? `<div class="qw-err">${esc(r.err || 'unknown problem')}</div>` : ''}
     ${s === 'done' && r.num ? `<div class="sub" style="margin:0">Made in QuickBooks ${esc((r.at || '').slice(11, 16))}${r.unused > 0 ? ` · ${money(r.unused)} not applied to an invoice` : ''}${r.was ? ` · <b>number changed from #${esc(r.was)}</b> (the office used it at the same time)` : ''}</div>` : ''}
     ${s === 'wait' || s === 'error' ? `<div class="actions">${can ? `<button class="btn good" data-act="qw-send" data-id="${esc(rec.id)}">${s === 'error' ? 'Try again' : 'Send to QuickBooks'}</button>` : `<span class="sub" style="margin:0">${rec.kind === 'cm' ? 'Only Zevi can send credit memos.' : 'The office sends it.'}</span>`}<button class="btn ghost" data-act="qw-del" data-id="${esc(rec.id)}">Delete</button></div>` : ''}
+    ${s === 'test' ? `<div class="actions"><button class="btn ghost" data-act="qw-del" data-id="${esc(rec.id)}">Delete test</button></div>` : ''}
   </article>`;
 }
 function qwShorts() {
@@ -7948,12 +7952,13 @@ function qwShorts() {
 function renderToQB() {
   if (!REAL) return needData('To QuickBooks');
   const L = qwList().filter(r => r.kind !== 'cm' || S.role === 'Owner' || qwState(r) === 'done');
-  const by = { wait: [], sending: [], error: [], done: [] }; L.forEach(r => { const s = qwState(r); if (by[s]) by[s].push(r); });
+  const by = { wait: [], sending: [], error: [], done: [], test: [] }; L.forEach(r => { const s = qwState(r); if (by[s]) by[s].push(r); });
   if (!by[S.qbTab]) S.qbTab = 'wait';
   const shorts = qwShorts();
-  const tabs = [['wait', 'Waiting for OK'], ['sending', 'Sending'], ['error', 'Problems'], ['done', 'Done']];
-  return `${head('To QuickBooks', 'Orders, payments and credits the app sends into QuickBooks', `${S.role === 'Owner' || S.role === 'Office' ? '<button class="btn gold" data-act="qw-pay-new">Record a payment</button>' : ''}${S.role === 'Owner' ? '<button class="btn ghost" data-act="qw-cm-new">New credit memo</button>' : ''}`)}
+  const tabs = [['wait', 'Waiting for OK'], ['sending', 'Sending'], ['error', 'Problems'], ['done', 'Done']].concat((by.test.length || S.testMode) ? [['test', 'Test']] : []);
+  return `${head('To QuickBooks', 'Orders, payments and credits the app sends into QuickBooks', `${S.role === 'Owner' || S.role === 'Office' ? '<button class="btn gold" data-act="qw-pay-new">Record a payment</button>' : ''}${S.role === 'Owner' ? '<button class="btn ghost" data-act="qw-cm-new">New credit memo</button>' : ''}${S.role === 'Owner' || S.role === 'Office' ? `<button class="btn ${S.testMode ? 'gold' : 'ghost'}" data-act="qw-test">${S.testMode ? '● Test mode ON' : 'Test mode'}</button>` : ''}`)}
   <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">${qbTag()}<span class="sub" style="margin:0;font-size:13px">Orders go straight in. The office PC makes each one in QuickBooks in a few seconds and the QuickBooks number shows here.</span></div>
+  ${S.testMode ? '<div class="note" style="background:#f5f3ff;border-color:#7c3aed;color:#4c1d95"><b>Test mode is ON.</b> New orders and payments are marked TEST and do NOT go into QuickBooks. Tap “Test mode” above to turn it off and send for real.</div>' : ''}
   ${SYNC.ready() ? '' : `<div class="note">The shared database isn't set up on this phone yet, so nothing here can reach the office PC. Set it up in <a href="#tools" data-go="tools">Tools</a>.</div>`}
   <div class="chips">${tabs.map(([id, n]) => `<button class="chip" data-act="qw-tab" data-t="${id}" aria-pressed="${S.qbTab === id}">${n} · ${by[id].length}</button>`).join('')}</div>
   <div class="split"><div class="stack" style="gap:12px">${by[S.qbTab].map(qwCard).join('') || `<section class="card"><p class="sub" style="margin:0">${{ wait: 'Nothing is waiting. New orders from the app and payments you record show up here.', sending: 'Nothing is on the way right now.', error: 'No problems.', done: 'Nothing sent yet.' }[S.qbTab]}</p></section>`}</div>
@@ -8001,7 +8006,8 @@ function qwAction(a, d) {
     case 'qw-close': S.qbSheet = null; break;
     case 'qw-send': { const r = S.qw[d.id]; if (!r || !canSend(r.kind)) return; if (!SYNC.ready()) return toast('Set up the shared database first (Tools).');
       const s = qwState(r); const nr = Object.assign({}, r, { st: 'ok', try: (r.try || 0) + (s === 'error' ? 1 : 0), okBy: byName(), okAt: nowIso() }); qwSave(nr); S.qbTab = 'sending'; toast('Sent. The office PC makes it in QuickBooks in a few seconds.'); break; }
-    case 'qw-del': { const r = S.qw[d.id]; if (!r) return; qwSave(Object.assign({}, r, { st: 'cancel' })); toast('Deleted. Nothing went into QuickBooks.'); break; }
+    case 'qw-del': { const r = S.qw[d.id]; if (!r) return; if (r.test) { delete S.qw[d.id]; saveLS('chuster-qw-v1', S.qw); toast('Test deleted.'); render(); break; } qwSave(Object.assign({}, r, { st: 'cancel' })); toast('Deleted. Nothing went into QuickBooks.'); break; }
+    case 'qw-test': { S.testMode = !S.testMode; try { localStorage.setItem('chuster-testmode', S.testMode ? '1' : '0'); } catch (e) { } S.qbTab = S.testMode ? 'test' : 'wait'; toast(S.testMode ? 'Test mode ON — orders & payments will NOT reach QuickBooks.' : 'Test mode off — everything goes to QuickBooks for real.'); render(); break; }
     case 'qw-pay-new': S.payForm = { c: '', amt: '', d: isoOf(TODAY), method: 'Check', ref: '', memo: '', pick: {} }; S.qbSheet = 'pay'; break;
     case 'qw-pay-save': {
       const f = S.payForm; const c = custByName(f.c); const amt = Math.round((+f.amt || 0) * 100) / 100;
