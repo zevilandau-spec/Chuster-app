@@ -10,14 +10,18 @@ export default async (req) => {
 
   let body; try { body = await req.json(); } catch (e) { return json({ error: 'Bad request' }, 400); }
   const stops = Array.isArray(body.stops) ? body.stops.filter(s => s && isFinite(s.lat) && isFinite(s.lng)) : [];
-  if (stops.length < 2) return json({ error: 'Need at least 2 stops with a location.' }, 400);
   const start = body.start && isFinite(body.start.lat) && isFinite(body.start.lng) ? body.start : null;
+  // Need at least 2 points total: two stops, OR a start plus one stop.
+  if (stops.length < 1 || (stops.length + (start ? 1 : 0)) < 2) return json({ error: 'Need at least 2 points — a start plus a stop, or two stops.' }, 400);
   const t = body.truck || {};
 
   // Build the location list. If we have a depot, make it a round trip (depot ... depot) so the
   // optimizer is free to order every stop; otherwise first stop is the anchor.
   const loc = p => `${(+p.lat).toFixed(6)},${(+p.lng).toFixed(6)}`;
-  const seq = start ? [start, ...stops, start] : [...stops];
+  // Round-trip (depot → stops → depot) only when there are 2+ stops to order; a start + a single
+  // stop is a straight one-way trip (start → stop).
+  const roundTrip = !!start && stops.length >= 2;
+  const seq = roundTrip ? [start, ...stops, start] : start ? [start, ...stops] : [...stops];
   const path = seq.map(loc).join(':');
 
   const qs = new URLSearchParams({ key, travelMode: 'truck', vehicleCommercial: 'true', routeType: 'fastest', traffic: 'false', routeRepresentation: 'polyline' });
@@ -66,7 +70,7 @@ export default async (req) => {
     ok: true,
     order,                 // order of the input stops, shortest truck-legal sequence
     miles, minutes,
-    roundTrip: !!start,    // distance/time include the return to the depot
+    roundTrip,             // distance/time include the return to the depot (multi-stop with a start)
     line: line.length > 1200 ? line.filter((_, i) => i % 2 === 0) : line,
     note: 'Routed for your truck size — avoids low bridges and weight-restricted roads.'
   }, 200);

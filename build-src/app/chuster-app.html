@@ -6785,10 +6785,11 @@ async function acCheck() {
     const items = lines.map(a => ({ addr: a, p: S.gc[gcKey(a)] || { none: 1 } }));
     S.acRes = { items, start };
     const found = items.filter(x => x.p && !x.p.none);
-    if (found.length >= 2) {
-      const sp = start ? S.gc[gcKey(start)] : null;
+    const sp = start ? S.gc[gcKey(start)] : null;
+    const startOk = !!(sp && !sp.none);
+    if (found.length >= 2 || (found.length >= 1 && startOk)) {
       const payload = { stops: found.map(x => ({ lat: x.p.lat, lng: x.p.lng, label: x.addr })), truck: truckDims() };
-      if (sp && !sp.none) payload.start = { lat: sp.lat, lng: sp.lng };
+      if (startOk) payload.start = { lat: sp.lat, lng: sp.lng };
       try {
         const r = await fetch('/route', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) });
         const j = await r.json();
@@ -6857,7 +6858,7 @@ function renderAddrCheck() {
     const missRows = miss.map(x => `<div style="${rowStyle}"><span style="${numStyle};background:var(--muted)">?</span><div style="flex:1;min-width:0">${esc(x.addr)}<div class="sub" style="margin:0;font-size:12px">Not found — check the spelling</div></div></div>`).join('');
     const gurl = acGmapsUrl();
     resultHtml = `<section class="card stack">
-      ${rt ? `<p class="sub" style="margin:0;color:var(--brand);font-weight:700">🚛 Truck route: ${fn(rt.miles)} mi · about ${rt.minutes >= 60 ? Math.floor(rt.minutes / 60) + 'h ' + (rt.minutes % 60) + 'm' : rt.minutes + 'm'}${rt.roundTrip ? ' (round trip)' : ''}${rt.note ? ` · <span style="font-weight:400">${esc(rt.note)}</span>` : ''}</p>` : (found.length >= 2 ? '<p class="sub" style="margin:0">Truck routing is off (it needs the TomTom key). Showing the addresses in the order you typed.</p>' : '')}
+      ${rt ? `<p class="sub" style="margin:0;color:var(--brand);font-weight:700">🚛 Truck route: ${fn(rt.miles)} mi · about ${rt.minutes >= 60 ? Math.floor(rt.minutes / 60) + 'h ' + (rt.minutes % 60) + 'm' : rt.minutes + 'm'}${rt.roundTrip ? ' (round trip)' : ''}${rt.note ? ` · <span style="font-weight:400">${esc(rt.note)}</span>` : ''}</p>` : ((found.length >= 2 || (found.length >= 1 && res.start)) ? '<p class="sub" style="margin:0">Truck routing is off (it needs the TomTom key). Showing the addresses in the order you typed.</p>' : '')}
       <div id="ac-map" style="height:340px;border-radius:12px;overflow:hidden;background:#e8ecf7"></div>
       ${gurl ? `<a class="btn primary" href="${esc(gurl)}" target="_blank" rel="noopener">🗺️ Open in Google Maps (live traffic)</a>` : ''}
       <div class="stack" style="gap:0">${rows}${missRows}</div>
