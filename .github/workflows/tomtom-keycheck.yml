@@ -1,0 +1,18 @@
+name: TomTom key check
+on:
+  workflow_dispatch:
+    inputs:
+      key:
+        description: tomtom key
+        required: true
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Direct call to TomTom
+        run: |
+          K="${{ inputs.key }}"
+          code=$(curl -s -o r.json -w '%{http_code}' "https://api.tomtom.com/routing/1/calculateRoute/40.6782,-73.9442:40.6947,-73.9899/json?key=$K&travelMode=truck&vehicleCommercial=true")
+          echo "::notice::classic routing -> $code :: $(head -c 200 r.json)"
+          code2=$(curl -s -o r2.json -w '%{http_code}' "https://api.tomtom.com/search/2/geocode/brooklyn.json?key=$K")
+          echo "::notice::geocode probe -> $code2 :: $(head -c 120 r2.json)"
