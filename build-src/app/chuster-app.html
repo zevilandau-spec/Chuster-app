@@ -5814,7 +5814,9 @@ async function gDrvPaint() {
       gDrvMarks.push(gMark(gDrvMap, p.lat, p.lng, done ? '✓' : String(i + 1), color, `<b>${esc(x.o.c)}</b><br>${esc(dlvAddr(x))}<br>${fn(stopCases(x.o))} cases<br><button class="btn primary sm" data-act="d-open" data-k="${esc(x.k)}" style="margin-top:6px">Open stop →</button>`));
       bounds.extend({ lat: p.lat, lng: p.lng }); any = true; if (!done) line.push({ lat: p.lat, lng: p.lng }); });
     if (shopPt && line.length) line.unshift(shopPt);
-    if (line.length > 1) gDrvLine = new google.maps.Polyline({ path: line, map: gDrvMap, strokeColor: '#21409A', strokeOpacity: .6, strokeWeight: 3 });
+    const tr = S.truckRoute; const truckLine = (tr && tr.line && tr.line.length > 1) ? tr.line : null;
+    const drawn = truckLine || (line.length > 1 ? line : null);
+    if (drawn) gDrvLine = new google.maps.Polyline({ path: drawn, map: gDrvMap, strokeColor: truckLine ? '#1E7A45' : '#21409A', strokeOpacity: truckLine ? .85 : .6, strokeWeight: truckLine ? 5 : 3 });
     if (any && !gDrvMap._fit) { gDrvMap.fitBounds(bounds, 48); gDrvMap._fit = true; google.maps.event.addListenerOnce(gDrvMap, 'idle', () => { if (gDrvMap.getZoom() > 15) gDrvMap.setZoom(15); }); }
   } catch (e) { gDrvMap = null; gmaps = 3; const el = document.getElementById('drv-map'); if (el) drvMountLeaflet(el); }
 }
@@ -6660,6 +6662,39 @@ async function routeBest(date, t, silent) {
   } catch (e) { if (!silent) toast('Could not make the route: ' + (e.message || e)); }
   S.routeBusy = ''; render();
 }
+const TRUCK_DEF = { h: 12.5, wt: 26000, l: 24, wd: 8, ax: 2 };
+function truckDims() {
+  const d = S.dsched || {}; const num = (v, def) => { const n = parseFloat(v); return n > 0 ? n : def; };
+  return { heightM: +(num(d.truckH, TRUCK_DEF.h) * 0.3048).toFixed(2), weightKg: Math.round(num(d.truckWt, TRUCK_DEF.wt) * 0.453592), lengthM: +(num(d.truckL, TRUCK_DEF.l) * 0.3048).toFixed(2), widthM: +(num(d.truckWd, TRUCK_DEF.wd) * 0.3048).toFixed(2), axles: Math.round(num(d.truckAx, TRUCK_DEF.ax)) };
+}
+async function routeTruck(date, t) {
+  const list = (dayStops(date)[t] || []); if (!list.length) { S.routeBusy = ''; render(); return; }
+  try {
+    const start = S.dsched.start || DSCHED_DEFAULT.start;
+    await geoPoints([start].concat(list.map(x => x.c.address)));
+    const sp = S.gc[gcKey(start)];
+    const withP = list.filter(x => { const p = S.gc[gcKey(x.c.address)]; return p && !p.none; });
+    const noP = list.filter(x => !withP.includes(x));
+    const done = withP.filter(x => x.st.st), todo = withP.filter(x => !x.st.st);
+    if (todo.length < 2) throw new Error('Need at least 2 stops with a found address.');
+    const payload = { stops: todo.map(x => { const p = S.gc[gcKey(x.c.address)]; return { lat: p.lat, lng: p.lng, label: x.o.c }; }), truck: truckDims() };
+    if (sp && !sp.none) payload.start = { lat: sp.lat, lng: sp.lng };
+    const res = await fetch('/route', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) });
+    const j = await res.json();
+    if (!res.ok || !j.ok) throw new Error(j.error || ('error ' + res.status));
+    const order = (j.order && j.order.length === todo.length) ? j.order : todo.map((_, i) => i);
+    const L = done.map(x => x.o.n).concat(order.map(i => todo[i].o.n), noP.map(x => x.o.n));
+    S.dorder[`${date}|${t}`] = L; saveLS('chuster-dorder-v1', S.dorder); SYNC.put('do', `${date}|${t}`, L);
+    const dur = j.minutes >= 60 ? `${Math.floor(j.minutes / 60)}h ${j.minutes % 60}m` : `${j.minutes}m`;
+    S.truckRoute = { line: j.line || [], miles: j.miles, minutes: j.minutes, note: j.note, roundTrip: j.roundTrip, at: Date.now() };
+    toast(`Truck route ready — ${fn(j.miles)} mi, about ${dur}.${noP.length ? ` ${noP.length} address${noP.length > 1 ? 'es' : ''} not found went to the end.` : ''}`);
+  } catch (e) {
+    const m = String(e.message || e);
+    toast(/not set up/i.test(m) ? 'Truck routing needs its one-time setup (TomTom key + truck size).' : 'Could not make the truck route: ' + m);
+  }
+  S.routeBusy = ''; render();
+}
+const tomtomHref = p => (p && p.lat != null) ? `https://plan.tomtom.com/en/route?coordinate=${p.lat},${p.lng}&travelMode=truck` : '';
 // Google Maps directions for one leg (origin = the phone's location)
 function navLegHref(stops) { const A = stops.filter(x => x.c.address).map(x => dlvAddr(x)); if (!A.length) return ''; const dest = A[A.length - 1]; const w = A.slice(0, -1);
   return 'https://www.google.com/maps/dir/?api=1&travelmode=driving&destination=' + encodeURIComponent(dest) + (w.length ? '&waypoints=' + encodeURIComponent(w.join('|')) : ''); }
@@ -6821,9 +6856,11 @@ function renderDriver() {
     ${legBtns || '<span class="sub" style="margin:0">No stops with an address to navigate.</span>'}
     ${nsms ? `<a class="btn gold" href="${esc(nsms)}">💬 Text ${esc(next.o.c)}: on the way</a>` : ''}
     <button class="btn ghost" data-act="r-best" data-t="${t}"${S.routeBusy ? ' disabled' : ''}>${S.routeBusy ? esc(S.routeBusy) : '🧭 Re-sort shortest'}</button>
+    <button class="btn ghost" data-act="r-truck" data-t="${t}"${S.routeBusy ? ' disabled' : ''}>🚛 Truck route</button>
     ${undel.length ? `<button class="btn ghost" data-act="d-copy-route" data-t="${t}">${ic('clip')} Copy stops for a route app</button>` : ''}
   </section>
   ${estHtml}
+  ${S.truckRoute && S.truckRoute.line && S.truckRoute.line.length ? `<p class="sub" style="margin:0;color:var(--brand);font-weight:700">🚛 Truck route: ${fn(S.truckRoute.miles)} mi · about ${S.truckRoute.minutes >= 60 ? Math.floor(S.truckRoute.minutes / 60) + 'h ' + (S.truckRoute.minutes % 60) + 'm' : S.truckRoute.minutes + 'm'}${S.truckRoute.roundTrip ? ' (round trip)' : ''} · <span style="font-weight:400">${esc(S.truckRoute.note || '')}</span></p>` : ''}
   ${legs.length > 1 ? `<p class="sub" style="margin:0">Google Maps fits about 9 stops at a time. Drive the first 9 in order, then tap <b>Continue</b> for the next 9.</p>` : ''}
   <div class="chips" style="align-items:center">${T.map((tr, n) => `<button class="chip" data-act="d-truck" data-t="${n}" aria-pressed="${t === n}">${esc(tr.name)} · ${(byT[n] || []).length}</button>`).join('')}${T.length > 1 ? `<button class="btn ghost sm" data-act="d-balance" data-date="${date}">⚖️ Even out trucks</button>${Object.keys(S.dstat).some(k => k.startsWith(date + '|') && S.dstat[k].truck != null) ? `<button class="btn ghost sm" data-act="d-balance-reset" data-date="${date}">↺ Reset</button>` : ''}` : ''}</div>
   <div class="tiles"><div class="tile${over ? ' bad' : ''}"><div class="k">Stops left</div><div class="v">${left} of ${list.length}</div><div class="s">${fn(truckCases)} cases on the truck${capNote}</div></div>
@@ -6838,7 +6875,7 @@ function renderDriver() {
       return `<div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px;border-top:1px solid var(--line);padding:10px 0">
       <span class="icode stopn" style="background:${x.st.st ? 'var(--good)' : 'var(--brand)'}">${x.st.st ? '✓' : k + 1}</span>
       <button data-act="d-open" data-k="${esc(x.k)}" style="flex:1 1 200px;min-width:0;text-align:left;background:none;border:none;font:inherit;color:inherit;cursor:pointer;padding:0"><b>${esc(x.o.c)}${shipTag(x) ? ' · ' + esc(shipTag(x)) : ''}</b><span style="display:block;font-size:13px;color:var(--muted)">${esc(dlvAddr(x))} · ${fn(stopCases(x.o))} cases</span></button>
-      <span style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-left:auto">${canMove ? `<span class="drv-move"><button data-act="d-move" data-t="${t}" data-k="${esc(x.k)}" data-dir="-1"${vi === 0 ? ' disabled' : ''} aria-label="Move ${esc(x.o.c)} up">▲</button><button data-act="d-move" data-t="${t}" data-k="${esc(x.k)}" data-dir="1"${vi === view.length - 1 ? ' disabled' : ''} aria-label="Move ${esc(x.o.c)} down">▼</button></span>` : ''}${stTag(x.st)}${!x.st.st && smsHref(x.c.phone, '') ? `<a class="btn ghost sm" href="${esc(smsHref(x.c.phone, onWayTxt()))}" aria-label="Text ${esc(x.o.c)} that the truck is on the way">💬</a>` : ''}${x.c.address ? `<a class="btn ghost sm" href="${esc(mapsHref(dlvAddr(x)))}" target="_blank" rel="noopener">Maps</a><a class="btn ghost sm" href="${esc(wazeHref(dlvAddr(x)))}" target="_blank" rel="noopener">Waze</a>` : ''}</span></div>`; }).join('');
+      <span style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-left:auto">${canMove ? `<span class="drv-move"><button data-act="d-move" data-t="${t}" data-k="${esc(x.k)}" data-dir="-1"${vi === 0 ? ' disabled' : ''} aria-label="Move ${esc(x.o.c)} up">▲</button><button data-act="d-move" data-t="${t}" data-k="${esc(x.k)}" data-dir="1"${vi === view.length - 1 ? ' disabled' : ''} aria-label="Move ${esc(x.o.c)} down">▼</button></span>` : ''}${stTag(x.st)}${!x.st.st && smsHref(x.c.phone, '') ? `<a class="btn ghost sm" href="${esc(smsHref(x.c.phone, onWayTxt()))}" aria-label="Text ${esc(x.o.c)} that the truck is on the way">💬</a>` : ''}${x.c.address ? `${(() => { const p = S.gc[gcKey(x.c.address)]; return p && !p.none ? `<a class="btn ghost sm" href="${esc(tomtomHref(p))}" target="_blank" rel="noopener" title="Truck route to this stop (TomTom)">🚛</a>` : ''; })()}<a class="btn ghost sm" href="${esc(mapsHref(dlvAddr(x)))}" target="_blank" rel="noopener">Maps</a><a class="btn ghost sm" href="${esc(wazeHref(dlvAddr(x)))}" target="_blank" rel="noopener">Waze</a>` : ''}</span></div>`; }).join('');
     return `${toggle}<section class="card" style="padding:8px 14px;margin-top:10px">${rows || `<p class="sub" style="margin:0">${S.drvShow === 'done' ? 'Nothing delivered yet.' : list.length ? 'All stops delivered. 🎉' : 'No stops for this truck today.'}</p>`}</section>`;
   })()}`;
 }
@@ -6964,7 +7001,17 @@ function renderDSched() {
     <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center"><span class="lbl" style="margin:0">Trucks</span><div class="chips">${[1, 2, 3].map(n => `<button class="chip" data-act="ds-n" data-n="${n}" aria-pressed="${(+S.dsched.n || 1) === n}">${n}</button>`).join('')}</div></div>
     <div><span class="lbl">Country gets the truck only in these months</span><div class="chips" style="flex-wrap:wrap">${MON.map((m, i) => `<button class="chip" data-act="ds-mon" data-a="Country" data-m="${i + 1}" aria-pressed="${((S.dsched.season || {}).Country || []).includes(i + 1)}">${m.slice(0, 3)}</button>`).join('')}</div></div>
     <div><label class="lbl" for="ds-start">The truck starts from (for the shortest order)</label><input class="inp" id="ds-start" value="${esc(S.dsched.start || DSCHED_DEFAULT.start)}" autocomplete="off"></div>
-    <div><label class="lbl" for="ds-cap">Cases a full truck holds (for the capacity warning)</label><input class="inp num" id="ds-cap" type="number" inputmode="numeric" value="${S.dsched.cap || ''}" placeholder="e.g. 1200" autocomplete="off"></div></section>
+    <div><label class="lbl" for="ds-cap">Cases a full truck holds (for the capacity warning)</label><input class="inp num" id="ds-cap" type="number" inputmode="numeric" value="${S.dsched.cap || ''}" placeholder="e.g. 1200" autocomplete="off"></div>
+    <div class="stack" style="gap:8px;border-top:1px solid var(--line);padding-top:12px">
+      <label class="lbl" style="margin:0">🚛 Truck size — for the truck route (avoids low bridges &amp; weight-restricted roads)</label>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <div><label class="lbl" style="font-size:12px" for="ds-th">Height (ft)</label><input class="inp num" id="ds-th" type="number" inputmode="decimal" step="0.1" value="${S.dsched.truckH || ''}" placeholder="12.5" autocomplete="off"></div>
+        <div><label class="lbl" style="font-size:12px" for="ds-twt">Weight loaded (lb)</label><input class="inp num" id="ds-twt" type="number" inputmode="numeric" value="${S.dsched.truckWt || ''}" placeholder="26000" autocomplete="off"></div>
+        <div><label class="lbl" style="font-size:12px" for="ds-tl">Length (ft)</label><input class="inp num" id="ds-tl" type="number" inputmode="decimal" step="0.1" value="${S.dsched.truckL || ''}" placeholder="24" autocomplete="off"></div>
+        <div><label class="lbl" style="font-size:12px" for="ds-twd">Width (ft)</label><input class="inp num" id="ds-twd" type="number" inputmode="decimal" step="0.1" value="${S.dsched.truckWd || ''}" placeholder="8" autocomplete="off"></div>
+      </div>
+      <p class="sub" style="margin:0;font-size:12px">Leave blank to use a standard 26-ft box truck (12.5 ft tall, 26,000 lb). Saved for everyone.</p>
+    </div></section>
   <section class="card" style="overflow-x:auto"><table class="mini-table" style="min-width:640px"><tr><td><b>Area</b></td>${[0, 1, 2, 3, 4, 5].map(w => `<td style="text-align:center"><b>${WDS[w]}</b></td>`).join('')}</tr>
     ${areas.map(a => `<tr><td>${esc(a)}</td>${[0, 1, 2, 3, 4, 5].map(w => { const v = (S.dsched[w] || {})[a]; return `<td style="text-align:center"><select class="sel ds-cell" data-w="${w}" data-a="${esc(a)}" style="width:auto;min-height:34px;font-size:13px${v != null ? ';background:var(--brand-soft);font-weight:800' : ''}" aria-label="${esc(a)} on ${WD[w]}"><option value="">—</option>${T.map((tr, n) => `<option value="${n}"${v != null && +v === n ? ' selected' : ''}>${esc(tr.name)}</option>`).join('')}</select></td>`; }).join('')}</tr>`).join('')}</table>
     <p class="sub" style="margin:8px 0 0">Started from your invoices, one day after the salesman: Monsey and Monroe Sun, Williamsburg Mon, Boro Park Tue–Thu, Country Wed (only in the months picked above), Lakewood Thu, no deliveries Friday. Change any box. Saved for everyone.</p></section>
@@ -8775,6 +8822,7 @@ document.addEventListener('click', e => {
       S.dShort = {}; S.dDrop = {}; S.proof = { photos: [], sig: null }; S.dStop = nxt ? nxt.k : null; keep(); window.scrollTo(0, 0); break; }
     case 'd-undo': { const o = S.dstat[d.k] || {}; S.dstat[d.k] = o.truck != null ? { truck: o.truck } : {}; saveDstat(); dsShare(d.k); keep(); break; }
     case 'r-best': { S.routeBusy = 'Working…'; render(); routeBest(S.dDate, +d.t); break; }
+    case 'r-truck': { S.routeBusy = 'Finding the truck route…'; render(); routeTruck(S.dDate, +d.t); break; }
     case 'd-send': { const t = driverDayText(); window.open('https://wa.me/?text=' + encodeURIComponent(t), '_blank'); break; }
     case 'd-report': printDoc(deliveryReportDoc(), `Chuster delivery report ${S.dDate}`); break;
     case 'ds-mon': { const se = S.dsched.season = S.dsched.season || {}; const L = se[d.a] = se[d.a] || []; const m = +d.m; const i = L.indexOf(m); if (i >= 0) L.splice(i, 1); else L.push(m); L.sort((a, b) => a - b); saveLS('chuster-dsched-v1', S.dsched); SYNC.put('sc', 'all', S.dsched); ddCache = null; keep(); break; }
@@ -8828,6 +8876,7 @@ document.addEventListener('change', e => {
   if (cl.contains('d-truck')) { const k = t.dataset.k; S.dstat[k] = Object.assign({}, S.dstat[k] || {}, { truck: +t.value }); saveDstat(); dsShare(k); render(); }
   if (t.id === 'ds-start') { S.dsched.start = t.value.trim(); saveLS('chuster-dsched-v1', S.dsched); SYNC.put('sc', 'all', S.dsched); toast('Start address saved.'); return; }
   if (t.id === 'ds-cap') { S.dsched.cap = parseInt(t.value, 10) || 0; saveLS('chuster-dsched-v1', S.dsched); SYNC.put('sc', 'all', S.dsched); return; }
+  if (['ds-th', 'ds-twt', 'ds-tl', 'ds-twd'].includes(t.id)) { const key = { 'ds-th': 'truckH', 'ds-twt': 'truckWt', 'ds-tl': 'truckL', 'ds-twd': 'truckWd' }[t.id]; const v = parseFloat(t.value); if (v > 0) S.dsched[key] = v; else delete S.dsched[key]; saveLS('chuster-dsched-v1', S.dsched); SYNC.put('sc', 'all', S.dsched); return; }
   if (cl.contains('ds-cell')) { const w = t.dataset.w, ar = t.dataset.a; S.dsched[w] = S.dsched[w] || {}; if (t.value === '') delete S.dsched[w][ar]; else S.dsched[w][ar] = +t.value; ddCache = null; saveLS('chuster-dsched-v1', S.dsched); SYNC.put('sc', 'all', S.dsched); render(); }
   if (t.id === 'll-date') { S.llDate = t.value; render(); }
   if (cl.contains('ll-area')) { S.areaTruck[t.dataset.a] = +t.value; saveLS('chuster-areatruck-v1', S.areaTruck); render(); }

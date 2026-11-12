@@ -1,0 +1,34 @@
+name: Truck route self-test
+on: workflow_dispatch
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ask /route for a Brooklyn truck route
+        run: |
+          # A few real Brooklyn delivery points + a 26-ft box truck profile.
+          read -r -d '' BODY <<'JSON' || true
+          {
+            "start": {"lat":40.7127,"lng":-73.9490},
+            "stops": [
+              {"lat":40.6782,"lng":-73.9442,"label":"Crown Heights"},
+              {"lat":40.6501,"lng":-73.9496,"label":"Flatbush"},
+              {"lat":40.6947,"lng":-73.9899,"label":"Downtown Bklyn"},
+              {"lat":40.7081,"lng":-73.9571,"label":"Williamsburg"}
+            ],
+            "truck": {"heightM":3.81,"weightKg":11793,"lengthM":7.32,"widthM":2.44,"axles":2}
+          }
+          JSON
+          code=$(curl -s -o resp.json -w '%{http_code}' -X POST https://chuster.netlify.app/route \
+            -H 'content-type: application/json' -d "$BODY")
+          echo "::notice::POST /route -> $code :: $(head -c 300 resp.json)"
+          if [ "$code" = "503" ]; then echo "::notice::function live but TOMTOM_API_KEY not set yet (expected before setup) — stopping"; exit 0; fi
+          [ "$code" = "200" ] || { echo "::error::unexpected status $code"; exit 1; }
+          python3 - <<'PY'
+          import json
+          d = json.load(open('resp.json'))
+          assert d.get('ok'), d
+          print("::notice::optimized order:", d['order'], "| miles:", d['miles'], "| minutes:", d['minutes'], "| roundTrip:", d.get('roundTrip'))
+          print("::notice::route points:", len(d.get('line', [])))
+          print("::notice::truck route self-test PASSED")
+          PY
