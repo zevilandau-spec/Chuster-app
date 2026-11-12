@@ -18,22 +18,28 @@ export default async (req) => {
   // Build the location list. If we have a depot, make it a round trip (depot ... depot) so the
   // optimizer is free to order every stop; otherwise first stop is the anchor.
   const loc = p => `${(+p.lat).toFixed(6)},${(+p.lng).toFixed(6)}`;
+  // Optional forced crossing (e.g. the GW Bridge): a point the route must pass through.
+  const via = body.via && isFinite(body.via.lat) && isFinite(body.via.lng) ? body.via : null;
   // Round-trip (depot → stops → depot) only when there are 2+ stops to order; a start + a single
   // stop is a straight one-way trip (start → stop).
   const roundTrip = !!start && stops.length >= 2;
-  const seq = roundTrip ? [start, ...stops, start] : start ? [start, ...stops] : [...stops];
+  let seq = roundTrip ? [start, ...stops, start] : start ? [start, ...stops] : [...stops];
+  if (via) { const at = start ? 1 : 1; seq = [...seq.slice(0, at), via, ...seq.slice(at)]; } // force the crossing right after the start
   const path = seq.map(loc).join(':');
 
-  const qs = new URLSearchParams({ key, travelMode: 'truck', vehicleCommercial: 'true', routeType: 'fastest', traffic: 'false', routeRepresentation: 'polyline' });
+  const qs = new URLSearchParams({ key, travelMode: 'truck', vehicleCommercial: 'true', routeType: 'fastest', traffic: 'true', routeRepresentation: 'polyline', instructionsType: 'text', language: 'en-US' });
   // Vehicle dimensions (SI units). Only send what we were given.
   if (t.weightKg) qs.set('vehicleWeight', String(Math.round(t.weightKg)));
   if (t.axleWeightKg) qs.set('vehicleAxleWeight', String(Math.round(t.axleWeightKg)));
   if (t.lengthM) qs.set('vehicleLength', String(t.lengthM));
   if (t.widthM) qs.set('vehicleWidth', String(t.widthM));
   if (t.heightM) qs.set('vehicleHeight', String(t.heightM));
-  // Ask TomTom to order the in-between stops into the shortest legal sequence (first/last stay put).
-  const canOptimize = seq.length >= 4 && seq.length <= 50;
+  // Optimize the stop order only for a multi-stop round trip (and not when a crossing is forced).
+  const canOptimize = roundTrip && stops.length >= 2 && !via && seq.length <= 50;
   if (canOptimize) qs.set('computeBestOrder', 'true');
+  // For a straight trip (no order to optimize) offer a few truck-legal alternatives to pick from.
+  const wantAlts = !canOptimize;
+  if (wantAlts) { qs.set('maxAlternatives', '2'); qs.set('alternativeType', 'anyRoute'); }
 
   const url = `https://api.tomtom.com/routing/1/calculateRoute/${encodeURI(path)}/json?${qs.toString()}`;
   let r, data;
@@ -47,32 +53,46 @@ export default async (req) => {
     return json({ error: String(msg).slice(0, 300) }, r.status === 400 ? 400 : 502);
   }
 
-  const route = data.routes && data.routes[0];
-  if (!route) return json({ error: 'No truck route found for these stops.' }, 502);
+  const routesRaw = Array.isArray(data.routes) ? data.routes : [];
+  if (!routesRaw.length) return json({ error: 'No truck route found for these stops.' }, 502);
 
-  // Optimized order: optimizedWaypoints maps provided waypoint index -> optimized position.
-  // Waypoints are the stops between origin and destination; providedIndex is 0-based among them.
+  // Turn each TomTom route into { miles, minutes, line, steps }.
+  const parseRoute = (route) => {
+    const miles = Math.round((route.summary?.lengthInMeters || 0) / 1609.34);
+    const minutes = Math.round((route.summary?.travelTimeInSeconds || 0) / 60);
+    const line = [];
+    (route.legs || []).forEach(lg => (lg.points || []).forEach(p => line.push({ lat: p.latitude, lng: p.longitude })));
+    const instr = (route.guidance && route.guidance.instructions) || [];
+    const steps = instr.map((s, i) => {
+      const next = instr[i + 1];
+      const meters = next ? Math.max(0, (next.routeOffsetInMeters || 0) - (s.routeOffsetInMeters || 0)) : 0;
+      const road = (Array.isArray(s.roadNumbers) && s.roadNumbers.length ? s.roadNumbers.join(' / ') : '') || s.street || '';
+      const text = s.message || s.combinedMessage || s.maneuver || '';
+      return { text: String(text).slice(0, 180), road: String(road).slice(0, 70), meters };
+    }).filter(s => s.text || s.road);
+    return { miles, minutes, line: line.length > 1200 ? line.filter((_, i) => i % 2 === 0) : line, steps };
+  };
+
+  // Optimized stop order (only when we asked TomTom to compute it).
   let order = stops.map((_, i) => i);
   if (canOptimize && Array.isArray(data.optimizedWaypoints) && data.optimizedWaypoints.length) {
     const byOpt = [...data.optimizedWaypoints].sort((a, b) => a.optimizedIndex - b.optimizedIndex);
     const mapped = byOpt.map(w => w.providedIndex);
-    // When there is a depot, providedIndex already refers to the stops array (origin/dest excluded).
     if (mapped.every(i => i >= 0 && i < stops.length)) order = mapped;
   }
 
-  const miles = Math.round((route.summary?.lengthInMeters || 0) / 1609.34);
-  const minutes = Math.round((route.summary?.travelTimeInSeconds || 0) / 60);
-  // Route geometry for drawing on the map.
-  const line = [];
-  (route.legs || []).forEach(lg => (lg.points || []).forEach(p => line.push({ lat: p.latitude, lng: p.longitude })));
-
+  const routes = routesRaw.map(parseRoute);
+  const first = routes[0];
   return json({
     ok: true,
     order,                 // order of the input stops, shortest truck-legal sequence
-    miles, minutes,
+    miles: first.miles, minutes: first.minutes,
     roundTrip,             // distance/time include the return to the depot (multi-stop with a start)
-    line: line.length > 1200 ? line.filter((_, i) => i % 2 === 0) : line,
-    note: 'Routed for your truck size — avoids low bridges and weight-restricted roads.'
+    line: first.line,
+    steps: first.steps,    // written turn-by-turn road list (truck-legal) for the first route
+    routes,                // every option: [{ miles, minutes, line, steps }] (traffic-aware)
+    via: !!via,
+    note: 'Routed for your truck size with live traffic — avoids low bridges and weight-restricted roads.'
   }, 200);
 };
 
