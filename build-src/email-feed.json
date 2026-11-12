@@ -1,17 +1,19 @@
 {
-  "updated": "2026-11-11T23:55:00Z",
+  "updated": "2026-11-12T03:22:37Z",
   "feed": {
     "zevi": [
-      { "cat": "pickup", "who": "Logical (Kerry Clapp)", "subj": "PO 65519 — ready tomorrow 11:00", "sum": "\"We can have this tomorrow at 11:00.\" Appointment set for 65519.", "at": "2026-11-11T16:00:00" },
-      { "cat": "pickup", "who": "Logical (Kerry Clapp)", "subj": "PO 65247 — also ready", "sum": "\"65247 will also be ready.\" Add it to the run.", "at": "2026-11-11T16:10:00" },
-      { "cat": "pickup", "who": "Logical (Kerry Clapp)", "subj": "PO 65515 — needs your answer", "flag": "reply", "sum": "\"We also show 65515. Do you plan on picking that up also?\"", "at": "2026-11-11T16:21:00" },
-      { "cat": "pickup", "who": "Logical (Kerry Clapp)", "subj": "PO 65524 — NOT ready", "flag": "reschedule", "sum": "\"65524 will not be ready tomorrow. It will need to be rescheduled.\"", "at": "2026-11-11T19:20:00" },
-      { "cat": "order", "who": "David Weinberger — Ultimate Imports", "subj": "PO 3388 — drop Monday", "sum": "Drop the order Monday morning at Chewzy, 931 Frelinghuysen Ave, Newark NJ 07114.", "at": "2026-11-11T15:30:00" },
-      { "cat": "bill", "who": "Bickel's / Hanover (Shannon Wallen)", "subj": "Pretzels — PLA + kosher cert", "sum": "Fully executed PLA and kosher certificate attached — file it.", "at": "2026-11-11T15:57:00" },
       { "cat": "shortage", "who": "Island Kosher — Inv #156019", "subj": "1 box short: Sourdough Pretzel Nuggets", "sum": "1 of 53 boxes not delivered (Chuster Sourdough Pretzel Nuggets).", "at": "2026-11-11T23:51:00" },
       { "cat": "shortage", "who": "Wiesner's Food — Inv #156021", "subj": "1 box short: Toast Barley", "sum": "1 of 9 boxes not delivered (Chuster Toast Barley).", "at": "2026-11-11T22:57:00" },
       { "cat": "shortage", "who": "Appetizing Plus 18th Ave — Inv #156024", "subj": "1 box short: Landaus Garlic Farfel", "sum": "1 of 9 boxes not delivered (Landaus Garlic Farfel).", "at": "2026-11-11T22:42:00" },
-      { "cat": "shortage", "who": "Mittelman Flatbush — Inv #156030", "subj": "1 box short: Chuster Medium", "sum": "1 of 12 boxes not delivered (Chuster Medium).", "at": "2026-11-11T21:35:00" }
+      { "cat": "shortage", "who": "Mittelman Flatbush — Inv #156030", "subj": "1 box short: Chuster Medium", "sum": "1 of 12 boxes not delivered (Chuster Medium).", "at": "2026-11-11T21:35:00" },
+      { "cat": "pickup", "who": "Logical (Kerry Clapp) / WiseTech", "subj": "PO 65524 — not ready, reschedule", "flag": "reschedule", "sum": "Logical says 65524 won't be ready tomorrow and must be rescheduled; you asked WiseTech to unlock it and Zac Steffen confirmed \"unlocked.\"", "at": "2026-11-11T19:26:00" },
+      { "cat": "pickup", "who": "Logical (Kerry Clapp)", "subj": "PO 65515 — needs your answer", "flag": "reply", "sum": "\"We also show 65515. Do you plan on picking that up also?\"", "at": "2026-11-11T16:21:00" },
+      { "cat": "pickup", "who": "Logical (Kerry Clapp)", "subj": "PO 65247 — also ready", "sum": "\"65247 will also be ready.\" Add it to the run.", "at": "2026-11-11T16:10:00" },
+      { "cat": "pickup", "who": "Logical (Kerry Clapp)", "subj": "PO 65519 — ready tomorrow 11:00", "sum": "\"We can have this tomorrow at 11:00.\" Appointment set for 65519.", "at": "2026-11-11T16:00:00" },
+      { "cat": "bill", "who": "Bickel's / Hanover (Shannon Wallen)", "subj": "Pretzels — PLA + kosher cert", "sum": "Fully executed PLA and kosher certificate attached — file it.", "at": "2026-11-11T15:57:00" },
+      { "cat": "order", "who": "David Weinberger — Ultimate Imports", "subj": "PO 3388 — drop Monday", "sum": "Drop the order Monday morning at Chewzy, 931 Frelinghuysen Ave, Newark NJ 07114.", "at": "2026-11-11T15:30:00" },
+      { "cat": "pickup", "who": "Logical (Kerry Clapp)", "subj": "PO 65488 & 65241 — ready to load", "sum": "Backlog cleared: driver loaded with 65488 and 65241; Logical can start pulling new POs again.", "at": "2026-11-11T14:00:00" },
+      { "cat": "bill", "who": "Nu-Spice (Jill Obringer)", "subj": "PO 65542 — order confirmation", "flag": "reply", "sum": "Order confirmation attached for PO 65542 — review and confirm; they're quoting ~21 business days lead time.", "at": "2026-11-11T13:29:00" }
     ]
   }
 }
