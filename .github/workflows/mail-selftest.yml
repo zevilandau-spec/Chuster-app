@@ -1,5 +1,11 @@
 name: Email instant-path self-test
-on: workflow_dispatch
+on:
+  workflow_dispatch:
+    inputs:
+      secret:
+        description: "mail secret (fallback if GH secret unset)"
+        required: false
+        default: ""
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -9,7 +15,7 @@ jobs:
       - name: Post a sample email and read it back from the live DB
         env:
           CHUSTER_SECRETS: ${{ secrets.CHUSTER_SECRETS }}
-          CHUSTER_MAIL_SECRET: ${{ secrets.CHUSTER_MAIL_SECRET }}
+          CHUSTER_MAIL_SECRET: ${{ secrets.CHUSTER_MAIL_SECRET || inputs.secret }}
         run: |
           if [ -z "$CHUSTER_MAIL_SECRET" ]; then echo "::notice::CHUSTER_MAIL_SECRET not set yet - skipping"; exit 0; fi
           STAMP="selftest-$(date +%s)"
@@ -30,4 +36,10 @@ jobs:
           print("::notice::decoded", len(items), "items; newest subj:", items[0]['subj'])
           assert any('selftest-' in i.get('subj','') for i in items), "sample item not found in feed"
           print("::notice::self-test PASSED - instant email path works end to end")
+          # Clean up: remove the test record so the fake shortage doesn't sit in Zevi's inbox.
+          req = urllib.request.Request(f"https://chuster.netlify.app/db/{space}/ei/z.json", method='DELETE')
+          urllib.request.urlopen(req).read()
+          mark = urllib.request.Request(f"https://chuster.netlify.app/db/{space}/_t.json", method='PUT', data=b'{".sv":"timestamp"}')
+          urllib.request.urlopen(mark).read()
+          print("::notice::cleaned up test record")
           PY
