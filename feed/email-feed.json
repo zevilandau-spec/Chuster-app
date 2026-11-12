@@ -1,16 +1,14 @@
-{
-  "updated": "2026-11-12T12:19:00Z",
-  "feed": {
-    "zevi": [
-      { "cat": "order", "who": "London Cooks (fwd by Moses)", "subj": "New order #33697", "sum": "New customer order forwarded by Moses — open the email for the products and drop details.", "at": "2026-11-12T06:53:00", "flag": "new" },
-      { "cat": "shortage", "who": "Island Kosher — Inv #156019", "subj": "1 box short: Sourdough Pretzel Nuggets", "sum": "1 of 53 boxes not delivered (Chuster Sourdough Pretzel Nuggets).", "at": "2026-11-11T23:51:00" },
-      { "cat": "shortage", "who": "Wiesner's Food — Inv #156021", "subj": "1 box short: Toast Barley", "sum": "1 of 9 boxes not delivered (Chuster Toast Barley).", "at": "2026-11-11T22:57:00" },
-      { "cat": "shortage", "who": "Appetizing Plus 18th Ave — Inv #156024", "subj": "1 box short: Landaus Garlic Farfel", "sum": "1 of 9 boxes not delivered (Landaus Garlic Farfel).", "at": "2026-11-11T22:42:00" },
-      { "cat": "shortage", "who": "Mittelman Flatbush — Inv #156030", "subj": "1 box short: Chuster Medium", "sum": "1 of 12 boxes not delivered (Chuster Medium).", "at": "2026-11-11T21:35:00" },
-      { "cat": "pickup", "who": "Logical (Kerry Clapp) / WiseTech", "subj": "PO 65524 — not ready, reschedule", "flag": "reschedule", "sum": "65524 won't be ready; must be rescheduled. You asked WiseTech to unlock it and Zac confirmed unlocked.", "at": "2026-11-11T19:20:00" },
-      { "cat": "pickup", "who": "Logical (Kerry Clapp)", "subj": "PO 65515 — needs your answer", "flag": "reply", "sum": "\"We also show 65515. Do you plan on picking that up also?\"", "at": "2026-11-11T16:21:00" },
-      { "cat": "pickup", "who": "Logical (Kerry Clapp)", "subj": "PO 65247 — also ready", "sum": "\"65247 will also be ready.\"", "at": "2026-11-11T16:10:00" },
-      { "cat": "pickup", "who": "Logical (Kerry Clapp)", "subj": "PO 65519 — ready tomorrow 11:00", "sum": "\"We can have this tomorrow at 11:00.\"", "at": "2026-11-11T16:00:00" }
-    ]
-  }
-}
+{"updated": "2026-11-12T12:22:50Z", "feed": {"zevi": [
+  {"cat": "order", "who": "London Cooks (via Moses)", "subj": "New Order #33697", "sum": "6 cases WW Elbow Macaroni (Chuster, 20/1lb) to 110 Taylor St, Brooklyn 11211; orig delivery 10/30 — confirm or cancel.", "at": "2026-11-12T06:53:00", "flag": "reply"},
+  {"cat": "shortage", "who": "Island Kosher", "subj": "Items missing #156019", "sum": "1 of 53 boxes short: Chuster Sourdough Pretzel Nuggets (57 · 96x1.1oz).", "at": "2026-11-11T23:51:00"},
+  {"cat": "shortage", "who": "Wiesner's Food Inc.", "subj": "Items missing #156021", "sum": "1 of 9 boxes short: Chuster Toast Barley (7 · 24x11oz).", "at": "2026-11-11T22:57:00"},
+  {"cat": "shortage", "who": "Appetizing Plus 18th Ave.", "subj": "Items missing #156024", "sum": "1 of 9 boxes short: Landaus Garlic Farfel (59 · 24x11oz).", "at": "2026-11-11T22:42:00"},
+  {"cat": "shortage", "who": "Mittelman Flatbush Kosher Supermkt", "subj": "Items missing #156030", "sum": "1 of 12 boxes short: Chuster Medium (3 · 18x...).", "at": "2026-11-11T21:35:00"},
+  {"cat": "pickup", "who": "Logical (Kerry Clapp)", "subj": "PO 65524", "sum": "65524 will not be ready tomorrow (11/12); Wisetech notes the PO was unlocked.", "at": "2026-11-11T19:20:00", "flag": "reschedule"},
+  {"cat": "pickup", "who": "Logical (Kerry Clapp)", "subj": "PO 65515", "sum": "Logical shows 65515 open — do you plan to pick it up too? Needs reply.", "at": "2026-11-11T16:21:00", "flag": "reply"},
+  {"cat": "pickup", "who": "Logical (Kerry Clapp)", "subj": "PO 65247", "sum": "65247 will also be ready to load.", "at": "2026-11-11T16:10:00"},
+  {"cat": "pickup", "who": "Logical (Kerry Clapp)", "subj": "PO 65519", "sum": "Appointment must be rescheduled; Logical can have 65519 ready tomorrow (11/12) at 11:00.", "at": "2026-11-11T16:00:00", "flag": "reschedule"},
+  {"cat": "bill", "who": "Hanover Foods (Shannon Wallen)", "subj": "Chuster Pretzels — PLA & kosher cert", "sum": "Fully executed PLA and kosher certificate attached for Chuster/Bickel's pretzels.", "at": "2026-11-11T15:57:00"},
+  {"cat": "order", "who": "Ultimate Imports (David Weinberger)", "subj": "Order Chuster — PO 3388", "sum": "Drop order Monday morning at Chewzy, 931 Frelinghuysen Ave, Newark NJ 07114.", "at": "2026-11-11T15:30:00", "flag": "reschedule"},
+  {"cat": "pickup", "who": "Logical / Winland", "subj": "Backlog — freeze on new loads", "sum": "Logical: multiple appointments not honored; advised not to pull new loads until the backlog is cleared.", "at": "2026-11-11T14:17:00", "flag": "urgent"}
+]}}
