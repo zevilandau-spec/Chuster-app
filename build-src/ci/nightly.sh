@@ -21,6 +21,19 @@ FROM=$(python3 -c "import json;print(json.load(open('raw/meta.json'))['from'])")
 mkdir -p build
 CHUSTER_NIGHTLY=1 sh tools/build_from.sh export build/data.json "$ASOF" "$FROM"
 python3 -I tools/build_extra.py raw build/data.json || echo "books part skipped"
+# Merge the per-user email feed (refreshed by the email-watcher task writing email-feed.json).
+python3 - <<'PY' || echo "email feed skipped"
+import json
+p = 'build/data.json'
+d = json.load(open(p, encoding='utf-8'))
+try:
+    ef = json.load(open('email-feed.json', encoding='utf-8'))
+    d['emailFeed'] = ef.get('feed', ef) if isinstance(ef, dict) else ef
+    json.dump(d, open(p, 'w', encoding='utf-8'), separators=(',', ':'), ensure_ascii=False)
+    print('email feed merged:', len(d['emailFeed']) if hasattr(d['emailFeed'], '__len__') else '?')
+except FileNotFoundError:
+    print('no email-feed.json yet')
+PY
 python3 -I tools/add_sync.py build/data.json sync.json build/data_sync.json
 # Lock + build the page. build_locked.py has a data-guard assert that very rarely trips on a
 # transient bad lock; retry the lock+build a few times so one flake doesn't abandon the deploy.
