@@ -1932,6 +1932,7 @@ function renderSalesReport() {
 
 // What's new — a running list of what shipped, newest first. r: role that sees it (Owner-only if set).
 const CHANGELOG = [
+  { d: '2026-11-12', t: 'Email inbox: tap to open & clear', b: "Tap an email to open it in Outlook, and hit \u201c\u2713 Done\u201d to clear ones you\u2019ve handled (they move to a Cleared list you can undo).", r: 'Owner' },
   { d: '2026-11-12', t: 'Truck route: traffic, options & turn-by-turn', b: "Check address now routes with LIVE traffic, shows a few truck-legal route options to pick from (each with its own miles & time), lets you force a crossing with \u201cGo via\u201d (GW Bridge, Verrazzano, Goethals, Lincoln/Holland Tunnel, RFK), and lists the turn-by-turn roads for the route you pick.", r: 'Owner' },
   { d: '2026-11-12', t: 'Address autocomplete', b: "On Check address, start typing and real address suggestions drop down \u2014 pick one and it's added to your stops. Works for the start point too." },
   { d: '2026-11-12', t: 'Check address', b: "A scratchpad to look up any addresses that aren't orders: paste a few, see them on a live-traffic Google map, and \u2014 for two or more \u2014 get the shortest truck-legal route and order, with Navigate buttons. Makes no orders." },
@@ -2017,8 +2018,12 @@ function emFeedFor() {
   return me === 'zevi' ? EMAIL_SEED : [];
 }
 function renderEmailInbox() {
-  const feed = emFeedFor(), addr = emAddr(), live = REAL && REAL.emailFeed;
-  if (!feed.length && !addr) {
+  S.emDone = S.emDone || (() => { try { return JSON.parse(localStorage.getItem('chuster-em-done-v1')) || {}; } catch (e) { return {}; } })();
+  const emId = e => (e.subj || '') + '|' + (e.at || '');
+  const allFeed = emFeedFor(), addr = emAddr(), live = REAL && REAL.emailFeed;
+  const done = allFeed.filter(e => S.emDone[emId(e)]);
+  const feed = allFeed.filter(e => !S.emDone[emId(e)]);
+  if (!allFeed.length && !addr) {
     return `${head('Email inbox', 'See your own mail right inside the app')}
     <section class="card stack" style="gap:12px">
       <div><h2 style="margin:0 0 4px;font-size:17px">Connect your email</h2>
@@ -2031,13 +2036,19 @@ function renderEmailInbox() {
   const cats = [['pickup', '🚚 Pickups — Logical / Winland'], ['order', '🛒 Orders'], ['bill', '🧾 Bills & vendors'], ['shortage', '❗ Shortages'], ['payment', '💵 Payments']];
   const byCat = {}; feed.forEach(e => (byCat[e.cat] || (byCat[e.cat] = [])).push(e));
   const tfmt = iso => { try { const d = new Date(iso); return fmtShort(isoRd(String(iso).slice(0, 10))) + ' ' + d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }); } catch (e) { return ''; } };
-  const card = e => `<div class="em-row"><div style="flex:1;min-width:0"><div class="em-who">${esc(e.who)}${e.flag ? ` <span class="tag red" style="font-size:11px">${esc(e.flag)}</span>` : ''}</div><div class="em-sub">${esc(e.subj)}</div><div class="sub" style="margin:2px 0 0">${esc(e.sum)}</div></div><div class="sub" style="white-space:nowrap;font-size:11px">${tfmt(e.at)}</div></div>`;
+  const card = e => {
+    const inner = `<div class="em-who">${esc(e.who)}${e.flag ? ` <span class="tag red" style="font-size:11px">${esc(e.flag)}</span>` : ''}</div><div class="em-sub">${esc(e.subj)}</div><div class="sub" style="margin:2px 0 0">${esc(e.sum)}</div>${e.link ? '<div class="sub" style="margin:2px 0 0;color:var(--brand);font-size:12px">Tap to open the email ›</div>' : ''}`;
+    const main = e.link ? `<a href="${esc(e.link)}" target="_blank" rel="noopener" style="flex:1;min-width:0;color:inherit;text-decoration:none">${inner}</a>` : `<div style="flex:1;min-width:0">${inner}</div>`;
+    return `<div class="em-row">${main}<div style="display:flex;flex-direction:column;align-items:flex-end;gap:5px"><span class="sub" style="white-space:nowrap;font-size:11px">${tfmt(e.at)}</span><button class="btn ghost" data-act="em-done" data-id="${esc(emId(e))}" style="padding:3px 9px;font-size:12px">✓ Done</button></div></div>`;
+  };
   const body = cats.filter(([k]) => byCat[k]).map(([k, title]) => `<section class="card stack" style="gap:2px"><div class="card-head" style="margin:0"><h2 style="margin:0;font-size:15px">${title}</h2><span class="sub" style="margin:0">${byCat[k].length}</span></div>${byCat[k].map(card).join('')}</section>`).join('');
-  const pending = addr && !feed.length;
+  const clearedHtml = done.length ? `<details class="card"><summary style="cursor:pointer;font-weight:700;color:var(--muted)">✓ Cleared (${done.length})</summary><div class="stack" style="gap:2px;margin-top:6px">${done.map(e => `<div class="em-row" style="opacity:.65"><div style="flex:1;min-width:0"><div class="em-sub">${esc(e.who)} — ${esc(e.subj)}</div></div><button class="btn ghost" data-act="em-undo" data-id="${esc(emId(e))}" style="padding:3px 9px;font-size:12px">Undo</button></div>`).join('')}</div></details>` : '';
+  const pending = addr && !allFeed.length;
   return `${head('Email inbox', addr ? esc(addr) : 'What is coming in')}
   ${pending ? `<div class="note" style="background:var(--brand-soft);border-color:var(--brand)"><b>Pulling in ${esc(addr)}.</b> Your messages will start showing here shortly.</div>`
     : (live ? '' : '<div class="note" style="background:var(--brand-soft);border-color:var(--brand)"><b>Snapshot from a few minutes ago.</b> The hourly watcher keeps this fresh on its own.</div>')}
-  ${body || '<section class="card"><p class="sub" style="margin:0">Nothing needs you right now.</p></section>'}`;
+  ${body || '<section class="card"><p class="sub" style="margin:0">All clear — nothing needs you right now. ✅</p></section>'}
+  ${clearedHtml}`;
 }
 function renderCommand() {
   if (S.role !== 'Owner') return head('Command center', '') + '<section class="card"><p class="sub" style="margin:0">Only owners see this.</p></section>';
@@ -8810,6 +8821,8 @@ document.addEventListener('click', e => {
     case 'pk-undo': { const m = S.moves[d.id]; delMove(d.id); toast(m && m.poNum ? `PO #${m.poNum} is back on the open list.` : 'Undone.'); keep(); break; }
     case 'to-copy': { const f = TODAY - 27, dem = {}; (REAL.orders.list || []).forEach(o => { if (o.t !== 'inv' || !o.l) return; const r = isoRd(o.d); if (r < f || r > TODAY) return; rowsOf(o.l).forEach(([ref, q]) => { if (typeof ref === 'number' && q > 0) dem[ref] = (dem[ref] || 0) + q; }); }); const norm = s => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ''); const onOrder = {}; ((REAL.openPO && REAL.openPO.list) || []).forEach(p => { onOrder[norm(p.name)] = (onOrder[norm(p.name)] || 0) + (p.left || 0); }); const vendorOf = c => /snack|pretzel|tortilla|chip|flat|nugget|crunch|mandlen/i.test((c.group || '') + ' ' + c.name) ? "Bickel's" : 'Winland'; const lines = Object.keys(dem).map(ref => { const c = REAL.catalog[+ref]; if (!c || c.off) return null; const need = Math.max(0, Math.ceil(dem[ref] - (c.stock || 0) - (onOrder[norm(c.name)] || 0))); return (need > 0 && vendorOf(c) === d.v) ? `${c.name}  —  ${need} cases` : null; }).filter(Boolean); const txt = `Purchase order — ${d.v}\nChuster Noodle\n\n` + lines.join('\n'); if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(txt).then(() => toast(`Copied ${d.v} order — paste into an email.`), () => toast('Copy failed.')); } else toast('Copy not supported here.'); break; }
     case 'pk-xrun': { const lines = Object.keys(S.pkxDraft || {}).map(f => [f, Math.round(+S.pkxDraft[f] || 0)]).filter(l => l[1] > 0); if (!lines.length) { toast('Enter how many to bring.'); break; } const bm = bmByFull(); const nm = f => { const c = S.catalog.find(x => x.full === f); return c ? c.name : f; }; putMove({ id: 'mv' + Date.now().toString(36) + Math.floor(Math.random() * 1e4).toString(36), from: 'BM', to: 'Chuster', d: isoOf(TODAY), lines: lines.map(l => [l[0], Math.min(l[1], bm[l[0]] || l[1]), nm(l[0])]), st: 'pending', by: byName(), at: nowIso() }); S.pkxDraft = {}; toast('BM → Chuster run created. Mark it Done when it arrives.'); keep(); break; }
+    case 'em-done': { S.emDone = S.emDone || {}; S.emDone[d.id] = 1; try { localStorage.setItem('chuster-em-done-v1', JSON.stringify(S.emDone)); } catch (e) { } render(); break; }
+    case 'em-undo': { S.emDone = S.emDone || {}; delete S.emDone[d.id]; try { localStorage.setItem('chuster-em-done-v1', JSON.stringify(S.emDone)); } catch (e) { } render(); break; }
     case 'email-connect': { const addr = String(S.ecDraft || '').trim(); if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(addr)) { toast('Enter a valid email address.'); break; } S.emailConn = S.emailConn || {}; const me = emMe(); const rec = { email: addr, by: byName(), at: nowIso() }; S.emailConn[me] = rec; saveEC(); try { SYNC.put('ec', me, rec); } catch (e) { } S.ecDraft = ''; toast('Email connected — pulling your mail in.'); keep(); break; }
     case 'count-toggle': S.countMode = !S.countMode; if (S.countMode) { S.invFilter = 'allprod'; S.invSel = null; S.invEdit = null; } keep(); break;
     case 'count-save': { let n = 0; const by = byName(), at = nowIso(); Object.keys(S.countDraft).forEach(full => { const v = S.countDraft[full]; if (v === '' || v == null) return; const q = Math.round(+v); if (!isFinite(q)) return; const rec = { q, at, by }; S.counts[full] = rec; try { SYNC.put('ct', full, rec); } catch (e) { } n++; }); saveCounts(); S.countDraft = {}; S.countMode = false; toast(n ? `Saved ${n} count${n === 1 ? '' : 's'}.` : 'No counts entered.'); keep(); break; }
