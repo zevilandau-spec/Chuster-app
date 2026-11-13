@@ -1,0 +1,44 @@
+name: Box-printer path self-test
+on:
+  workflow_dispatch:
+    inputs:
+      secret:
+        description: "print secret (fallback if GH secret unset)"
+        required: false
+        default: ""
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install crypto
+        run: pip install cryptography==43.0.3
+      - name: Post a sample box count and read it back from the live DB
+        env:
+          CHUSTER_SECRETS: ${{ secrets.CHUSTER_SECRETS }}
+          CHUSTER_PRINT_SECRET: ${{ secrets.CHUSTER_PRINT_SECRET || inputs.secret }}
+        run: |
+          if [ -z "$CHUSTER_PRINT_SECRET" ]; then echo "::notice::CHUSTER_PRINT_SECRET not set yet - skipping"; exit 0; fi
+          # Use a harmless past date so nothing shows on the real screen; never writes the 'now' line.
+          code=$(curl -s -o post.json -w '%{http_code}' -X POST https://chuster.netlify.app/printlog/in \
+            -H "content-type: application/json" -H "x-print-secret: $CHUSTER_PRINT_SECRET" \
+            -d '{"day":"2000-01-01","labels":{"SELFTEST.00I":7}}')
+          echo "::notice::POST /printlog/in -> $code :: $(head -c 200 post.json)"
+          if [ "$code" = "503" ]; then echo "::notice::function is live but env vars not set yet (CHUSTER_PRINT_FP) - stopping here"; exit 0; fi
+          if [ "$code" = "401" ]; then echo "::error::401 Not allowed - the secret does not match CHUSTER_PRINT_FP in Netlify"; exit 1; fi
+          [ "$code" = "200" ] || { echo "::error::unexpected status $code"; exit 1; }
+          sleep 2
+          python3 - <<'PY'
+          import json, os, base64, urllib.request
+          from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+          S = json.loads(os.environ['CHUSTER_SECRETS'])['sync']; space = S['space']; key = base64.b64decode(S['key'])
+          raw = urllib.request.urlopen(f"https://chuster.netlify.app/db/{space}/mp/20000101.json").read()
+          rec = json.loads(raw); v = base64.b64decode(rec['v']); pt = AESGCM(key).decrypt(v[:12], v[12:], None)
+          val = json.loads(pt)['val']
+          print("::notice::decoded day", val['d'], "labels:", val['labels'])
+          assert val['labels'].get('SELFTEST.00I') == 7, "sample count not found"
+          print("::notice::self-test PASSED - box-printer path works end to end")
+          # Clean up the test record.
+          urllib.request.urlopen(urllib.request.Request(f"https://chuster.netlify.app/db/{space}/mp/20000101.json", method='DELETE')).read()
+          urllib.request.urlopen(urllib.request.Request(f"https://chuster.netlify.app/db/{space}/_t.json", method='PUT', data=b'{".sv":"timestamp"}')).read()
+          print("::notice::cleaned up test record")
+          PY
