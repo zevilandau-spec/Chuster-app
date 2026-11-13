@@ -1,0 +1,5 @@
+{
+  "url": "https://chuster.netlify.app/printlog/in",
+  "secret": "PASTE-SECRET-FROM-ZEVI",
+  "csvFolder": "C:\\ProgramData\\MarkoprintLog"
+}
