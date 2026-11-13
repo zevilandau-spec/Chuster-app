@@ -18,22 +18,29 @@ jobs:
           data = json.loads(raw) or {}
           def dec(rec):
               v = base64.b64decode(rec['v']); return json.loads(AESGCM(key).decrypt(v[:12], v[12:], None))
-          days = []; now = None; mapn = 0
+          now_server_ms = int(datetime.datetime.now(datetime.timezone.utc).timestamp()*1000)
+          days = []; now = None; now_t = None; mapn = 0
           for kid, rec in data.items():
               try: d = dec(rec)
               except Exception as e: print("::warning::could not decrypt", kid, e); continue
-              k = d.get('k'); val = d.get('val')
-              if k == 'now': now = val
+              k = d.get('k'); val = d.get('val'); t = rec.get('t')
+              if k == 'now': now = val; now_t = t
               elif k == 'map': mapn = len(val or {})
               elif isinstance(k, str) and len(k) == 10 and k[4] == '-':
                   tot = sum((val or {}).get('labels', {}).values())
-                  days.append((k, tot, val.get('upd','')))
+                  days.append((k, tot, val.get('upd',''), t))
           days.sort()
           print("::notice::=== Box-printer feed ===")
-          for k, tot, upd in days[-5:]:
-              print(f"::notice::{k}: {tot} boxes (updated {upd})")
+          for k, tot, upd, t in days[-5:]:
+              print(f"::notice::{k}: {tot} boxes (last box at {upd})")
           if now:
-              print(f"::notice::NOW: label={now.get('label')} counter={now.get('counter')} at={now.get('at')}")
+              print(f"::notice::NOW: label={now.get('label')} counter={now.get('counter')} last-box-at={now.get('at')}")
+          # The firebase 't' is the server time of the LAST POST from the factory PC — tells us if the pusher is alive.
+          if isinstance(now_t, (int, float)):
+              age = (now_server_ms - now_t)/60000.0
+              last = datetime.datetime.fromtimestamp(now_t/1000, datetime.timezone.utc).isoformat()[:19]
+              print(f"::notice::PUSHER last posted (server UTC): {last}  ->  {age:.1f} min ago")
+              print(f"::notice::VERDICT: " + ("pusher ALIVE (posting) - printer just idle" if age < 2 else "pusher STOPPED ~%.0f min ago - CHUS-04 not sending" % age))
           print(f"::notice::map has {mapn} matched labels; {len(days)} day(s) stored")
-          print(f"::notice::server time now (UTC): {datetime.datetime.utcnow().isoformat()[:19]}")
+          print(f"::notice::server time now (UTC): {datetime.datetime.now(datetime.timezone.utc).isoformat()[:19]}")
           PY
