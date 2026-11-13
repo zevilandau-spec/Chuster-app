@@ -1,0 +1,39 @@
+name: Box-printer feed check
+on:
+  workflow_dispatch:
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - run: pip install cryptography==43.0.3
+      - name: Read and decrypt the live 'mp' collection
+        env:
+          CHUSTER_SECRETS: ${{ secrets.CHUSTER_SECRETS }}
+        run: |
+          python3 - <<'PY'
+          import json, os, base64, urllib.request, datetime
+          S = json.loads(os.environ['CHUSTER_SECRETS'])['sync']; space = S['space']; key = base64.b64decode(S['key'])
+          from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+          raw = urllib.request.urlopen(f"https://chuster.netlify.app/db/{space}/mp.json", timeout=20).read()
+          data = json.loads(raw) or {}
+          def dec(rec):
+              v = base64.b64decode(rec['v']); return json.loads(AESGCM(key).decrypt(v[:12], v[12:], None))
+          days = []; now = None; mapn = 0
+          for kid, rec in data.items():
+              try: d = dec(rec)
+              except Exception as e: print("::warning::could not decrypt", kid, e); continue
+              k = d.get('k'); val = d.get('val')
+              if k == 'now': now = val
+              elif k == 'map': mapn = len(val or {})
+              elif isinstance(k, str) and len(k) == 10 and k[4] == '-':
+                  tot = sum((val or {}).get('labels', {}).values())
+                  days.append((k, tot, val.get('upd','')))
+          days.sort()
+          print("::notice::=== Box-printer feed ===")
+          for k, tot, upd in days[-5:]:
+              print(f"::notice::{k}: {tot} boxes (updated {upd})")
+          if now:
+              print(f"::notice::NOW: label={now.get('label')} counter={now.get('counter')} at={now.get('at')}")
+          print(f"::notice::map has {mapn} matched labels; {len(days)} day(s) stored")
+          print(f"::notice::server time now (UTC): {datetime.datetime.utcnow().isoformat()[:19]}")
+          PY
