@@ -2144,23 +2144,37 @@ function printMapRaw() {
   if (synced && typeof synced === 'object') m = Object.assign({}, synced, m);
   S.mpMap = m; return m;
 }
-function prodByName(n) { return (S.catalog || []).find(x => x.name === n) || null; }
+// Products are matched by their unique id (full QuickBooks name), never by display name — two products
+// (a loose one and a cased one) often share the same name, so matching by name would pick the wrong one.
+function prodKeyOf(p) { return (p && (p.full || p.name)) || ''; }
+function prodByKey(k) { return (S.catalog || []).find(p => prodKeyOf(p) === k) || null; }
+function prodName(k) { const p = prodByKey(k); return p ? p.name : (k || ''); }
+// "loose" (bulk) vs "case" (packed box) — read from the product's QuickBooks group/full name.
+function looseTag(p) { const s = String((p && p.cat) || '') + ' ' + String((p && p.full) || ''); return /loose/i.test(s) ? 'loose' : (/pack/i.test(s) ? 'case' : ''); }
+// How a product reads in the dropdown: name + code + pack + loose/case, so twins are tellable apart.
+function prodLabel(p) {
+  const bits = [];
+  if (p.code && p.code !== '—') bits.push('#' + p.code);
+  if (p.pack) bits.push(String(p.pack));
+  const lt = looseTag(p); if (lt) bits.push(lt);
+  return p.name + (bits.length ? '  ·  ' + bits.join(' · ') : '');
+}
 function printProd(label) { return printMapRaw()[label] || ''; }
-// Best-guess product for a printer label, by shared words — so a new label can suggest a match to confirm.
+// Best-guess product (by shared words) for a printer label — returns its id, to confirm in the matcher.
 function printGuess(label) {
   const base = String(label || '').replace(/\.[0-9A-Za-z]+$/, '').toLowerCase();
   const words = base.split(/[^a-z0-9]+/).filter(w => w.length > 2);
-  let best = '', bestScore = 0;
+  let best = null, bestScore = 0;
   (S.catalog || []).forEach(p => {
     const nm = String(p.name || '').toLowerCase(); let sc = 0;
     words.forEach(w => { if (nm.includes(w)) sc += w.length; });
-    if (sc > bestScore) { bestScore = sc; best = p.name; }
+    if (sc > bestScore) { bestScore = sc; best = p; }
   });
-  return bestScore >= 4 ? best : '';
+  return (bestScore >= 4 && best) ? prodKeyOf(best) : '';
 }
 function printProdOpts(sel) {
-  const list = (S.catalog || []).slice().sort((a, b) => String(a.name) < String(b.name) ? -1 : 1);
-  return '<option value="">— not matched —</option>' + list.map(p => `<option value="${esc(p.name)}"${p.name === sel ? ' selected' : ''}>${esc(p.name)}</option>`).join('');
+  const list = (S.catalog || []).slice().filter(p => p && p.name).sort((a, b) => prodLabel(a) < prodLabel(b) ? -1 : 1);
+  return '<option value="">— not matched —</option>' + list.map(p => { const k = prodKeyOf(p); return `<option value="${esc(k)}"${k === sel ? ' selected' : ''}>${esc(prodLabel(p))}</option>`; }).join('');
 }
 function renderPrinter() {
   const A = printAll(), data = A.data, live = A.live;
@@ -2183,12 +2197,12 @@ function renderPrinter() {
   // ---- running-now block ----
   let runNow = '';
   if (now && now.label) {
-    const p = printProd(now.label) || printGuess(now.label);
+    const pk = printProd(now.label) || printGuess(now.label);
     const st = PRINT_STATE[now.state] != null ? PRINT_STATE[now.state] : '';
     const stColor = now.state === 0 ? '#15803d' : now.state === 1 ? '#b45309' : 'var(--muted)';
     runNow = `<div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-top:12px;padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:var(--card2,transparent)">
       <div style="flex:1;min-width:160px"><div class="sub" style="margin:0;font-size:11px;text-transform:uppercase;letter-spacing:.5px">Running now</div>
-        <div style="font-size:17px;font-weight:800;margin-top:2px">${esc(p || now.label)}</div>
+        <div style="font-size:17px;font-weight:800;margin-top:2px">${esc(pk ? prodName(pk) : now.label)}</div>
         <div class="sub" style="margin:2px 0 0">Label: ${esc(now.label)}${st ? ' · <span style="color:' + stColor + ';font-weight:700">' + st + '</span>' : ''}</div></div>
       <div style="text-align:right"><div style="font-size:30px;font-weight:800;line-height:1">${fn(now.counter || 0)}</div><div class="sub" style="margin:0;font-size:11px">on this label</div></div>
     </div>`;
@@ -2197,10 +2211,10 @@ function renderPrinter() {
   // ---- made-today rows (mapped) + unmapped ----
   const rows = [], unmapped = [];
   Object.keys(labels).forEach(lab => {
-    const n = labels[lab] || 0, prod = printProd(lab);
-    if (!prod) { unmapped.push({ lab, n, guess: printGuess(lab) }); return; }
-    const ci = prodByName(prod);
-    rows.push({ prod, lab, n, stock: ci && typeof ci.stock === 'number' ? ci.stock : null });
+    const n = labels[lab] || 0, prodK = printProd(lab);
+    if (!prodK) { unmapped.push({ lab, n, guess: printGuess(lab) }); return; }
+    const ci = prodByKey(prodK);
+    rows.push({ prod: ci ? ci.name : prodK, lab, n, stock: ci && typeof ci.stock === 'number' ? ci.stock : null });
   });
   rows.sort((a, b) => b.n - a.n);
   const total = Object.values(labels).reduce((s, x) => s + (+x || 0), 0);
@@ -2215,7 +2229,7 @@ function renderPrinter() {
   const unmappedBlock = unmapped.length ? `<div style="margin-top:12px;padding:12px 14px;border:1px solid #f59e0b55;background:#f59e0b14;border-radius:12px">
     <div style="font-weight:700;margin-bottom:6px">${unmapped.length} label${unmapped.length > 1 ? 's' : ''} not matched to a product yet</div>
     <div class="sub" style="margin:0 0 8px">These boxes were printed but the app doesn't know which product the label is. Match them below and their counts will show up here.</div>
-    ${unmapped.map(u => `<div class="sub" style="margin:2px 0">• <b>${esc(u.lab)}</b> — ${fn(u.n)} printed${u.guess ? ' · looks like <b>' + esc(u.guess) + '</b>' : ''}</div>`).join('')}
+    ${unmapped.map(u => `<div class="sub" style="margin:2px 0">• <b>${esc(u.lab)}</b> — ${fn(u.n)} printed${u.guess ? ' · looks like <b>' + esc(prodName(u.guess)) + '</b>' : ''}</div>`).join('')}
   </div>` : '';
 
   // ---- day chips ----
@@ -9283,7 +9297,7 @@ document.addEventListener('change', e => {
   if (cl.contains('d-truck')) { const k = t.dataset.k; S.dstat[k] = Object.assign({}, S.dstat[k] || {}, { truck: +t.value }); saveDstat(); dsShare(k); render(); }
   if (cl.contains('tk-driver')) { const i = +t.dataset.i; if (S.trucks[i]) { S.trucks[i].driver = t.value.trim(); save(); render(); toast(S.trucks[i].driver ? S.trucks[i].name + ' → ' + S.trucks[i].driver : 'Driver cleared.'); } }
   if (cl.contains('ac-via-sel')) { S.acVia = t.value; if (S.acRes) acCheck(); else render(); return; }
-  if (cl.contains('mp-map')) { const lab = t.dataset.lab; const map = Object.assign({}, printMapRaw()); if (t.value) map[lab] = t.value; else delete map[lab]; S.mpMap = map; try { localStorage.setItem('chuster-mpmap-v1', JSON.stringify(map)); } catch (e) { } try { SYNC.put('mp', 'map', map); } catch (e) { } render(); toast(t.value ? 'Matched to ' + t.value : 'Match cleared.'); return; }
+  if (cl.contains('mp-map')) { const lab = t.dataset.lab; const map = Object.assign({}, printMapRaw()); if (t.value) map[lab] = t.value; else delete map[lab]; S.mpMap = map; try { localStorage.setItem('chuster-mpmap-v1', JSON.stringify(map)); } catch (e) { } try { SYNC.put('mp', 'map', map); } catch (e) { } render(); toast(t.value ? 'Matched to ' + prodName(t.value) : 'Match cleared.'); return; }
   if (t.id === 'ds-start') { S.dsched.start = t.value.trim(); saveLS('chuster-dsched-v1', S.dsched); SYNC.put('sc', 'all', S.dsched); toast('Start address saved.'); return; }
   if (t.id === 'ds-cap') { S.dsched.cap = parseInt(t.value, 10) || 0; saveLS('chuster-dsched-v1', S.dsched); SYNC.put('sc', 'all', S.dsched); return; }
   if (['ds-th', 'ds-twt', 'ds-tl', 'ds-twd'].includes(t.id)) { const key = { 'ds-th': 'truckH', 'ds-twt': 'truckWt', 'ds-tl': 'truckL', 'ds-twd': 'truckWd' }[t.id]; const v = parseFloat(t.value); if (v > 0) S.dsched[key] = v; else delete S.dsched[key]; saveLS('chuster-dsched-v1', S.dsched); SYNC.put('sc', 'all', S.dsched); return; }
