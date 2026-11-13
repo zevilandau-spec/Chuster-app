@@ -1932,6 +1932,7 @@ function renderSalesReport() {
 
 // What's new — a running list of what shipped, newest first. r: role that sees it (Owner-only if set).
 const CHANGELOG = [
+  { d: '2026-11-12', t: 'Box printer: live box counts', b: "New Box printer screen (under Packing / Warehouse). Every box the Markoprint prints is counted automatically, by product \u2014 no more counting by hand. See what's running now, how many of each product were made today, and your stock plus today's production. Match each printer label to a product once and it remembers. Goes fully live once the factory PC is set to push its counts up.", r: 'Owner' },
   { d: '2026-11-12', t: 'Email inbox: tap to open & clear', b: "Tap an email to open it in Outlook, and hit \u201c\u2713 Done\u201d to clear ones you\u2019ve handled (they move to a Cleared list you can undo).", r: 'Owner' },
   { d: '2026-11-12', t: 'Truck route: traffic, options & turn-by-turn', b: "Check address now routes with LIVE traffic, shows a few truck-legal route options to pick from (each with its own miles & time), lets you force a crossing with \u201cGo via\u201d (GW Bridge, Verrazzano, Goethals, Lincoln/Holland Tunnel, RFK), and lists the turn-by-turn roads for the route you pick.", r: 'Owner' },
   { d: '2026-11-12', t: 'Address autocomplete', b: "On Check address, start typing and real address suggestions drop down \u2014 pick one and it's added to your stops. Works for the start point too." },
@@ -2119,6 +2120,151 @@ function renderActivity() {
   ${body || `<section class="card"><p class="sub" style="margin:0">${Object.keys(S.activity || {}).length ? 'No activity in these dates — try a wider range or “All”.' : 'No activity recorded yet. As people open the app, it shows up here. Keeps the last 60 days.'}</p></section>`}
   <p class="sub" style="margin:0">Each time someone unlocks the app it logs their name and the time, and notes the screens they open (at most once every few minutes per screen). It's fair to let staff know the app keeps a log.</p>`;
 }
+/* ================= Box printer (Markoprint X4JET) — live box counts from the factory floor =================
+   The logger on the factory PC (CHUS-04) reads the printer every few seconds and counts every box it prints,
+   per label. A small program there (mirrors the office QuickBooks sync) pushes those counts to the app's
+   shared database as the 'mp' collection: one key per day { d, labels:{label:count}, upd }, a 'now' key with
+   the live status, and a 'map' key (which printer label is which product). Until that program is switched on,
+   PRINT_SEED shows the real counts from the last recorded day so the screen isn't empty. */
+const PRINT_SEED = {
+  '2026-11-12': { d: '2026-11-12', upd: '2026-11-12T15:40:00', labels: { 'Land Penne.00I': 39, 'CHU Flats FP.00I': 1, 'Chus Soup 7oz.00I': 1 } },
+  now: { label: 'Land Penne.00I', state: 0, counter: 39, at: '2026-11-12T15:40:00' }
+};
+const PRINT_STATE = { 0: 'Running', 1: 'Paused', 2: 'Stopped' };
+function printAll() {
+  const live = S.mpLive && Object.keys(S.mpLive).some(k => /^\d{4}-\d{2}-\d{2}$/.test(k) || k === 'now');
+  return { data: live ? S.mpLive : PRINT_SEED, live: !!live };
+}
+function printDays(data) { return Object.keys(data).filter(k => /^\d{4}-\d{2}-\d{2}$/.test(k)).sort().reverse(); }
+function printMapRaw() {
+  if (S.mpMap) return S.mpMap;
+  let m = {};
+  try { m = JSON.parse(localStorage.getItem('chuster-mpmap-v1')) || {}; } catch (e) { m = {}; }
+  const synced = (S.mpLive && S.mpLive.map) || (PRINT_SEED && PRINT_SEED.map);
+  if (synced && typeof synced === 'object') m = Object.assign({}, synced, m);
+  S.mpMap = m; return m;
+}
+function prodByName(n) { return (S.catalog || []).find(x => x.name === n) || null; }
+function printProd(label) { return printMapRaw()[label] || ''; }
+// Best-guess product for a printer label, by shared words — so a new label can suggest a match to confirm.
+function printGuess(label) {
+  const base = String(label || '').replace(/\.[0-9A-Za-z]+$/, '').toLowerCase();
+  const words = base.split(/[^a-z0-9]+/).filter(w => w.length > 2);
+  let best = '', bestScore = 0;
+  (S.catalog || []).forEach(p => {
+    const nm = String(p.name || '').toLowerCase(); let sc = 0;
+    words.forEach(w => { if (nm.includes(w)) sc += w.length; });
+    if (sc > bestScore) { bestScore = sc; best = p.name; }
+  });
+  return bestScore >= 4 ? best : '';
+}
+function printProdOpts(sel) {
+  const list = (S.catalog || []).slice().sort((a, b) => String(a.name) < String(b.name) ? -1 : 1);
+  return '<option value="">— not matched —</option>' + list.map(p => `<option value="${esc(p.name)}"${p.name === sel ? ' selected' : ''}>${esc(p.name)}</option>`).join('');
+}
+function renderPrinter() {
+  const A = printAll(), data = A.data, live = A.live;
+  const days = printDays(data);
+  const day = (S.mpDay && days.includes(S.mpDay)) ? S.mpDay : (days[0] || isoOf(TODAY));
+  const dayObj = data[day] || { labels: {} };
+  const labels = dayObj.labels || {};
+  const now = data.now || null;
+
+  // ---- live status pill ----
+  let pill = '<span style="font-size:12px;font-weight:700;padding:4px 10px;border-radius:999px;background:#9aa0a622;color:var(--muted)">No signal</span>';
+  let pillNote = 'Waiting for the first count from the factory PC.';
+  if (now && now.at) {
+    const ageMin = (Date.now() - Date.parse(now.at)) / 60000;
+    if (live && ageMin < 8) { pill = '<span style="font-size:12px;font-weight:700;padding:4px 10px;border-radius:999px;background:#16a34a22;color:#15803d">● Recording</span>'; pillNote = 'Last box seen ' + (ageMin < 1 ? 'just now' : Math.round(ageMin) + ' min ago') + '.'; }
+    else if (live) { pill = '<span style="font-size:12px;font-weight:700;padding:4px 10px;border-radius:999px;background:#f59e0b22;color:#b45309">Idle</span>'; pillNote = 'No box printed in the last ' + (ageMin < 120 ? Math.round(ageMin) + ' min' : Math.round(ageMin / 60) + ' hr') + '.'; }
+    else { pill = '<span style="font-size:12px;font-weight:700;padding:4px 10px;border-radius:999px;background:#9aa0a622;color:var(--muted)">Last report</span>'; pillNote = 'Not live yet — showing your last recorded counts.'; }
+  }
+
+  // ---- running-now block ----
+  let runNow = '';
+  if (now && now.label) {
+    const p = printProd(now.label) || printGuess(now.label);
+    const st = PRINT_STATE[now.state] != null ? PRINT_STATE[now.state] : '';
+    const stColor = now.state === 0 ? '#15803d' : now.state === 1 ? '#b45309' : 'var(--muted)';
+    runNow = `<div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-top:12px;padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:var(--card2,transparent)">
+      <div style="flex:1;min-width:160px"><div class="sub" style="margin:0;font-size:11px;text-transform:uppercase;letter-spacing:.5px">Running now</div>
+        <div style="font-size:17px;font-weight:800;margin-top:2px">${esc(p || now.label)}</div>
+        <div class="sub" style="margin:2px 0 0">Label: ${esc(now.label)}${st ? ' · <span style="color:' + stColor + ';font-weight:700">' + st + '</span>' : ''}</div></div>
+      <div style="text-align:right"><div style="font-size:30px;font-weight:800;line-height:1">${fn(now.counter || 0)}</div><div class="sub" style="margin:0;font-size:11px">on this label</div></div>
+    </div>`;
+  }
+
+  // ---- made-today rows (mapped) + unmapped ----
+  const rows = [], unmapped = [];
+  Object.keys(labels).forEach(lab => {
+    const n = labels[lab] || 0, prod = printProd(lab);
+    if (!prod) { unmapped.push({ lab, n, guess: printGuess(lab) }); return; }
+    const ci = prodByName(prod);
+    rows.push({ prod, lab, n, stock: ci && typeof ci.stock === 'number' ? ci.stock : null });
+  });
+  rows.sort((a, b) => b.n - a.n);
+  const total = Object.values(labels).reduce((s, x) => s + (+x || 0), 0);
+
+  const tableRows = rows.map(r => `<tr>
+    <td style="font-weight:600">${esc(r.prod)}<div class="sub" style="margin:0;font-size:11px">${esc(r.lab)}</div></td>
+    <td class="num" style="text-align:right;font-weight:800;font-size:16px">${fn(r.n)}</td>
+    <td class="num" style="text-align:right;color:${r.stock != null && r.stock < 0 ? 'var(--bad-text)' : 'var(--muted)'}">${r.stock != null ? fn(r.stock) : '—'}</td>
+    <td class="num" style="text-align:right;font-weight:700">${r.stock != null ? fn(r.stock + r.n) : '—'}</td>
+  </tr>`).join('');
+
+  const unmappedBlock = unmapped.length ? `<div style="margin-top:12px;padding:12px 14px;border:1px solid #f59e0b55;background:#f59e0b14;border-radius:12px">
+    <div style="font-weight:700;margin-bottom:6px">${unmapped.length} label${unmapped.length > 1 ? 's' : ''} not matched to a product yet</div>
+    <div class="sub" style="margin:0 0 8px">These boxes were printed but the app doesn't know which product the label is. Match them below and their counts will show up here.</div>
+    ${unmapped.map(u => `<div class="sub" style="margin:2px 0">• <b>${esc(u.lab)}</b> — ${fn(u.n)} printed${u.guess ? ' · looks like <b>' + esc(u.guess) + '</b>' : ''}</div>`).join('')}
+  </div>` : '';
+
+  // ---- day chips ----
+  const dayChips = days.slice(0, 10).map(dd => `<button class="chip" data-act="mp-day" data-day="${dd}" aria-pressed="${dd === day}">${esc(fmtShort(isoRd(dd)))}</button>`).join('');
+
+  // ---- mapping editor ----
+  const distinct = {};
+  printDays(data).forEach(dd => Object.keys((data[dd] || {}).labels || {}).forEach(l => distinct[l] = 1));
+  if (now && now.label) distinct[now.label] = 1;
+  Object.keys(printMapRaw()).forEach(l => distinct[l] = 1);
+  const labelList = Object.keys(distinct).sort();
+  const mapRows = labelList.length ? labelList.map(lab => {
+    const cur = printProd(lab);
+    return `<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 0;border-top:1px solid var(--line)">
+      <div style="flex:1;min-width:130px;font-weight:600">${esc(lab)}</div>
+      <select class="inp mp-map" data-lab="${esc(lab)}" style="flex:2;min-width:200px;max-width:340px">${printProdOpts(cur)}</select>
+    </div>`;
+  }).join('') : '<p class="sub" style="margin:8px 0 0">No printer labels seen yet.</p>';
+
+  const banner = !live ? `<div style="margin-top:12px;padding:12px 14px;border:1px solid var(--line);background:#9aa0a614;border-radius:12px">
+    <div style="font-weight:700;margin-bottom:4px">Showing your last recorded day</div>
+    <div class="sub" style="margin:0">This is the real count from your Markoprint report (Nov 12). Once the factory PC is set to push live, this screen turns <b style="color:#15803d">green</b> and updates by itself as boxes print — no counting by hand.</div>
+  </div>` : '';
+
+  return `
+  <section class="card">
+    <div class="card-head" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap"><h2 style="margin:0">Box printer</h2>${pill}<span class="sub" style="margin:0;flex:1;min-width:140px">${pillNote}</span></div>
+    <p class="sub" style="margin:4px 0 0">Every box the Markoprint prints is counted here automatically, by product. No more counting boxes by hand.</p>
+    ${banner}
+    ${runNow}
+  </section>
+
+  <section class="card">
+    <div class="card-head"><h2 style="margin:0">Made ${day === isoOf(TODAY) ? 'today' : 'on ' + esc(fmtShort(isoRd(day)))}</h2><div style="font-size:22px;font-weight:800">${fn(total)}<span class="sub" style="font-weight:600;font-size:12px"> boxes</span></div></div>
+    ${days.length > 1 ? `<div style="display:flex;gap:6px;flex-wrap:wrap;margin:4px 0 12px">${dayChips}</div>` : ''}
+    <table style="width:100%;border-collapse:collapse">
+      <tr style="text-align:left"><th style="padding:6px 0">Product</th><th class="num" style="text-align:right">Printed</th><th class="num" style="text-align:right">In stock</th><th class="num" style="text-align:right">With today</th></tr>
+      ${tableRows || '<tr><td colspan="4" class="sub" style="padding:10px 0">No boxes recorded for this day.</td></tr>'}
+    </table>
+    <p class="sub" style="margin:10px 0 0;font-size:12px"><b>In stock</b> is your QuickBooks number. <b>With today</b> adds the boxes you just made (not yet entered in QuickBooks) so you can see what you really have on the floor.</p>
+    ${unmappedBlock}
+  </section>
+
+  <section class="card">
+    <button class="btn ghost" data-act="mp-maptoggle" style="width:100%;text-align:left">${S.mpMapOpen ? '▾' : '▸'} Match printer labels to products${labelList.length ? ' (' + labelList.length + ')' : ''}</button>
+    ${S.mpMapOpen ? `<div style="margin-top:8px"><p class="sub" style="margin:0 0 4px">Pick which product each printer label is. You set this once; it syncs to everyone.</p>${mapRows}</div>` : ''}
+  </section>`;
+}
+
 const VIEWS = {
   home: { title: 'Dashboard', r: renderHome },
   order: { title: 'New order', r: renderOrder },
@@ -2158,6 +2304,7 @@ const VIEWS = {
   payments: { title: 'Payments', r: renderPayments },
   packlog: { title: 'Pack log', r: renderPackLog },
   packrep: { title: 'Packing report', r: renderPackReport },
+  printer: { title: 'Box printer', r: renderPrinter },
   buying: { title: 'Buying & suppliers', r: renderBuying },
   items: { title: 'Products', r: renderItems },
   catalog: { title: 'Catalog', r: renderCatalog },
@@ -2211,7 +2358,7 @@ const NAV = [
   { h: 'SALES & MONEY', items: [['mysales', 'Salesman dashboard', 'chart'], ['storesales', 'Store sales', 'chart'], ['scorecard', 'Store scorecard', 'people'], ['movers', 'What changed', 'alert'], ['atrisk', 'At-risk board', 'alert'], ['crosssell', 'Cross-sell', 'chart'], ['newlost', 'New & lost stores', 'people'], ['habits', 'Order habits', 'clock'], ['seasonality', 'Seasonality', 'chart'], ['salesreport', 'Sales report', 'chart'], ['brandsales', 'Sales by brand', 'chart'], ['lostsales', 'Lost sales', 'alert'], ['repscore', 'Salesman scorecard', 'people'], ['reps', 'Sales by rep & commission', 'people'], ['returns', 'Returns & credits', 'card'], ['finance', 'Finance', 'chart']] },
   { h: 'PRODUCTS', items: [['catalog', 'Catalog', 'box'], ['prodsales', 'Product sales', 'chart'], ['winners', 'Winners & losers', 'chart'], ['items', 'Products & profit', 'chart'], ['margin', 'Margins', 'chart'], ['pricelist', 'Price list', 'order'], ['pricecheck', 'Price check', 'card'], ['pricespread', 'Price spread', 'chart']] },
   { h: 'DELIVERIES', items: [['route', 'Deliveries', 'box'], ['addrcheck', 'Check address', 'pin'], ['stop', 'Driver', 'wheel'], ['pickups', 'Pickups', 'truck'], ['live', 'Live trucks', 'pin'], ['loading', 'Loading', 'truck'], ['dsched', 'Delivery days', 'cal'], ['delivstats', 'Delivery stats', 'chart'], ['routeprofit', 'Route profit', 'chart']] },
-  { h: 'WAREHOUSE', items: [['packnext', 'What to pack', 'clip'], ['forecast', 'Week-ahead forecast', 'chart'], ['packing', 'Packing plan', 'clip'], ['stockcover', 'Stock cover', 'box'], ['packlog', 'Pack log', 'clip'], ['packrep', 'Packing report', 'chart'], ['yield', 'Yield', 'chart']] },
+  { h: 'WAREHOUSE', items: [['packnext', 'What to pack', 'clip'], ['forecast', 'Week-ahead forecast', 'chart'], ['packing', 'Packing plan', 'clip'], ['stockcover', 'Stock cover', 'box'], ['packlog', 'Pack log', 'clip'], ['packrep', 'Packing report', 'chart'], ['printer', 'Box printer', 'box'], ['yield', 'Yield', 'chart']] },
   { h: 'STOCK & BUYING', items: [['inventory', 'Inventory', 'box', 'inv'], ['prodplan', 'Make today', 'box'], ['ordernow', 'Order now', 'alert'], ['toorder', 'To order (by vendor)', 'card'], ['reorder', 'Reorder alerts', 'alert'], ['plan', 'Plan a season', 'chart'], ['margin', 'Margin watch', 'chart'], ['buying', 'Buying & suppliers', 'card'], ['polist', 'All purchase orders', 'clip'], ['stockmoves', 'Stock moves', 'box']] },
   { h: 'BOOKS', items: [['expenses', 'Expenses', 'chart'], ['bank', 'Bank & deposits', 'card'], ['vendors', 'Vendors & bills', 'people'], ['salesorders', 'Sales orders & estimates', 'order'], ['journal', 'Journal entries', 'clip'], ['accounts', 'Chart of accounts', 'chart']] }
 ];
@@ -2228,7 +2375,7 @@ const officePlus = () => S.role === 'Office' && S.realUser === 'Joel';
 const isZevi = () => S.baseRole === 'Owner' && S.realUser === 'Zevi';
 try { S.lang = localStorage.getItem('chuster-lang') || 'en'; } catch (e) { S.lang = 'en'; }
 const ROLE_VIEWS = {
-  Warehouse: ['ask', 'catalog', 'packnext', 'packing', 'stockcover', 'packlog', 'packrep', 'yield', 'inventory', 'prodplan', 'ordernow', 'reorder', 'plan', 'margin', 'loading', 'loadlist', 'calendar', 'stockmoves', 'polist'],
+  Warehouse: ['ask', 'catalog', 'packnext', 'packing', 'stockcover', 'packlog', 'packrep', 'printer', 'yield', 'inventory', 'prodplan', 'ordernow', 'reorder', 'plan', 'margin', 'loading', 'loadlist', 'calendar', 'stockmoves', 'polist'],
   Driver: ['route', 'addrcheck', 'stop', 'loading', 'loadlist', 'calendar'],
   Sales: ['ask', 'catalog', 'mysales', 'visits', 'coverage', 'mycomm', 'pitch', 'customers', 'collect', 'orders', 'order', 'inbox', 'toqb', 'payments', 'yomtov', 'lost', 'pricelist', 'pricecheck', 'calendar', 'salesorders', 'prodsales', 'scorecard', 'crosssell', 'atrisk', 'returns'],
   SalesDriver: ['ask', 'catalog', 'mysales', 'visits', 'coverage', 'mycomm', 'pitch', 'customers', 'collect', 'orders', 'order', 'inbox', 'toqb', 'payments', 'yomtov', 'lost', 'pricelist', 'pricecheck', 'calendar', 'route', 'addrcheck', 'stop', 'loading', 'loadlist', 'salesorders', 'prodsales', 'scorecard', 'crosssell', 'atrisk', 'returns']
@@ -2272,7 +2419,7 @@ function drawChrome() {
     { label: 'Orders', items: [['orders', 'Orders', 'order'], ['order', 'New order', 'order'], ['inbox', 'Incoming orders', 'chat', 'inbox'], ['payments', 'Payments', 'card', 'pay']] },
     { label: 'Customers', items: [['mysales', 'Salesman dashboard', 'chart'], ['visits', "Today's visits", 'clock'], ['coverage', 'Coverage plan', 'clip'], ['mycomm', 'My commission', 'chart'], ['pitch', 'New to pitch', 'chart'], ['customers', 'Customers', 'people', 'late'], ['collect', 'Collections', 'card'], ['stmts', 'Statements by email', 'mail'], ['yomtov', 'Yom Tov list', 'cal'], ['lost', 'Lost items', 'alert'], ['custprofit', 'Profit by store', 'chart'], ['pricecheck', 'Price check', 'card'], ['reps', 'Sales by rep & commission', 'people']] },
     { label: 'Products', items: [['items', 'Products & profit', 'chart'], ['pricelist', 'Price list', 'order'], ['inventory', 'Inventory', 'box', 'inv'], ['reorder', 'Reorder alerts', 'alert'], ['buying', 'Buying & suppliers', 'card']] },
-    { label: 'Packing', items: [['packnext', 'What to pack', 'clip'], ['packing', 'Packing plan', 'clip'], ['packlog', 'Pack log', 'clip'], ['packrep', 'Packing report', 'chart'], ['yield', 'Yield', 'chart']] },
+    { label: 'Packing', items: [['packnext', 'What to pack', 'clip'], ['packing', 'Packing plan', 'clip'], ['packlog', 'Pack log', 'clip'], ['packrep', 'Packing report', 'chart'], ['printer', 'Box printer', 'box'], ['yield', 'Yield', 'chart']] },
     { label: 'Deliveries', items: [['route', 'Deliveries', 'box'], ['addrcheck', 'Check address', 'pin'], ['stop', 'Driver', 'wheel'], ['loading', 'Loading', 'truck'], ['dsched', 'Delivery days', 'cal'], ['live', 'Live trucks', 'pin']] },
     ['calendar', 'Calendar']
   ];
@@ -7278,7 +7425,7 @@ const SYNC = (function () {
     if (!viaApp && onNetlify && e && e.name === 'TypeError') { viaApp = true; try { localStorage.setItem('chuster-db-via-app', '1'); } catch (x) { /* ignore */ } setTimeout(() => tick(), 500); }
   }
   const st = { ok: null, err: '', last: 0, since: loadLS('chuster-sync-since', {}), out: loadLS('chuster-sync-out', {}), seen: {}, key: null, flushing: false, pulling: false, started: false };
-  const COLLS = ['gc', 'ds', 'rd', 'll', 'do', 'sc', 'tr', 'lq', 'ls', 'lm', 'lx', 'lh', 'qi', 'qo', 'qc', 'qs', 'qp', 'qh', 'qw', 'qr', 'ps', 'pp', 'pn', 'pq', 'sx', 'sl', 'vn', 'pt', 'cv', 'cg', 'df', 'cut', 'av', 'ct', 'mv', 'ec', 'ei'];
+  const COLLS = ['gc', 'ds', 'rd', 'll', 'do', 'sc', 'tr', 'lq', 'ls', 'lm', 'lx', 'lh', 'qi', 'qo', 'qc', 'qs', 'qp', 'qh', 'qw', 'qr', 'ps', 'pp', 'pn', 'pq', 'sx', 'sl', 'vn', 'pt', 'cv', 'cg', 'df', 'cut', 'av', 'ct', 'mv', 'ec', 'ei', 'mp'];
   const h = s => { let a = 0x811c9dc5, b = 0x9e3779b9; for (let i = 0; i < s.length; i++) { const c = s.charCodeAt(i); a = Math.imul(a ^ c, 16777619) >>> 0; b = Math.imul(b ^ c, 2246822519) >>> 0; } return a.toString(36) + b.toString(36); };
   const b64 = u8 => { let s = ''; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); return btoa(s); };
   const unb64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -7631,6 +7778,8 @@ const saveEC = () => { try { localStorage.setItem('chuster-ec-v1', JSON.stringif
 SYNC.on('ec', (k, val) => { S.emailConn = S.emailConn || {}; if (val == null) delete S.emailConn[k]; else S.emailConn[k] = val; saveEC(); });
 S.emailLive = {};
 SYNC.on('ei', (k, val) => { S.emailLive = S.emailLive || {}; if (val == null) delete S.emailLive[k]; else S.emailLive[k] = val; });
+S.mpLive = {};
+SYNC.on('mp', (k, val) => { S.mpLive = S.mpLive || {}; if (val == null) delete S.mpLive[k]; else S.mpLive[k] = val; if (k === 'map') S.mpMap = null; try { if (S.view === 'printer') render(); } catch (e) { } });
 // BM contents = sum of received moves into BM minus runs out of BM (only 'done' moves count)
 function bmByFull() { const m = {}; Object.values(S.moves || {}).forEach(mv => { if (!mv || mv.st !== 'done') return; const sign = mv.to === 'BM' ? 1 : mv.from === 'BM' ? -1 : 0; if (!sign) return; (mv.lines || []).forEach(l => { const full = l[0], q = +l[1] || 0; if (!full || !q) return; m[full] = (m[full] || 0) + sign * q; }); }); return m; }
 let avSeen = {}; // throttle screen logging this session
@@ -8822,6 +8971,8 @@ document.addEventListener('click', e => {
     case 'to-copy': { const f = TODAY - 27, dem = {}; (REAL.orders.list || []).forEach(o => { if (o.t !== 'inv' || !o.l) return; const r = isoRd(o.d); if (r < f || r > TODAY) return; rowsOf(o.l).forEach(([ref, q]) => { if (typeof ref === 'number' && q > 0) dem[ref] = (dem[ref] || 0) + q; }); }); const norm = s => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ''); const onOrder = {}; ((REAL.openPO && REAL.openPO.list) || []).forEach(p => { onOrder[norm(p.name)] = (onOrder[norm(p.name)] || 0) + (p.left || 0); }); const vendorOf = c => /snack|pretzel|tortilla|chip|flat|nugget|crunch|mandlen/i.test((c.group || '') + ' ' + c.name) ? "Bickel's" : 'Winland'; const lines = Object.keys(dem).map(ref => { const c = REAL.catalog[+ref]; if (!c || c.off) return null; const need = Math.max(0, Math.ceil(dem[ref] - (c.stock || 0) - (onOrder[norm(c.name)] || 0))); return (need > 0 && vendorOf(c) === d.v) ? `${c.name}  —  ${need} cases` : null; }).filter(Boolean); const txt = `Purchase order — ${d.v}\nChuster Noodle\n\n` + lines.join('\n'); if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(txt).then(() => toast(`Copied ${d.v} order — paste into an email.`), () => toast('Copy failed.')); } else toast('Copy not supported here.'); break; }
     case 'pk-xrun': { const lines = Object.keys(S.pkxDraft || {}).map(f => [f, Math.round(+S.pkxDraft[f] || 0)]).filter(l => l[1] > 0); if (!lines.length) { toast('Enter how many to bring.'); break; } const bm = bmByFull(); const nm = f => { const c = S.catalog.find(x => x.full === f); return c ? c.name : f; }; putMove({ id: 'mv' + Date.now().toString(36) + Math.floor(Math.random() * 1e4).toString(36), from: 'BM', to: 'Chuster', d: isoOf(TODAY), lines: lines.map(l => [l[0], Math.min(l[1], bm[l[0]] || l[1]), nm(l[0])]), st: 'pending', by: byName(), at: nowIso() }); S.pkxDraft = {}; toast('BM → Chuster run created. Mark it Done when it arrives.'); keep(); break; }
     case 'em-done': { S.emDone = S.emDone || {}; S.emDone[d.id] = 1; try { localStorage.setItem('chuster-em-done-v1', JSON.stringify(S.emDone)); } catch (e) { } render(); break; }
+    case 'mp-day': S.mpDay = d.day; render(); break;
+    case 'mp-maptoggle': S.mpMapOpen = !S.mpMapOpen; render(); break;
     case 'em-undo': { S.emDone = S.emDone || {}; delete S.emDone[d.id]; try { localStorage.setItem('chuster-em-done-v1', JSON.stringify(S.emDone)); } catch (e) { } render(); break; }
     case 'email-connect': { const addr = String(S.ecDraft || '').trim(); if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(addr)) { toast('Enter a valid email address.'); break; } S.emailConn = S.emailConn || {}; const me = emMe(); const rec = { email: addr, by: byName(), at: nowIso() }; S.emailConn[me] = rec; saveEC(); try { SYNC.put('ec', me, rec); } catch (e) { } S.ecDraft = ''; toast('Email connected — pulling your mail in.'); keep(); break; }
     case 'count-toggle': S.countMode = !S.countMode; if (S.countMode) { S.invFilter = 'allprod'; S.invSel = null; S.invEdit = null; } keep(); break;
@@ -9132,6 +9283,7 @@ document.addEventListener('change', e => {
   if (cl.contains('d-truck')) { const k = t.dataset.k; S.dstat[k] = Object.assign({}, S.dstat[k] || {}, { truck: +t.value }); saveDstat(); dsShare(k); render(); }
   if (cl.contains('tk-driver')) { const i = +t.dataset.i; if (S.trucks[i]) { S.trucks[i].driver = t.value.trim(); save(); render(); toast(S.trucks[i].driver ? S.trucks[i].name + ' → ' + S.trucks[i].driver : 'Driver cleared.'); } }
   if (cl.contains('ac-via-sel')) { S.acVia = t.value; if (S.acRes) acCheck(); else render(); return; }
+  if (cl.contains('mp-map')) { const lab = t.dataset.lab; const map = Object.assign({}, printMapRaw()); if (t.value) map[lab] = t.value; else delete map[lab]; S.mpMap = map; try { localStorage.setItem('chuster-mpmap-v1', JSON.stringify(map)); } catch (e) { } try { SYNC.put('mp', 'map', map); } catch (e) { } render(); toast(t.value ? 'Matched to ' + t.value : 'Match cleared.'); return; }
   if (t.id === 'ds-start') { S.dsched.start = t.value.trim(); saveLS('chuster-dsched-v1', S.dsched); SYNC.put('sc', 'all', S.dsched); toast('Start address saved.'); return; }
   if (t.id === 'ds-cap') { S.dsched.cap = parseInt(t.value, 10) || 0; saveLS('chuster-dsched-v1', S.dsched); SYNC.put('sc', 'all', S.dsched); return; }
   if (['ds-th', 'ds-twt', 'ds-tl', 'ds-twd'].includes(t.id)) { const key = { 'ds-th': 'truckH', 'ds-twt': 'truckWt', 'ds-tl': 'truckL', 'ds-twd': 'truckWd' }[t.id]; const v = parseFloat(t.value); if (v > 0) S.dsched[key] = v; else delete S.dsched[key]; saveLS('chuster-dsched-v1', S.dsched); SYNC.put('sc', 'all', S.dsched); return; }
