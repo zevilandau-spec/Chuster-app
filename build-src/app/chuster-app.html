@@ -2226,11 +2226,17 @@ function renderPrinter() {
     <td class="num" style="text-align:right;color:${r.stock != null && r.stock < 0 ? 'var(--bad-text)' : 'var(--muted)'}">${r.stock != null ? fn(r.stock) : '—'}</td>
     <td class="num" style="text-align:right;font-weight:700">${r.stock != null ? fn(r.stock + r.n) : '—'}</td>
   </tr>`).join('');
+  const emptyRow = total > 0
+    ? `<tr><td colspan="4" class="sub" style="padding:10px 0">${fn(total)} boxes today — match the ${unmapped.length} label${unmapped.length > 1 ? 's' : ''} below to see them here.</td></tr>`
+    : `<tr><td colspan="4" class="sub" style="padding:10px 0">No boxes recorded for this day.</td></tr>`;
 
   const unmappedBlock = unmapped.length ? `<div style="margin-top:12px;padding:12px 14px;border:1px solid #f59e0b55;background:#f59e0b14;border-radius:12px">
     <div style="font-weight:700;margin-bottom:6px">${unmapped.length} label${unmapped.length > 1 ? 's' : ''} not matched to a product yet</div>
-    <div class="sub" style="margin:0 0 8px">These boxes were printed but the app doesn't know which product the label is. Match them below and their counts will show up here.</div>
-    ${unmapped.map(u => `<div class="sub" style="margin:2px 0">• <b>${esc(u.lab)}</b> — ${fn(u.n)} printed${u.guess ? ' · looks like <b>' + esc(prodName(u.guess)) + '</b>' : ''}</div>`).join('')}
+    <div class="sub" style="margin:0 0 10px">These boxes were printed but the app doesn't know which product the label is. Tap to match — then they jump into the list above.</div>
+    ${unmapped.map(u => `<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:6px 0">
+      <div class="sub" style="margin:0;flex:1;min-width:150px">• <b>${esc(u.lab)}</b> — ${fn(u.n)} printed${u.guess ? ' · looks like <b>' + esc(prodName(u.guess)) + '</b>' : ''}</div>
+      ${u.guess ? `<button class="btn primary" data-act="mp-usematch" data-lab="${esc(u.lab)}" data-key="${esc(u.guess)}" style="padding:5px 12px;font-size:13px;white-space:nowrap">✓ Match to ${esc(prodName(u.guess))}</button>` : `<button class="btn ghost" data-act="mp-maptoggle" style="padding:5px 12px;font-size:13px;white-space:nowrap">Match…</button>`}
+    </div>`).join('')}
   </div>` : '';
 
   // ---- day chips ----
@@ -2286,7 +2292,7 @@ function renderPrinter() {
     ${days.length > 1 ? `<div style="display:flex;gap:6px;flex-wrap:wrap;margin:4px 0 12px">${dayChips}</div>` : ''}
     <table style="width:100%;border-collapse:collapse">
       <tr style="text-align:left"><th style="padding:6px 0">Product</th><th class="num" style="text-align:right">Printed</th><th class="num" style="text-align:right">In stock</th><th class="num" style="text-align:right">With today</th></tr>
-      ${tableRows || '<tr><td colspan="4" class="sub" style="padding:10px 0">No boxes recorded for this day.</td></tr>'}
+      ${tableRows || emptyRow}
     </table>
     <p class="sub" style="margin:10px 0 0;font-size:12px"><b>In stock</b> is your QuickBooks number. <b>With today</b> adds the boxes you just made (not yet entered in QuickBooks) so you can see what you really have on the floor.</p>
     ${unmappedBlock}
@@ -9034,6 +9040,7 @@ document.addEventListener('click', e => {
     case 'mp-day': S.mpDay = d.day; render(); break;
     case 'mp-maptoggle': S.mpMapOpen = !S.mpMapOpen; render(); break;
     case 'mp-tobill': { if (qwFromProduction()) { S.qbTab = 'wait'; go('toqb'); } break; }
+    case 'mp-usematch': { const map = Object.assign({}, printMapRaw()); map[d.lab] = d.key; S.mpMap = map; try { localStorage.setItem('chuster-mpmap-v1', JSON.stringify(map)); } catch (e) { } try { SYNC.put('mp', 'map', map); } catch (e) { } render(); toast('Matched to ' + prodName(d.key)); break; }
     case 'em-undo': { S.emDone = S.emDone || {}; delete S.emDone[d.id]; try { localStorage.setItem('chuster-em-done-v1', JSON.stringify(S.emDone)); } catch (e) { } render(); break; }
     case 'email-connect': { const addr = String(S.ecDraft || '').trim(); if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(addr)) { toast('Enter a valid email address.'); break; } S.emailConn = S.emailConn || {}; const me = emMe(); const rec = { email: addr, by: byName(), at: nowIso() }; S.emailConn[me] = rec; saveEC(); try { SYNC.put('ec', me, rec); } catch (e) { } S.ecDraft = ''; toast('Email connected — pulling your mail in.'); keep(); break; }
     case 'count-toggle': S.countMode = !S.countMode; if (S.countMode) { S.invFilter = 'allprod'; S.invSel = null; S.invEdit = null; } keep(); break;
