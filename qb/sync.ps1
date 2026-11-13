@@ -339,6 +339,25 @@ function Add-ToQB($o) {
       return [ordered]@{ num = (T $ret 'RefNumber'); txn = (T $ret 'TxnID'); amt = (Money (N $ret 'TotalAmount')); unused = (Money (N $ret 'UnusedPayment')) }
     }
   }
+  if ($o.kind -eq 'bill') {
+    # A $0 production bill: brings finished boxes into inventory as quantity only (Cost 0), never money.
+    $vendor = '<VendorRef><FullName>' + (X ([string]$o.v)) + '</FullName></VendorRef>'
+    $terms = if ($o.terms) { '<TermsRef><FullName>' + (X ([string]$o.terms)) + '</FullName></TermsRef>' } else { '' }
+    $site = if ($o.site) { '<InventorySiteRef><FullName>' + (X ([string]$o.site)) + '</FullName></InventorySiteRef>' } else { '' }
+    $lines = ''
+    foreach ($l in @($o.lines)) {
+      if (-not $l -or -not $l[0]) { continue }
+      $q = [double]$l[1]; if ($q -le 0) { continue }
+      # qbXML ItemLineAdd order: ItemRef, InventorySiteRef, Quantity, Cost
+      $lines += '<ItemLineAdd><ItemRef><FullName>' + (X ([string]$l[0])) + '</FullName></ItemRef>' + $site + '<Quantity>' + (Q $q) + '</Quantity><Cost>0.00</Cost></ItemLineAdd>'
+    }
+    if (-not $lines) { throw 'There are no items on it.' }
+    # BillAdd child order: VendorRef, TxnDate, TermsRef, Memo, ItemLineAdd
+    $x = QB-Do 'BillAddRq' ('<BillAddRq requestID="1"><BillAdd>' + $vendor + $date + $terms + '<Memo>' + $memo + '</Memo>' + $lines + '</BillAdd></BillAddRq>')
+    $rs = Rs $x 'BillAddRs'; Check $rs ''
+    $ret = $rs.SelectSingleNode('BillRet')
+    return [ordered]@{ num = (T $ret 'RefNumber'); txn = (T $ret 'TxnID'); amt = (Money (N $ret 'AmountDue')) }
+  }
   throw "Unknown kind: $($o.kind)"
 }
 # Makes every approved item that isn't in QuickBooks yet. Only downloads what changed since last time.

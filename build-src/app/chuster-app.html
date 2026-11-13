@@ -1932,6 +1932,7 @@ function renderSalesReport() {
 
 // What's new — a running list of what shipped, newest first. r: role that sees it (Owner-only if set).
 const CHANGELOG = [
+  { d: '2026-11-12', t: 'Box printer → QuickBooks production bill', b: "On the Box printer screen, a “Send to QuickBooks” button files today’s production as a $0 bill (quantities only — brings the boxes into stock, never touches money), exactly like you enter it by hand: vendor Chuster Packaging Retail, Net 30, site 01 Chuster, cost 0.00. It waits in To QuickBooks for your OK before anything posts. Match each printer label to its product once (the list now shows code, pack size and loose/case so you pick the right one).", r: 'Owner' },
   { d: '2026-11-12', t: 'Box printer: live box counts', b: "New Box printer screen (under Packing / Warehouse). Every box the Markoprint prints is counted automatically, by product \u2014 no more counting by hand. See what's running now, how many of each product were made today, and your stock plus today's production. Match each printer label to a product once and it remembers. Goes fully live once the factory PC is set to push its counts up.", r: 'Owner' },
   { d: '2026-11-12', t: 'Email inbox: tap to open & clear', b: "Tap an email to open it in Outlook, and hit \u201c\u2713 Done\u201d to clear ones you\u2019ve handled (they move to a Cleared list you can undo).", r: 'Owner' },
   { d: '2026-11-12', t: 'Truck route: traffic, options & turn-by-turn', b: "Check address now routes with LIVE traffic, shows a few truck-legal route options to pick from (each with its own miles & time), lets you force a crossing with \u201cGo via\u201d (GW Bridge, Verrazzano, Goethals, Lincoln/Holland Tunnel, RFK), and lists the turn-by-turn roads for the route you pick.", r: 'Owner' },
@@ -2254,6 +2255,24 @@ function renderPrinter() {
     <div class="sub" style="margin:0">This is the real count from your Markoprint report (Nov 12). Once the factory PC is set to push live, this screen turns <b style="color:#15803d">green</b> and updates by itself as boxes print — no counting by hand.</div>
   </div>` : '';
 
+  // ---- QuickBooks production bill (today only) ----
+  const isToday = day === isoOf(TODAY);
+  const billLines = isToday ? mpBillLines(day) : [];
+  const billBoxes = billLines.reduce((s, l) => s + l[1], 0);
+  const billUnmapped = isToday ? Object.keys(labels).reduce((s, lab) => s + (printProd(lab) ? 0 : (labels[lab] || 0)), 0) : 0;
+  const billExists = isToday && mpBillExists(day);
+  const canBill = S.role === 'Owner' || S.role === 'Office';
+  const qbSection = (!isToday || !canBill) ? '' : `
+  <section class="card">
+    <div class="card-head"><h2 style="margin:0">Send to QuickBooks</h2></div>
+    <p class="sub" style="margin:0 0 10px">Files today’s production into QuickBooks as a <b>$0 bill</b> — quantities only, so it brings the boxes into your stock and never touches money. You review it and tap Send before anything posts.</p>
+    ${billExists
+      ? `<div style="padding:10px 12px;border:1px solid #16a34a55;background:#16a34a14;border-radius:10px;margin-bottom:10px">Today’s production bill is already waiting in <b>To QuickBooks</b>.</div><a class="btn ghost" href="#toqb" data-go="toqb">Open To QuickBooks</a>`
+      : billLines.length
+        ? `<button class="btn primary" data-act="mp-tobill" style="width:100%">Send ${billLines.length} product${billLines.length > 1 ? 's' : ''} · ${fn(billBoxes)} boxes to QuickBooks</button>${billUnmapped ? `<p class="sub" style="margin:8px 0 0">${fn(billUnmapped)} box${billUnmapped > 1 ? 'es are' : ' is'} on labels not matched yet — match them below to include them.</p>` : ''}`
+        : `<p class="sub" style="margin:0">Match your printer labels to products first (below), then today’s boxes can go to QuickBooks.</p>`}
+  </section>`;
+
   return `
   <section class="card">
     <div class="card-head" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap"><h2 style="margin:0">Box printer</h2>${pill}<span class="sub" style="margin:0;flex:1;min-width:140px">${pillNote}</span></div>
@@ -2272,6 +2291,7 @@ function renderPrinter() {
     <p class="sub" style="margin:10px 0 0;font-size:12px"><b>In stock</b> is your QuickBooks number. <b>With today</b> adds the boxes you just made (not yet entered in QuickBooks) so you can see what you really have on the floor.</p>
     ${unmappedBlock}
   </section>
+  ${qbSection}
 
   <section class="card">
     <button class="btn ghost" data-act="mp-maptoggle" style="width:100%;text-align:left">${S.mpMapOpen ? '▾' : '▸'} Match printer labels to products${labelList.length ? ' (' + labelList.length + ')' : ''}</button>
@@ -8254,7 +8274,7 @@ SYNC.on('pq', (k, v) => { if (v == null) delete S.pkOrder[k]; else S.pkOrder[k] 
 SYNC.on('qw', (k, v) => { if (v == null) delete S.qw[k]; else S.qw[k] = v; saveLS('chuster-qw-v1', S.qw); });
 SYNC.on('qr', (k, v) => { const was = S.qr[k]; if (v == null) delete S.qr[k]; else S.qr[k] = v; saveLS('chuster-qr-v1', S.qr);
   if (v && v.st === 'done' && (!was || was.st !== 'done') && S.qw[k]) toast(`In QuickBooks: ${QB_KIND[S.qw[k].kind]} #${v.num || ''} for ${S.qw[k].c}`); });
-const QB_KIND = { inv: 'Invoice', invmod: 'Invoice change', invvoid: 'Cancel invoice', pay: 'Payment', cm: 'Credit memo' };
+const QB_KIND = { inv: 'Invoice', invmod: 'Invoice change', invvoid: 'Cancel invoice', pay: 'Payment', cm: 'Credit memo', bill: 'Production bill' };
 const qwId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 const nowIso = () => { const n = new Date(); return isoOf(TODAY) + 'T' + String(n.getHours()).padStart(2, '0') + ':' + String(n.getMinutes()).padStart(2, '0'); };
 function qwSave(rec) { if (S.testMode && rec.test == null) rec.test = true; rec.upd = Date.now(); S.qw[rec.id] = rec; saveLS('chuster-qw-v1', S.qw); if (!rec.test) SYNC.put('qw', rec.id, rec); }
@@ -8315,6 +8335,32 @@ function qwFromOrder(loc) {
   S.orderShip = null; S.orderLoc = null; S.shipCalOpen = false;
   return true;
 }
+// Production bill: today's printed boxes (matched to products) -> a $0 Bill in QuickBooks that only
+// raises on-hand quantities. Vendor/site/terms match how Zevi enters it by hand. Waits for his OK first.
+const MP_VENDOR = 'Chuster Packaging Retail';
+const MP_SITE = '01 Chuster';
+function mpBillLines(day) {
+  const data = printAll().data, labels = (data[day] || {}).labels || {}, agg = {};
+  Object.keys(labels).forEach(lab => {
+    const k = printProd(lab), n = labels[lab] || 0; if (!k || !n) return;
+    const ci = prodByKey(k); const full = ci ? (ci.full || ci.name) : k; if (!full) return;
+    agg[full] = (agg[full] || 0) + n;
+  });
+  return Object.keys(agg).map(full => [full, agg[full], 0]);
+}
+function mpBillExists(day) { return Object.values(S.qw || {}).some(r => r && r.kind === 'bill' && r.d === day && r.st !== 'cancel'); }
+function qwFromProduction() {
+  if (!REAL) { toast('This works with your real numbers only.'); return false; }
+  if (!SYNC.ready()) { toast('Set up the shared database first (Tools).'); return false; }
+  const day = isoOf(TODAY);
+  if (mpBillExists(day)) { toast("Today's production bill is already in To QuickBooks."); return true; }
+  const lines = mpBillLines(day);
+  if (!lines.length) { toast('Match your printer labels to products first, then try again.'); return false; }
+  const boxes = lines.reduce((s, l) => s + l[1], 0);
+  qwSave({ id: qwId(), kind: 'bill', st: 'wait', try: 0, v: MP_VENDOR, c: MP_VENDOR, d: day, terms: 'Net 30', site: MP_SITE, lines, total: 0, boxes, memo: 'Production ' + fmtShort(TODAY), by: byName(), at: nowIso(), okBy: byName(), okAt: nowIso() });
+  toast('Bill ready — review it and tap “Send to QuickBooks”.');
+  return true;
+}
 // where the salesman was when the order was sent (owner & office only)
 function ordLocLine(rec) {
   if (!rec || rec.kind !== 'inv' || !rec.loc || S.role !== 'Owner') return '';
@@ -8331,8 +8377,8 @@ function qwCard(rec) {
   const pay = rec.kind === 'pay' ? `<div class="sub" style="margin:0">${esc(rec.method || '')}${rec.ref ? ' #' + esc(rec.ref) : ''} · ${rec.apply && rec.apply.length ? 'applied to ' + rec.apply.map(a => '#' + esc(a[2] || '') + ' ' + money(a[1])).join(', ') : 'QuickBooks applies it to the oldest invoices'}</div>` : '';
   const can = canSend(rec.kind);
   return `<article class="card stack qw-card qw-${s}">
-    <div class="qw-top"><span class="tag ${rec.kind === 'inv' ? 'blue' : rec.kind === 'pay' ? 'green' : 'red'}">${QB_KIND[rec.kind]}</span>${tag}<span class="sub" style="margin:0 0 0 auto;font-size:12px">${esc(rec.by || '')} · ${esc(fmtShort(isoRd(rec.at.slice(0, 10))))} ${esc(rec.at.slice(11, 16))}</span></div>
-    <div class="qw-head"><b>${esc(rec.c)}</b><b class="num">${rec.kind === 'cm' ? '−' : ''}${money(amt || 0)}</b></div>
+    <div class="qw-top"><span class="tag ${rec.kind === 'inv' ? 'blue' : rec.kind === 'pay' ? 'green' : rec.kind === 'bill' ? 'gold' : 'red'}">${QB_KIND[rec.kind]}</span>${tag}<span class="sub" style="margin:0 0 0 auto;font-size:12px">${esc(rec.by || '')} · ${esc(fmtShort(isoRd(rec.at.slice(0, 10))))} ${esc(rec.at.slice(11, 16))}</span></div>
+    <div class="qw-head"><b>${esc(rec.c)}</b><b class="num">${rec.kind === 'bill' ? (fnu(rec.boxes || 0) + ' boxes · $0') : (rec.kind === 'cm' ? '−' : '') + money(amt || 0)}</b></div>
     ${pay}${lines ? `<div class="qw-lines">${lines}</div>` : ''}
     ${rec.memo ? `<div class="sub" style="margin:0">${esc(rec.memo)}</div>` : ''}
     ${ordLocLine(rec)}
@@ -8987,6 +9033,7 @@ document.addEventListener('click', e => {
     case 'em-done': { S.emDone = S.emDone || {}; S.emDone[d.id] = 1; try { localStorage.setItem('chuster-em-done-v1', JSON.stringify(S.emDone)); } catch (e) { } render(); break; }
     case 'mp-day': S.mpDay = d.day; render(); break;
     case 'mp-maptoggle': S.mpMapOpen = !S.mpMapOpen; render(); break;
+    case 'mp-tobill': { if (qwFromProduction()) { S.qbTab = 'wait'; go('toqb'); } break; }
     case 'em-undo': { S.emDone = S.emDone || {}; delete S.emDone[d.id]; try { localStorage.setItem('chuster-em-done-v1', JSON.stringify(S.emDone)); } catch (e) { } render(); break; }
     case 'email-connect': { const addr = String(S.ecDraft || '').trim(); if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(addr)) { toast('Enter a valid email address.'); break; } S.emailConn = S.emailConn || {}; const me = emMe(); const rec = { email: addr, by: byName(), at: nowIso() }; S.emailConn[me] = rec; saveEC(); try { SYNC.put('ec', me, rec); } catch (e) { } S.ecDraft = ''; toast('Email connected — pulling your mail in.'); keep(); break; }
     case 'count-toggle': S.countMode = !S.countMode; if (S.countMode) { S.invFilter = 'allprod'; S.invSel = null; S.invEdit = null; } keep(); break;
