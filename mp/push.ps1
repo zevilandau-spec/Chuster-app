@@ -2,18 +2,21 @@
 # Reads the Markoprint logger's CSV on this PC and sends today's box counts to the Chuster app, so the
 # app's "Box printer" screen shows live counts from anywhere. Read-only on the CSV; it never changes the
 # printer or the logger. Sends only counts (label name + how many boxes) over HTTPS to the app's own
-# address. Runs every minute from Windows Task Scheduler.
+# address.
 #
-# Setup (Nexivity):
+#   -Once    send one update now (for testing)
+#   -Watch   stay running and send every ~10 seconds (this is what -Install sets up)
+#   -Install register it to run in -Watch mode at startup, as SYSTEM, and restart itself if it stops
+#
+# Setup (Nexivity or Zevi):
 #   1) Put push.ps1 + config.json in  C:\ProgramData\MarkoprintLog\  (next to the existing logger).
 #   2) Edit config.json: set "secret" to the value Zevi gives you. Leave "url" as is.
-#   3) Run once elevated:   powershell -NoProfile -ExecutionPolicy Bypass -File "C:\ProgramData\MarkoprintLog\push.ps1" -Install
-#   4) Test:                powershell -NoProfile -ExecutionPolicy Bypass -File "C:\ProgramData\MarkoprintLog\push.ps1" -Once
-#      A healthy test prints  OK  and the number of labels sent.
+#   3) Test:     powershell -NoProfile -ExecutionPolicy Bypass -File "C:\ProgramData\MarkoprintLog\push.ps1" -Once
+#   4) Install:  powershell -NoProfile -ExecutionPolicy Bypass -File "C:\ProgramData\MarkoprintLog\push.ps1" -Install
 #   CrowdStrike: same folder as the logger, so the existing MarkoprintLog exclusion covers it. Start it by
 #   full path (as above), not with .\push.ps1 from an open window, or CrowdStrike will block it.
 
-param([switch]$Install, [switch]$Once)
+param([switch]$Install, [switch]$Once, [switch]$Watch)
 $ErrorActionPreference = 'Stop'
 try { [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 } catch { }
 
@@ -21,6 +24,7 @@ $Here     = Split-Path -Parent $MyInvocation.MyCommand.Path
 $CfgPath  = Join-Path $Here 'config.json'
 $LogPath  = Join-Path $Here 'push-log.txt'
 $TaskName = 'Chuster Box-Print Pusher'
+$Interval = 10   # seconds between sends in -Watch mode
 
 function Log([string]$m) {
   $line = (Get-Date -Format 'yyyy-MM-dd HH:mm:ss') + '  ' + $m
@@ -42,55 +46,64 @@ if (-not $cfg.url)       { throw 'config.json: url is missing' }
 if (-not $cfg.secret -or $cfg.secret -eq 'PASTE-SECRET-FROM-ZEVI') { throw 'config.json: set "secret" to the value Zevi gave you' }
 $csvFolder = if ($cfg.csvFolder) { [string]$cfg.csvFolder } else { $Here }
 
-# ---------- install the scheduled task ----------
+# ---------- install the scheduled task (runs -Watch at startup, restarts if it stops) ----------
 if ($Install) {
   $ps  = (Get-Command powershell.exe).Source
-  $arg = '-NoProfile -ExecutionPolicy Bypass -File "' + (Join-Path $Here 'push.ps1') + '" -Once'
+  $arg = '-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "' + (Join-Path $Here 'push.ps1') + '" -Watch'
   $act = New-ScheduledTaskAction -Execute $ps -Argument $arg
-  # every 1 minute, forever, starting at the next whole minute
-  $trg = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(1) -RepetitionInterval (New-TimeSpan -Minutes 1)
+  $trg = New-ScheduledTaskTrigger -AtStartup
   $pr  = New-ScheduledTaskPrincipal -UserId 'SYSTEM' -LogonType ServiceAccount -RunLevel Highest
-  $set = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable -MultipleInstances IgnoreNew -ExecutionTimeLimit (New-TimeSpan -Minutes 4)
+  $set = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable -MultipleInstances IgnoreNew -RestartInterval (New-TimeSpan -Minutes 1) -RestartCount 999 -ExecutionTimeLimit ([TimeSpan]::Zero)
   Register-ScheduledTask -TaskName $TaskName -Action $act -Trigger $trg -Principal $pr -Settings $set -Force | Out-Null
-  Log "Installed scheduled task '$TaskName' (every minute, as SYSTEM)."
+  try { Start-ScheduledTask -TaskName $TaskName } catch { }
+  Log "Installed scheduled task '$TaskName' (stay-running, every $Interval sec, as SYSTEM) and started it."
   return
 }
 
-# ---------- find the newest monthly CSV the logger writes ----------
-$csv = Get-ChildItem -Path $csvFolder -Filter 'prints-*.csv' -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1
-if (-not $csv) { Log "No prints-*.csv found in $csvFolder - nothing to send yet."; return }
+# ---------- one send ----------
+function Send-Once {
+  $csv = Get-ChildItem -Path $csvFolder -Filter 'prints-*.csv' -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+  if (-not $csv) { return @{ ok = $false; sig = 'nocsv'; msg = "No prints-*.csv in $csvFolder" } }
+  $rows = @(Import-Csv -Path $csv.FullName)
+  if (-not $rows -or $rows.Count -eq 0) { return @{ ok = $false; sig = 'empty'; msg = 'CSV empty' } }
 
-$rows = @(Import-Csv -Path $csv.FullName)
-if (-not $rows -or $rows.Count -eq 0) { Log "CSV is empty - nothing to send."; return }
-
-$today = Get-Date -Format 'yyyy-MM-dd'
-
-# today's boxes per label
-$labels = @{}
-foreach ($r in $rows) {
-  if ([string]$r.Date -ne $today) { continue }
-  $lab = ([string]$r.Label).Trim()
-  if (-not $lab) { continue }
-  $n = 0; [void][int]::TryParse(([string]$r.PrintsAdded), [ref]$n)
-  if ($n -gt 0) { if ($labels.ContainsKey($lab)) { $labels[$lab] += $n } else { $labels[$lab] = $n } }
+  $today = Get-Date -Format 'yyyy-MM-dd'
+  $labels = @{}
+  foreach ($r in $rows) {
+    if ([string]$r.Date -ne $today) { continue }
+    $lab = ([string]$r.Label).Trim(); if (-not $lab) { continue }
+    $n = 0; [void][int]::TryParse(([string]$r.PrintsAdded), [ref]$n)
+    if ($n -gt 0) { if ($labels.ContainsKey($lab)) { $labels[$lab] += $n } else { $labels[$lab] = $n } }
+  }
+  $last = $rows[$rows.Count - 1]; $now = $null
+  if ($last -and ([string]$last.Label).Trim()) {
+    $cnt = 0; [void][int]::TryParse(([string]$last.PrinterCounter), [ref]$cnt)
+    $t = (([string]$last.Time) -replace '[^0-9:]', '')
+    $now = @{ label = ([string]$last.Label).Trim(); state = 0; counter = $cnt; at = (([string]$last.Date) + 'T' + $t) }
+  }
+  $bodyJson = (@{ day = $today; labels = $labels; now = $now } | ConvertTo-Json -Depth 5 -Compress)
+  $sum = ($labels.Values | Measure-Object -Sum).Sum
+  $sig = "$today|$sum|" + $(if ($now) { $now.label + '|' + $now.counter } else { '' })
+  try {
+    [void](Invoke-RestMethod -Uri ([string]$cfg.url) -Method Post -Body $bodyJson -ContentType 'application/json' -Headers @{ 'x-print-secret' = [string]$cfg.secret } -TimeoutSec 20)
+    return @{ ok = $true; sig = $sig; msg = ("OK  " + $labels.Count + " label(s), " + $sum + " boxes today" + $(if ($now) { " - running '" + $now.label + "' (" + $now.counter + ")" } else { "" })) }
+  } catch {
+    return @{ ok = $false; sig = 'err'; msg = ("SEND FAILED: " + $_.Exception.Message) }
+  }
 }
 
-# "running now" = the last line in the file
-$last = $rows[$rows.Count - 1]
-$now = $null
-if ($last -and ([string]$last.Label).Trim()) {
-  $cnt = 0; [void][int]::TryParse(([string]$last.PrinterCounter), [ref]$cnt)
-  $t = (([string]$last.Time) -replace '[^0-9:]', '')
-  $at = ([string]$last.Date) + 'T' + $t
-  $now = @{ label = ([string]$last.Label).Trim(); state = 0; counter = $cnt; at = $at }
+# ---------- stay-running mode: send every ~$Interval seconds, log only on change or error ----------
+if ($Watch) {
+  Log "Watch started - sending every $Interval sec."
+  $lastSig = ''
+  while ($true) {
+    $r = Send-Once
+    if (-not $r.ok) { Log $r.msg }
+    elseif ($r.sig -ne $lastSig) { Log $r.msg; $lastSig = $r.sig }
+    Start-Sleep -Seconds $Interval
+  }
 }
 
-$payload = @{ day = $today; labels = $labels; now = $now }
-$bodyJson = $payload | ConvertTo-Json -Depth 5 -Compress
-
-try {
-  $resp = Invoke-RestMethod -Uri ([string]$cfg.url) -Method Post -Body $bodyJson -ContentType 'application/json' -Headers @{ 'x-print-secret' = [string]$cfg.secret } -TimeoutSec 20
-  Log ("OK  sent " + $labels.Count + " label(s), " + (($labels.Values | Measure-Object -Sum).Sum) + " boxes today" + $(if ($now) { " - running '" + $now.label + "' (" + $now.counter + ")" } else { "" }))
-} catch {
-  Log ("SEND FAILED: " + $_.Exception.Message)
-}
+# ---------- default / -Once ----------
+$r = Send-Once
+Log $r.msg

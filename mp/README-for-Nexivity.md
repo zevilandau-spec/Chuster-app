@@ -6,8 +6,8 @@ counting by hand.
 
 **How it fits your existing setup:** your logger keeps doing exactly what it does now (reads the printer,
 writes `prints-YYYY-MM.csv`). This adds one small read-only companion, `push.ps1`, that reads that same
-CSV once a minute and POSTs today's counts to the app. It does **not** touch the printer, the logger, or
-the CSV. Think of it like the office PC's QuickBooks sync, but for box counts.
+CSV every ~10 seconds and POSTs today's counts to the app. It does **not** touch the printer, the logger,
+or the CSV. Think of it like the office PC's QuickBooks sync, but for box counts.
 
 Data flow:
 
