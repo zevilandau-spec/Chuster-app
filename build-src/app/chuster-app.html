@@ -1932,6 +1932,7 @@ function renderSalesReport() {
 
 // What's new — a running list of what shipped, newest first. r: role that sees it (Owner-only if set).
 const CHANGELOG = [
+  { d: '2026-11-14', t: 'Box printer: pick any day', b: "New 📅 date picker on the Box printer screen — choose any date to see what was packed that day and how much, by product. Recent days are also one tap away.", r: 'Owner' },
   { d: '2026-11-14', t: 'Box printer: pick products like an order', b: "Matching a printer label now opens a product picker that works just like building an order — search by name/code/group, filter by group chips, and tap the product from the grouped, color-coded list. No more scrolling a long dropdown.", r: 'Owner' },
   { d: '2026-11-12', t: 'Box printer → QuickBooks production bill', b: "On the Box printer screen, a “Send to QuickBooks” button files today’s production as a $0 bill (quantities only — brings the boxes into stock, never touches money), exactly like you enter it by hand: vendor Chuster Packaging Retail, Net 30, site 01 Chuster, cost 0.00. It waits in To QuickBooks for your OK before anything posts. Match each printer label to its product once (the list now shows code, pack size and loose/case so you pick the right one).", r: 'Owner' },
   { d: '2026-11-12', t: 'Box printer: live box counts', b: "New Box printer screen (under Packing / Warehouse). Every box the Markoprint prints is counted automatically, by product \u2014 no more counting by hand. See what's running now, how many of each product were made today, and your stock plus today's production. Match each printer label to a product once and it remembers. Goes fully live once the factory PC is set to push its counts up.", r: 'Owner' },
@@ -2229,7 +2230,8 @@ function renderPrinter() {
   if (S.mpPickFor) return mpPicker(S.mpPickFor);
   const A = printAll(), data = A.data, live = A.live;
   const days = printDays(data);
-  const day = (S.mpDay && days.includes(S.mpDay)) ? S.mpDay : (days[0] || isoOf(TODAY));
+  const day = S.mpDay || days[0] || isoOf(TODAY);
+  const isToday = day === isoOf(TODAY);
   const dayObj = data[day] || { labels: {} };
   const labels = dayObj.labels || {};
   const now = data.now || null;
@@ -2272,12 +2274,13 @@ function renderPrinter() {
   const tableRows = rows.map(r => `<tr>
     <td style="font-weight:600">${r.swatch || ''}${esc(r.prod)}<div class="sub" style="margin:0;font-size:11px">${esc(r.lab)}</div></td>
     <td class="num" style="text-align:right;font-weight:800;font-size:16px">${fn(r.n)}</td>
-    <td class="num" style="text-align:right;color:${r.stock != null && r.stock < 0 ? 'var(--bad-text)' : 'var(--muted)'}">${r.stock != null ? fn(r.stock) : '—'}</td>
-    <td class="num" style="text-align:right;font-weight:700">${r.stock != null ? fn(r.stock + r.n) : '—'}</td>
+    ${isToday ? `<td class="num" style="text-align:right;color:${r.stock != null && r.stock < 0 ? 'var(--bad-text)' : 'var(--muted)'}">${r.stock != null ? fn(r.stock) : '—'}</td>
+    <td class="num" style="text-align:right;font-weight:700">${r.stock != null ? fn(r.stock + r.n) : '—'}</td>` : ''}
   </tr>`).join('');
+  const cols = isToday ? 4 : 2;
   const emptyRow = total > 0
-    ? `<tr><td colspan="4" class="sub" style="padding:10px 0">${fn(total)} boxes today — match the ${unmapped.length} label${unmapped.length > 1 ? 's' : ''} below to see them here.</td></tr>`
-    : `<tr><td colspan="4" class="sub" style="padding:10px 0">No boxes recorded for this day.</td></tr>`;
+    ? `<tr><td colspan="${cols}" class="sub" style="padding:10px 0">${fn(total)} boxes ${isToday ? 'today' : 'that day'} — match the ${unmapped.length} label${unmapped.length > 1 ? 's' : ''} below to see them here.</td></tr>`
+    : `<tr><td colspan="${cols}" class="sub" style="padding:10px 0">No boxes recorded for this day.</td></tr>`;
 
   const unmappedBlock = unmapped.length ? `<div style="margin-top:12px;padding:12px 14px;border:1px solid #f59e0b55;background:#f59e0b14;border-radius:12px">
     <div style="font-weight:700;margin-bottom:6px">${unmapped.length} label${unmapped.length > 1 ? 's' : ''} not matched to a product yet</div>
@@ -2311,7 +2314,6 @@ function renderPrinter() {
   </div>` : '';
 
   // ---- QuickBooks production bill (today only) ----
-  const isToday = day === isoOf(TODAY);
   const billLines = isToday ? mpBillLines(day) : [];
   const billBoxes = billLines.reduce((s, l) => s + l[1], 0);
   const billUnmapped = isToday ? Object.keys(labels).reduce((s, lab) => s + (printProd(lab) ? 0 : (labels[lab] || 0)), 0) : 0;
@@ -2338,12 +2340,16 @@ function renderPrinter() {
 
   <section class="card">
     <div class="card-head"><h2 style="margin:0">Made ${day === isoOf(TODAY) ? 'today' : 'on ' + esc(fmtShort(isoRd(day)))}</h2><div style="font-size:22px;font-weight:800">${fn(total)}<span class="sub" style="font-weight:600;font-size:12px"> boxes</span></div></div>
-    ${days.length > 1 ? `<div style="display:flex;gap:6px;flex-wrap:wrap;margin:4px 0 12px">${dayChips}</div>` : ''}
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:4px 0 12px">
+      <label for="mp-date" class="sub" style="margin:0;font-weight:600">📅 Pick a day</label>
+      <input type="date" id="mp-date" value="${day}" max="${isoOf(TODAY)}" class="inp" style="max-width:170px">
+      ${days.length > 1 ? `<div style="display:flex;gap:6px;flex-wrap:wrap">${dayChips}</div>` : ''}
+    </div>
     <table style="width:100%;border-collapse:collapse">
-      <tr style="text-align:left"><th style="padding:6px 0">Product</th><th class="num" style="text-align:right">Printed</th><th class="num" style="text-align:right">In stock</th><th class="num" style="text-align:right">With today</th></tr>
+      <tr style="text-align:left"><th style="padding:6px 0">Product</th><th class="num" style="text-align:right">Packed</th>${isToday ? '<th class="num" style="text-align:right">In stock</th><th class="num" style="text-align:right">With today</th>' : ''}</tr>
       ${tableRows || emptyRow}
     </table>
-    <p class="sub" style="margin:10px 0 0;font-size:12px"><b>In stock</b> is your QuickBooks number. <b>With today</b> adds the boxes you just made (not yet entered in QuickBooks) so you can see what you really have on the floor.</p>
+    ${isToday ? '<p class="sub" style="margin:10px 0 0;font-size:12px"><b>In stock</b> is your QuickBooks number. <b>With today</b> adds the boxes you just made (not yet entered in QuickBooks) so you can see what you really have on the floor.</p>' : ''}
     ${unmappedBlock}
   </section>
   ${qbSection}
@@ -9362,6 +9368,7 @@ document.addEventListener('click', e => {
 });
 document.addEventListener('change', e => {
   const t = e.target; const cl = t.classList;
+  if (t.id === 'mp-date') { S.mpDay = t.value || isoOf(TODAY); render(); return; }
   if (t.id === 'due-date') { S.dueDate = t.value; render(); }
   if (t.id === 'due-net') { S.dueNet = +t.value; render(); }
   if (t.id === 'role') { S.role = t.value;
