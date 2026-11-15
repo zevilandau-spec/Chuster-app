@@ -16,7 +16,7 @@
 #   CrowdStrike: same folder as the logger, so the existing MarkoprintLog exclusion covers it. Start it by
 #   full path (as above), not with .\push.ps1 from an open window, or CrowdStrike will block it.
 
-param([switch]$Install, [switch]$Once, [switch]$Watch)
+param([switch]$Install, [switch]$Once, [switch]$Watch, [string]$Day)
 $ErrorActionPreference = 'Stop'
 try { [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 } catch { }
 
@@ -72,21 +72,39 @@ function Send-Once {
   $rows = @(Import-Csv -Path $csv.FullName)
   if (-not $rows -or $rows.Count -eq 0) { return @{ ok = $false; sig = 'empty'; msg = 'CSV empty' } }
 
-  $today = Get-Date -Format 'yyyy-MM-dd'
-  $labels = @{}
+  # -Day backfills a past date (re-posts that day in packing order); otherwise it's today.
+  $backfill = [bool]$Day
+  $today = if ($backfill) { $Day } else { Get-Date -Format 'yyyy-MM-dd' }
+  # [ordered] keeps labels in the sequence they were FIRST packed (rows are chronological), so the
+  # app can show the day "as packed" instead of biggest-batch-first.
+  $labels = [ordered]@{}
+  $starts = @{}; $ends = @{}   # first/last box time per label that day (HH:MM, 24h)
   foreach ($r in $rows) {
     if ([string]$r.Date -ne $today) { continue }
     $lab = ([string]$r.Label).Trim(); if (-not $lab) { continue }
     $n = 0; [void][int]::TryParse(([string]$r.PrintsAdded), [ref]$n)
-    if ($n -gt 0) { if ($labels.ContainsKey($lab)) { $labels[$lab] += $n } else { $labels[$lab] = $n } }
+    if ($n -gt 0) {
+      if ($labels.Contains($lab)) { $labels[$lab] += $n } else { $labels[$lab] = $n }
+      $hm = ''
+      $p = (([string]$r.Time) -replace '[^0-9:]', '') -split ':'
+      if ($p.Count -ge 2 -and $p[0] -ne '' -and $p[1] -ne '') { $hm = ('{0:00}:{1:00}' -f [int]$p[0], [int]$p[1]) }
+      if ($hm) { if (-not $starts.ContainsKey($lab)) { $starts[$lab] = $hm }; $ends[$lab] = $hm }
+    }
   }
-  $last = $rows[$rows.Count - 1]; $now = $null
-  if ($last -and ([string]$last.Label).Trim()) {
-    $cnt = 0; [void][int]::TryParse(([string]$last.PrinterCounter), [ref]$cnt)
-    $t = (([string]$last.Time) -replace '[^0-9:]', '')
-    $now = @{ label = ([string]$last.Label).Trim(); state = 0; counter = $cnt; at = (([string]$last.Date) + 'T' + $t) }
+  $order = @($labels.Keys)   # packing order (first-seen)
+  $times = [ordered]@{}      # { label: { s = start HH:MM, e = finish HH:MM } }
+  foreach ($k in $order) { $times[$k] = @{ s = [string]$starts[$k]; e = [string]$ends[$k] } }
+  # Don't touch the live "now" line when backfilling an old day.
+  $now = $null
+  if (-not $backfill) {
+    $last = $rows[$rows.Count - 1]
+    if ($last -and ([string]$last.Label).Trim()) {
+      $cnt = 0; [void][int]::TryParse(([string]$last.PrinterCounter), [ref]$cnt)
+      $t = (([string]$last.Time) -replace '[^0-9:]', '')
+      $now = @{ label = ([string]$last.Label).Trim(); state = 0; counter = $cnt; at = (([string]$last.Date) + 'T' + $t) }
+    }
   }
-  $bodyJson = (@{ day = $today; labels = $labels; now = $now } | ConvertTo-Json -Depth 5 -Compress)
+  $bodyJson = (@{ day = $today; labels = $labels; order = $order; times = $times; now = $now } | ConvertTo-Json -Depth 6 -Compress)
   $sum = ($labels.Values | Measure-Object -Sum).Sum
   $sig = "$today|$sum|" + $(if ($now) { $now.label + '|' + $now.counter } else { '' })
   try {

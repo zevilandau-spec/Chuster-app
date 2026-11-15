@@ -1932,6 +1932,7 @@ function renderSalesReport() {
 
 // What's new — a running list of what shipped, newest first. r: role that sees it (Owner-only if set).
 const CHANGELOG = [
+  { d: '2026-11-14', t: 'Box printer: as-packed order + times', b: "The day's product list now reads in the order you actually packed it — first product on top, last at the bottom — instead of biggest batch first. Each product also shows its start–finish time (when the first and last box of that run printed), e.g. 7:05 AM – 9:04 AM. Mondays onward fill in automatically; Thursday & Friday were re-posted so they show it too.", r: 'Owner' },
   { d: '2026-11-14', t: 'Box printer: pick any day', b: "New 📅 date picker on the Box printer screen — choose any date to see what was packed that day and how much, by product. Recent days are also one tap away.", r: 'Owner' },
   { d: '2026-11-14', t: 'Box printer: pick products like an order', b: "Matching a printer label now opens a product picker that works just like building an order — search by name/code/group, filter by group chips, and tap the product from the grouped, color-coded list. No more scrolling a long dropdown.", r: 'Owner' },
   { d: '2026-11-12', t: 'Box printer → QuickBooks production bill', b: "On the Box printer screen, a “Send to QuickBooks” button files today’s production as a $0 bill (quantities only — brings the boxes into stock, never touches money), exactly like you enter it by hand: vendor Chuster Packaging Retail, Net 30, site 01 Chuster, cost 0.00. It waits in To QuickBooks for your OK before anything posts. Match each printer label to its product once (the list now shows code, pack size and loose/case so you pick the right one).", r: 'Owner' },
@@ -2226,6 +2227,8 @@ function mpPicker(label) {
     <div class="list" id="mp-pick-list">${mpPickRows(label)}</div>
   </section>`;
 }
+function hm12(s) { const m = String(s || '').match(/^(\d\d?):(\d\d)$/); if (!m) return ''; let h = +m[1]; const ap = h < 12 ? 'AM' : 'PM'; h = h % 12; if (h === 0) h = 12; return h + ':' + m[2] + ' ' + ap; }
+function timeRange(t) { if (!t) return ''; const s = hm12(t.s), e = hm12(t.e); if (!s && !e) return ''; if (s && e && t.e !== t.s) return s + ' – ' + e; return s || e; }
 function renderPrinter() {
   if (S.mpPickFor) return mpPicker(S.mpPickFor);
   const A = printAll(), data = A.data, live = A.live;
@@ -2266,13 +2269,16 @@ function renderPrinter() {
     const n = labels[lab] || 0, prodK = printProd(lab);
     if (!prodK) { unmapped.push({ lab, n, guess: printGuess(lab) }); return; }
     const ci = prodByKey(prodK);
-    rows.push({ prod: ci ? ci.name : prodK, swatch: prodSwatch(ci), lab, n, stock: ci && typeof ci.stock === 'number' ? ci.stock : null });
+    rows.push({ prod: ci ? ci.name : prodK, swatch: prodSwatch(ci), lab, n, stock: ci && typeof ci.stock === 'number' ? ci.stock : null, times: (dayObj.times || {})[lab] || null });
   });
-  rows.sort((a, b) => b.n - a.n);
+  // Show products in the order they were packed that day (first packed on top), not biggest-batch first.
+  const ord = Array.isArray(dayObj.order) ? dayObj.order : Object.keys(labels);
+  const opos = {}; ord.forEach((l, i) => { if (opos[l] == null) opos[l] = i; });
+  rows.sort((a, b) => (opos[a.lab] == null ? 1e9 : opos[a.lab]) - (opos[b.lab] == null ? 1e9 : opos[b.lab]));
   const total = Object.values(labels).reduce((s, x) => s + (+x || 0), 0);
 
   const tableRows = rows.map(r => `<tr>
-    <td style="font-weight:600">${r.swatch || ''}${esc(r.prod)}<div class="sub" style="margin:0;font-size:11px">${esc(r.lab)}</div></td>
+    <td style="font-weight:600">${r.swatch || ''}${esc(r.prod)}<div class="sub" style="margin:0;font-size:11px">${esc(r.lab)}</div>${timeRange(r.times) ? `<div class="sub" style="margin:1px 0 0;font-size:11px">🕑 ${esc(timeRange(r.times))}</div>` : ''}</td>
     <td class="num" style="text-align:right;font-weight:800;font-size:16px">${fn(r.n)}</td>
     ${isToday ? `<td class="num" style="text-align:right;color:${r.stock != null && r.stock < 0 ? 'var(--bad-text)' : 'var(--muted)'}">${r.stock != null ? fn(r.stock) : '—'}</td>
     <td class="num" style="text-align:right;font-weight:700">${r.stock != null ? fn(r.stock + r.n) : '—'}</td>` : ''}

@@ -29,6 +29,15 @@ export default async (req) => {
   const labelsIn = (body.labels && typeof body.labels === 'object') ? body.labels : {};
   const labels = {};
   Object.keys(labelsIn).slice(0, 200).forEach(k => { const n = Math.round(+labelsIn[k]); if (isFinite(n) && n > 0) labels[clip(k, 60)] = n; });
+  // order: the labels in the sequence they were first packed that day (for "as packed" display).
+  const orderIn = Array.isArray(body.order) ? body.order : [];
+  const order = []; const seen = {};
+  orderIn.slice(0, 200).forEach(k => { const c = clip(k, 60); if (c && labels[c] != null && !seen[c]) { seen[c] = 1; order.push(c); } });
+  // times: { "<label>": { s:"HH:MM", e:"HH:MM" } } — first/last box of the day per product.
+  const timesIn = (body.times && typeof body.times === 'object') ? body.times : {};
+  const hm = v => { const m = String(v || '').match(/^(\d\d?):(\d\d)$/); return m ? m[0] : ''; };
+  const times = {};
+  order.forEach(k => { const t = timesIn[k]; if (t && typeof t === 'object') { const s = hm(t.s), e = hm(t.e); if (s || e) times[k] = { s, e }; } });
   // now: live status line
   const nowIn = body.now && typeof body.now === 'object' ? body.now : null;
   const now = nowIn && nowIn.label ? {
@@ -48,7 +57,7 @@ export default async (req) => {
   };
 
   try {
-    if (day) await put(day.replace(/-/g, ''), day, { d: day, labels, upd: (now && now.at) || new Date().toISOString().slice(0, 19) });
+    if (day) await put(day.replace(/-/g, ''), day, { d: day, labels, order, times, upd: (now && now.at) || new Date().toISOString().slice(0, 19) });
     if (now) await put('now', 'now', now);
   } catch (e) { return json({ error: String(e.message || e) }, 502); }
 
