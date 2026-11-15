@@ -1932,6 +1932,7 @@ function renderSalesReport() {
 
 // What's new — a running list of what shipped, newest first. r: role that sees it (Owner-only if set).
 const CHANGELOG = [
+  { d: '2026-11-15', t: 'Box printer: pack-next, heatmap, records', b: "Three more tools on the Box printer screen: Pack next (products low/negative in stock that you haven't made today, from QuickBooks — worst first); a month output heatmap where you tap any day to open it; and a Records card (best day ever, this day vs your usual same-weekday, packs that day).", r: 'Owner' },
   { d: '2026-11-15', t: 'Box printer: day tiles + run pace', b: "New summary strip on the Box printer screen: Boxes · Packs · Value made (boxes × list price) · This week (with ▲/▼ vs last week). Plus a run-time line — time on the line, boxes per hour, longest gap, and first/last box times — all from the print times.", r: 'Owner' },
   { d: '2026-11-15', t: 'Box printer: cleaner list + packs total', b: "Freshened up the day's list — a color bar per product, label and time on one line, and the packs shown as a tinted pill next to the boxes. The day total up top now shows total packs too (e.g. 169 boxes · 2,766 packs).", r: 'Owner' },
   { d: '2026-11-15', t: 'Box printer: packs per box', b: "Each product now shows the pack count next to its boxes — e.g. Landaus Toast Barley 2 boxes = 48 packs. The app reads the case size straight from QuickBooks (24/11 → 24 packs a case), so it fills in by itself. A few snacks with no size in QuickBooks (like the Tortilla Mini Rounds) show a ‘packs/box’ box in the Match list — set those once and they stick.", r: 'Owner' },
@@ -2318,6 +2319,49 @@ function renderPrinter() {
   const mpToday = isoRd(isoOf(TODAY)); const mpWs = new Date(mpToday); mpWs.setHours(0, 0, 0, 0); mpWs.setDate(mpToday.getDate() - mpToday.getDay()); const mpLs = new Date(mpWs); mpLs.setDate(mpWs.getDate() - 7);
   let wkThis = 0, wkLast = 0; printDays(data).forEach(dd => { const d = isoRd(dd); const tt = mpDayTot(dd); if (d >= mpWs) wkThis += tt; else if (d >= mpLs) wkLast += tt; });
   const wkPct = wkLast > 0 ? Math.round((wkThis - wkLast) / wkLast * 100) : null;
+  // ---- Batch 2: pack-next (low stock), heatmap calendar, records ----
+  const madeTodayNames = new Set();
+  Object.keys((data[isoOf(TODAY)] || {}).labels || {}).forEach(l => { const k = printProd(l); if (k) { const p = prodByKey(k); madeTodayNames.add(p ? p.name : k); } });
+  const lowSrc = REAL ? [].concat(REAL.belowZero || [], REAL.low || []) : [];
+  const pnSeen = {}, packNext = [];
+  lowSrc.forEach(z => { if (!z || /film|carton|amazon/i.test(z.group || '')) return; const id = (z.name || '') + '|' + (z.code || ''); if (pnSeen[id]) return; pnSeen[id] = 1; if (madeTodayNames.has(z.name)) return; packNext.push({ name: z.name, group: z.group || '', stock: +z.stock || 0, reorderAt: +z.reorderAt || 0, sold28: +z.sold28 || 0 }); });
+  packNext.sort((a, b) => (a.stock - a.reorderAt) - (b.stock - b.reorderAt));
+  const packNextTop = packNext.slice(0, 6);
+  const packNextCard = packNextTop.length ? `
+  <section class="card">
+    <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;font-weight:700;margin-bottom:2px">Pack next · low in stock, not made today</div>
+    ${packNextTop.map(p => { const short = p.stock < 0; const tagBg = short ? '#fde8e8' : '#fef3d8', tagC = short ? '#b42318' : '#92600a', tagT = short ? fn(p.stock) : fn(p.stock) + ' left'; return `<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:9px 2px;border-top:1px solid var(--line)"><div style="display:flex;align-items:center;gap:8px;min-width:0"><span class="${gcls(p.group)}" style="width:4px;height:16px;border-radius:3px;background:var(--gt);flex:none"></span><div style="min-width:0"><div style="font-weight:600;font-size:14px">${esc(p.name)}</div>${p.sold28 ? `<div class="sub" style="font-size:11px;margin:0">sold ${fn(p.sold28)} in 4 wks</div>` : ''}</div></div><span style="font-size:11px;font-weight:800;padding:2px 9px;border-radius:999px;background:${tagBg};color:${tagC};white-space:nowrap">${tagT}</span></div>`; }).join('')}
+  </section>` : '';
+  // heatmap calendar for the month of the selected day
+  const calD = isoRd(day), calY = calD.getFullYear(), calM = calD.getMonth();
+  const dim = new Date(calY, calM + 1, 0).getDate(), lead = new Date(calY, calM, 1).getDay();
+  const iso2 = (y, m, d) => y + '-' + String(m + 1).padStart(2, '0') + '-' + String(d).padStart(2, '0');
+  const dayTots = {}; let maxTot = 0; printDays(data).forEach(dd => { const t = mpDayTot(dd); dayTots[dd] = t; if (t > maxTot) maxTot = t; });
+  const todayIso = isoOf(TODAY);
+  let calCells = ['S', 'M', 'T', 'W', 'T', 'F', 'S'].map(x => `<div style="font-size:10px;font-weight:700;color:var(--muted);text-align:center;padding-bottom:2px">${x}</div>`).join('');
+  for (let i = 0; i < lead; i++) calCells += '<div></div>';
+  for (let d = 1; d <= dim; d++) { const iso = iso2(calY, calM, d); const t = dayTots[iso] || 0; const future = iso > todayIso; const h = maxTot ? t / maxTot : 0; const bg = t ? `rgba(47,85,200,${(0.14 + h * 0.7).toFixed(2)})` : (future ? '#faf7ef' : '#f3efe3'); const col = h > 0.55 ? '#fff' : '#45506a'; const sel = iso === day; calCells += `<button ${(t || !future) ? `data-act="mp-day" data-day="${iso}"` : 'disabled'} title="${t ? fn(t) + ' boxes' : ''}" style="aspect-ratio:1;border:${sel ? '2px solid #1e3a8a' : '1px solid transparent'};border-radius:7px;background:${bg};color:${col};font-size:11px;font-weight:700;cursor:${(t || !future) ? 'pointer' : 'default'};opacity:${future ? 0.5 : 1}">${d}</button>`; }
+  const calCard = `
+  <section class="card" style="flex:1;min-width:250px;margin:0">
+    <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;font-weight:700;margin-bottom:8px">${MONS[calM]} ${calY} · output</div>
+    <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:5px">${calCells}</div>
+    <div class="sub" style="margin-top:8px;font-size:11px">Darker = bigger day. Tap a day to open it.</div>
+  </section>`;
+  const allDaysArr = printDays(data).map(dd => ({ iso: dd, tot: mpDayTot(dd) })).filter(x => x.tot > 0);
+  const bestDay = allDaysArr.reduce((a, b) => b.tot > (a ? a.tot : -1) ? b : a, null);
+  const selDow = isoRd(day).getDay();
+  const sameDow = allDaysArr.filter(x => x.iso !== day && isoRd(x.iso).getDay() === selDow);
+  const usual = sameDow.length ? sameDow.reduce((s, x) => s + x.tot, 0) / sameDow.length : null;
+  const vsPct = (usual && total > 0) ? Math.round((total - usual) / usual * 100) : null;
+  const DOW3 = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const recordsCard = (bestDay || vsPct != null) ? `
+  <section class="card" style="flex:1;min-width:250px;margin:0">
+    <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;font-weight:700;margin-bottom:4px">Records</div>
+    ${bestDay ? `<div style="display:flex;justify-content:space-between;padding:8px 0"><span class="sub" style="margin:0">Best day</span><b>${esc(fmtShort(isoRd(bestDay.iso)))} · ${fn(bestDay.tot)} boxes</b></div>` : ''}
+    ${vsPct != null ? `<div style="display:flex;justify-content:space-between;padding:8px 0;border-top:1px solid var(--line)"><span class="sub" style="margin:0">${esc(fmtShort(isoRd(day)))} vs usual ${DOW3[selDow]}</span><b style="color:${vsPct >= 0 ? '#15803d' : 'var(--bad-text)'}">${vsPct >= 0 ? '▲ ' : '▼ '}${Math.abs(vsPct)}%</b></div>` : ''}
+    ${totalPacks ? `<div style="display:flex;justify-content:space-between;padding:8px 0;border-top:1px solid var(--line)"><span class="sub" style="margin:0">Packs this day</span><b>${fn(totalPacks)}</b></div>` : ''}
+  </section>` : '';
+  const trendCards = (calCard || recordsCard) ? `<div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:16px">${calCard}${recordsCard}</div>` : '';
 
   const listRows = rows.map((r, i) => {
     const meta = [esc(r.lab), timeRange(r.times) ? '🕑 ' + esc(timeRange(r.times)) : ''].filter(Boolean).join('&nbsp; · &nbsp;');
@@ -2411,6 +2455,7 @@ function renderPrinter() {
     ${runNow}
   </section>
   ${tilesCard}
+  ${packNextCard}
 
   <section class="card">
     <div class="card-head"><h2 style="margin:0">Made ${day === isoOf(TODAY) ? 'today' : 'on ' + esc(fmtShort(isoRd(day)))}</h2><div style="text-align:right"><div style="font-size:22px;font-weight:800;line-height:1.1">${fn(total)}<span class="sub" style="font-weight:600;font-size:12px"> boxes</span></div>${totalPacks || totalValue ? `<div style="font-size:13px;font-weight:800;color:var(--muted);margin-top:2px">${totalPacks ? fn(totalPacks) + ' packs' : ''}${totalPacks && totalValue ? ' · ' : ''}${totalValue ? mpMoney(totalValue) : ''}</div>` : ''}</div></div>
@@ -2424,6 +2469,7 @@ function renderPrinter() {
     ${isToday && rows.some(r => r.stock != null) ? '<p class="sub" style="margin:12px 0 0;font-size:12px"><b>With today</b> adds the boxes you just made (not yet in QuickBooks) to your QuickBooks stock — what you really have on the floor.</p>' : ''}
     ${unmappedBlock}
   </section>
+  ${trendCards}
   ${qbSection}
 
   <section class="card">
