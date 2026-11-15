@@ -1932,6 +1932,7 @@ function renderSalesReport() {
 
 // What's new — a running list of what shipped, newest first. r: role that sees it (Owner-only if set).
 const CHANGELOG = [
+  { d: '2026-11-15', t: 'Box printer: packs per box', b: "Each product now shows the pack count next to its boxes — e.g. Landaus Toast Barley 2 boxes = 48 packs. The app reads the case size straight from QuickBooks (24/11 → 24 packs a case), so it fills in by itself. A few snacks with no size in QuickBooks (like the Tortilla Mini Rounds) show a ‘packs/box’ box in the Match list — set those once and they stick.", r: 'Owner' },
   { d: '2026-11-14', t: 'Box printer: as-packed order + times', b: "The day's product list now reads in the order you actually packed it — first product on top, last at the bottom — instead of biggest batch first. Each product also shows its start–finish time (when the first and last box of that run printed), e.g. 7:05 AM – 9:04 AM. Mondays onward fill in automatically; Thursday & Friday were re-posted so they show it too.", r: 'Owner' },
   { d: '2026-11-14', t: 'Box printer: pick any day', b: "New 📅 date picker on the Box printer screen — choose any date to see what was packed that day and how much, by product. Recent days are also one tap away.", r: 'Owner' },
   { d: '2026-11-14', t: 'Box printer: pick products like an order', b: "Matching a printer label now opens a product picker that works just like building an order — search by name/code/group, filter by group chips, and tap the product from the grouped, color-coded list. No more scrolling a long dropdown.", r: 'Owner' },
@@ -2148,6 +2149,28 @@ function printMapRaw() {
   if (synced && typeof synced === 'object') m = Object.assign({}, synced, m);
   S.mpMap = m; return m;
 }
+// How many retail packs are in one box, per product (set once by the owner, synced to everyone).
+function printPackRaw() {
+  if (S.mpPack) return S.mpPack;
+  let m = {};
+  try { m = JSON.parse(localStorage.getItem('chuster-mppack-v1')) || {}; } catch (e) { m = {}; }
+  const synced = (S.mpLive && S.mpLive.packmap) || (PRINT_SEED && PRINT_SEED.packmap);
+  if (synced && typeof synced === 'object') m = Object.assign({}, synced, m);
+  S.mpPack = m; return m;
+}
+// Read packs-per-case straight from the product's QuickBooks pack spec (e.g. "24/11" → 24,
+// "8 Packs 12x1" → 8, "72/.8" → 72). Weight-based bulk (e.g. "20Lb") isn't packs, so → 0.
+function autoPacksPerCase(p) {
+  if (!p) return 0;
+  const s = String(p.pack || '').trim();
+  if (!s || /lb\b/i.test(s)) return 0;
+  let m = s.match(/^\s*(\d+)\s*p(?:ac)?ks?\b/i); // "8 Packs 12x1", "5 Pcks 12x1"
+  if (m) return +m[1];
+  m = s.match(/(\d+)/);                          // first number = packs per case
+  return m ? +m[1] : 0;
+}
+// Manual override (owner-set) wins; otherwise use the QuickBooks pack spec.
+function packPerBox(k) { const v = +printPackRaw()[k]; if (isFinite(v) && v > 0) return v; return autoPacksPerCase(prodByKey(k)); }
 // Products are matched by their unique id (full QuickBooks name), never by display name — two products
 // (a loose one and a cased one) often share the same name, so matching by name would pick the wrong one.
 function prodKeyOf(p) { return (p && (p.full || p.name)) || ''; }
@@ -2269,7 +2292,7 @@ function renderPrinter() {
     const n = labels[lab] || 0, prodK = printProd(lab);
     if (!prodK) { unmapped.push({ lab, n, guess: printGuess(lab) }); return; }
     const ci = prodByKey(prodK);
-    rows.push({ prod: ci ? ci.name : prodK, swatch: prodSwatch(ci), lab, n, stock: ci && typeof ci.stock === 'number' ? ci.stock : null, times: (dayObj.times || {})[lab] || null });
+    rows.push({ prod: ci ? ci.name : prodK, swatch: prodSwatch(ci), lab, n, key: prodK, per: packPerBox(prodK), stock: ci && typeof ci.stock === 'number' ? ci.stock : null, times: (dayObj.times || {})[lab] || null });
   });
   // Show products in the order they were packed that day (first packed on top), not biggest-batch first.
   const ord = Array.isArray(dayObj.order) ? dayObj.order : Object.keys(labels);
@@ -2279,7 +2302,7 @@ function renderPrinter() {
 
   const tableRows = rows.map(r => `<tr>
     <td style="font-weight:600">${r.swatch || ''}${esc(r.prod)}<div class="sub" style="margin:0;font-size:11px">${esc(r.lab)}</div>${timeRange(r.times) ? `<div class="sub" style="margin:1px 0 0;font-size:11px">🕑 ${esc(timeRange(r.times))}</div>` : ''}</td>
-    <td class="num" style="text-align:right;font-weight:800;font-size:16px">${fn(r.n)}</td>
+    <td class="num" style="text-align:right"><div style="font-weight:800;font-size:16px">${fn(r.n)} <span style="font-size:11px;font-weight:600;color:var(--muted)">box${r.n === 1 ? '' : 'es'}</span></div>${r.per ? `<div class="sub" style="margin:0;font-size:11.5px;font-weight:700;color:var(--muted)">${fn(r.n * r.per)} packs</div>` : ''}</td>
     ${isToday ? `<td class="num" style="text-align:right;color:${r.stock != null && r.stock < 0 ? 'var(--bad-text)' : 'var(--muted)'}">${r.stock != null ? fn(r.stock) : '—'}</td>
     <td class="num" style="text-align:right;font-weight:700">${r.stock != null ? fn(r.stock + r.n) : '—'}</td>` : ''}
   </tr>`).join('');
@@ -2311,6 +2334,7 @@ function renderPrinter() {
     return `<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 0;border-top:1px solid var(--line)">
       <div style="flex:1;min-width:130px;font-weight:600">${esc(lab)}</div>
       <button class="btn ghost" data-act="mp-pickopen" data-lab="${esc(lab)}" style="flex:2;min-width:200px;max-width:340px;text-align:left;display:flex;align-items:center">${cur ? prodSwatchKey(cur) + esc(prodName(cur)) : '<span class="sub" style="margin:0">— choose product —</span>'}</button>
+      ${cur ? `<label style="display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--muted)"><input type="number" min="0" inputmode="numeric" class="inp mp-packper" data-key="${esc(cur)}" value="${packPerBox(cur) || ''}" placeholder="?" style="width:58px;padding:5px 7px;text-align:right">packs/box</label>` : ''}
     </div>`;
   }).join('') : '<p class="sub" style="margin:8px 0 0">No printer labels seen yet.</p>';
 
@@ -7882,7 +7906,7 @@ SYNC.on('ec', (k, val) => { S.emailConn = S.emailConn || {}; if (val == null) de
 S.emailLive = {};
 SYNC.on('ei', (k, val) => { S.emailLive = S.emailLive || {}; if (val == null) delete S.emailLive[k]; else S.emailLive[k] = val; });
 S.mpLive = {};
-SYNC.on('mp', (k, val) => { S.mpLive = S.mpLive || {}; if (val == null) delete S.mpLive[k]; else S.mpLive[k] = val; if (k === 'map') S.mpMap = null; try { if (S.view === 'printer') render(); } catch (e) { } });
+SYNC.on('mp', (k, val) => { S.mpLive = S.mpLive || {}; if (val == null) delete S.mpLive[k]; else S.mpLive[k] = val; if (k === 'map') S.mpMap = null; if (k === 'packmap') S.mpPack = null; try { if (S.view === 'printer') render(); } catch (e) { } });
 // BM contents = sum of received moves into BM minus runs out of BM (only 'done' moves count)
 function bmByFull() { const m = {}; Object.values(S.moves || {}).forEach(mv => { if (!mv || mv.st !== 'done') return; const sign = mv.to === 'BM' ? 1 : mv.from === 'BM' ? -1 : 0; if (!sign) return; (mv.lines || []).forEach(l => { const full = l[0], q = +l[1] || 0; if (!full || !q) return; m[full] = (m[full] || 0) + sign * q; }); }); return m; }
 let avSeen = {}; // throttle screen logging this session
@@ -9420,6 +9444,7 @@ document.addEventListener('change', e => {
   if (cl.contains('tk-driver')) { const i = +t.dataset.i; if (S.trucks[i]) { S.trucks[i].driver = t.value.trim(); save(); render(); toast(S.trucks[i].driver ? S.trucks[i].name + ' → ' + S.trucks[i].driver : 'Driver cleared.'); } }
   if (cl.contains('ac-via-sel')) { S.acVia = t.value; if (S.acRes) acCheck(); else render(); return; }
   if (cl.contains('mp-map')) { const lab = t.dataset.lab; const map = Object.assign({}, printMapRaw()); if (t.value) map[lab] = t.value; else delete map[lab]; S.mpMap = map; try { localStorage.setItem('chuster-mpmap-v1', JSON.stringify(map)); } catch (e) { } try { SYNC.put('mp', 'map', map); } catch (e) { } render(); toast(t.value ? 'Matched to ' + prodName(t.value) : 'Match cleared.'); return; }
+  if (cl.contains('mp-packper')) { const key = t.dataset.key; const map = Object.assign({}, printPackRaw()); const v = parseInt(t.value, 10); if (v > 0) map[key] = v; else delete map[key]; S.mpPack = map; try { localStorage.setItem('chuster-mppack-v1', JSON.stringify(map)); } catch (e) { } try { SYNC.put('mp', 'packmap', map); } catch (e) { } render(); toast(v > 0 ? fn(v) + ' packs per box — ' + prodName(key) : 'Pack size cleared.'); return; }
   if (t.id === 'ds-start') { S.dsched.start = t.value.trim(); saveLS('chuster-dsched-v1', S.dsched); SYNC.put('sc', 'all', S.dsched); toast('Start address saved.'); return; }
   if (t.id === 'ds-cap') { S.dsched.cap = parseInt(t.value, 10) || 0; saveLS('chuster-dsched-v1', S.dsched); SYNC.put('sc', 'all', S.dsched); return; }
   if (['ds-th', 'ds-twt', 'ds-tl', 'ds-twd'].includes(t.id)) { const key = { 'ds-th': 'truckH', 'ds-twt': 'truckWt', 'ds-tl': 'truckL', 'ds-twd': 'truckWd' }[t.id]; const v = parseFloat(t.value); if (v > 0) S.dsched[key] = v; else delete S.dsched[key]; saveLS('chuster-dsched-v1', S.dsched); SYNC.put('sc', 'all', S.dsched); return; }
