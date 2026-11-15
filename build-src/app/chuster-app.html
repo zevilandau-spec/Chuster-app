@@ -1932,6 +1932,7 @@ function renderSalesReport() {
 
 // What's new — a running list of what shipped, newest first. r: role that sees it (Owner-only if set).
 const CHANGELOG = [
+  { d: '2026-11-15', t: 'Box printer: cleaner list + packs total', b: "Freshened up the day's list — a color bar per product, label and time on one line, and the packs shown as a tinted pill next to the boxes. The day total up top now shows total packs too (e.g. 169 boxes · 2,766 packs).", r: 'Owner' },
   { d: '2026-11-15', t: 'Box printer: packs per box', b: "Each product now shows the pack count next to its boxes — e.g. Landaus Toast Barley 2 boxes = 48 packs. The app reads the case size straight from QuickBooks (24/11 → 24 packs a case), so it fills in by itself. A few snacks with no size in QuickBooks (like the Tortilla Mini Rounds) show a ‘packs/box’ box in the Match list — set those once and they stick.", r: 'Owner' },
   { d: '2026-11-14', t: 'Box printer: as-packed order + times', b: "The day's product list now reads in the order you actually packed it — first product on top, last at the bottom — instead of biggest batch first. Each product also shows its start–finish time (when the first and last box of that run printed), e.g. 7:05 AM – 9:04 AM. Mondays onward fill in automatically; Thursday & Friday were re-posted so they show it too.", r: 'Owner' },
   { d: '2026-11-14', t: 'Box printer: pick any day', b: "New 📅 date picker on the Box printer screen — choose any date to see what was packed that day and how much, by product. Recent days are also one tap away.", r: 'Owner' },
@@ -2292,24 +2293,34 @@ function renderPrinter() {
     const n = labels[lab] || 0, prodK = printProd(lab);
     if (!prodK) { unmapped.push({ lab, n, guess: printGuess(lab) }); return; }
     const ci = prodByKey(prodK);
-    rows.push({ prod: ci ? ci.name : prodK, swatch: prodSwatch(ci), lab, n, key: prodK, per: packPerBox(prodK), stock: ci && typeof ci.stock === 'number' ? ci.stock : null, times: (dayObj.times || {})[lab] || null });
+    rows.push({ prod: ci ? ci.name : prodK, grp: prodGroup(ci), swatch: prodSwatch(ci), lab, n, key: prodK, per: packPerBox(prodK), stock: ci && typeof ci.stock === 'number' ? ci.stock : null, times: (dayObj.times || {})[lab] || null });
   });
   // Show products in the order they were packed that day (first packed on top), not biggest-batch first.
   const ord = Array.isArray(dayObj.order) ? dayObj.order : Object.keys(labels);
   const opos = {}; ord.forEach((l, i) => { if (opos[l] == null) opos[l] = i; });
   rows.sort((a, b) => (opos[a.lab] == null ? 1e9 : opos[a.lab]) - (opos[b.lab] == null ? 1e9 : opos[b.lab]));
   const total = Object.values(labels).reduce((s, x) => s + (+x || 0), 0);
+  const totalPacks = rows.reduce((s, r) => s + (r.per ? r.n * r.per : 0), 0);
 
-  const tableRows = rows.map(r => `<tr>
-    <td style="font-weight:600">${r.swatch || ''}${esc(r.prod)}<div class="sub" style="margin:0;font-size:11px">${esc(r.lab)}</div>${timeRange(r.times) ? `<div class="sub" style="margin:1px 0 0;font-size:11px">🕑 ${esc(timeRange(r.times))}</div>` : ''}</td>
-    <td class="num" style="text-align:right"><div style="font-weight:800;font-size:16px">${fn(r.n)} <span style="font-size:11px;font-weight:600;color:var(--muted)">box${r.n === 1 ? '' : 'es'}</span></div>${r.per ? `<div class="sub" style="margin:0;font-size:11.5px;font-weight:700;color:var(--muted)">${fn(r.n * r.per)} packs</div>` : ''}</td>
-    ${isToday ? `<td class="num" style="text-align:right;color:${r.stock != null && r.stock < 0 ? 'var(--bad-text)' : 'var(--muted)'}">${r.stock != null ? fn(r.stock) : '—'}</td>
-    <td class="num" style="text-align:right;font-weight:700">${r.stock != null ? fn(r.stock + r.n) : '—'}</td>` : ''}
-  </tr>`).join('');
-  const cols = isToday ? 4 : 2;
+  const listRows = rows.map((r, i) => {
+    const meta = [esc(r.lab), timeRange(r.times) ? '🕑 ' + esc(timeRange(r.times)) : ''].filter(Boolean).join('&nbsp; · &nbsp;');
+    const stockLine = isToday && r.stock != null ? `<div style="font-size:11px;margin-top:4px;color:${r.stock < 0 ? 'var(--bad-text)' : 'var(--muted)'}">In stock ${fn(r.stock)} → <b>${fn(r.stock + r.n)}</b> with today</div>` : '';
+    return `<div style="display:flex;align-items:stretch;gap:12px;padding:13px 2px;${i ? 'border-top:1px solid var(--line)' : ''}">
+      <span class="${gcls(r.grp)}" style="width:4px;border-radius:3px;background:var(--gt);flex:none"></span>
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:700;font-size:15px;line-height:1.25">${esc(r.prod)}</div>
+        <div class="sub" style="margin:3px 0 0;font-size:11.5px">${meta}</div>
+        ${stockLine}
+      </div>
+      <div style="text-align:right;flex:none;white-space:nowrap">
+        <div style="font-size:19px;font-weight:800;line-height:1">${fn(r.n)}<span style="font-size:11px;font-weight:600;color:var(--muted)"> box${r.n === 1 ? '' : 'es'}</span></div>
+        ${r.per ? `<div class="${gcls(r.grp)}" style="display:inline-block;margin-top:6px;font-size:11.5px;font-weight:800;color:var(--gt);background:var(--gs);padding:2px 9px;border-radius:999px">${fn(r.n * r.per)} packs</div>` : ''}
+      </div>
+    </div>`;
+  }).join('');
   const emptyRow = total > 0
-    ? `<tr><td colspan="${cols}" class="sub" style="padding:10px 0">${fn(total)} boxes ${isToday ? 'today' : 'that day'} — match the ${unmapped.length} label${unmapped.length > 1 ? 's' : ''} below to see them here.</td></tr>`
-    : `<tr><td colspan="${cols}" class="sub" style="padding:10px 0">No boxes recorded for this day.</td></tr>`;
+    ? `<div class="sub" style="padding:12px 2px">${fn(total)} boxes ${isToday ? 'today' : 'that day'} — match the ${unmapped.length} label${unmapped.length > 1 ? 's' : ''} below to see them here.</div>`
+    : `<div class="sub" style="padding:14px 2px">No boxes recorded for this day.</div>`;
 
   const unmappedBlock = unmapped.length ? `<div style="margin-top:12px;padding:12px 14px;border:1px solid #f59e0b55;background:#f59e0b14;border-radius:12px">
     <div style="font-weight:700;margin-bottom:6px">${unmapped.length} label${unmapped.length > 1 ? 's' : ''} not matched to a product yet</div>
@@ -2368,17 +2379,15 @@ function renderPrinter() {
   </section>
 
   <section class="card">
-    <div class="card-head"><h2 style="margin:0">Made ${day === isoOf(TODAY) ? 'today' : 'on ' + esc(fmtShort(isoRd(day)))}</h2><div style="font-size:22px;font-weight:800">${fn(total)}<span class="sub" style="font-weight:600;font-size:12px"> boxes</span></div></div>
+    <div class="card-head"><h2 style="margin:0">Made ${day === isoOf(TODAY) ? 'today' : 'on ' + esc(fmtShort(isoRd(day)))}</h2><div style="text-align:right"><div style="font-size:22px;font-weight:800;line-height:1.1">${fn(total)}<span class="sub" style="font-weight:600;font-size:12px"> boxes</span></div>${totalPacks ? `<div style="font-size:13px;font-weight:800;color:var(--muted);margin-top:2px">${fn(totalPacks)} packs</div>` : ''}</div></div>
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:4px 0 12px">
       <label for="mp-date" class="sub" style="margin:0;font-weight:600">📅 Pick a day</label>
       <input type="date" id="mp-date" value="${day}" max="${isoOf(TODAY)}" class="inp" style="max-width:170px">
       ${days.length > 1 ? `<div style="display:flex;gap:6px;flex-wrap:wrap">${dayChips}</div>` : ''}
     </div>
-    <table style="width:100%;border-collapse:collapse">
-      <tr style="text-align:left"><th style="padding:6px 0">Product</th><th class="num" style="text-align:right">Packed</th>${isToday ? '<th class="num" style="text-align:right">In stock</th><th class="num" style="text-align:right">With today</th>' : ''}</tr>
-      ${tableRows || emptyRow}
-    </table>
-    ${isToday ? '<p class="sub" style="margin:10px 0 0;font-size:12px"><b>In stock</b> is your QuickBooks number. <b>With today</b> adds the boxes you just made (not yet entered in QuickBooks) so you can see what you really have on the floor.</p>' : ''}
+    <div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;padding:0 2px 2px"><span>Product${rows.length > 1 ? ' · in the order packed' : ''}</span><span>Packed</span></div>
+    ${listRows || emptyRow}
+    ${isToday && rows.some(r => r.stock != null) ? '<p class="sub" style="margin:12px 0 0;font-size:12px"><b>With today</b> adds the boxes you just made (not yet in QuickBooks) to your QuickBooks stock — what you really have on the floor.</p>' : ''}
     ${unmappedBlock}
   </section>
   ${qbSection}
