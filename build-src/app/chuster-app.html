@@ -1932,6 +1932,7 @@ function renderSalesReport() {
 
 // What's new — a running list of what shipped, newest first. r: role that sees it (Owner-only if set).
 const CHANGELOG = [
+  { d: '2026-11-14', t: 'Box printer: color-coded product list', b: "The match-to-product list is now color-coded by category — 🔵 Egg noodles, 🟡 Pasta, 🟢 Snacks, 🟣 Other — with a legend, so you can spot the right product faster. The dots show on your phone too.", r: 'Owner' },
   { d: '2026-11-12', t: 'Box printer → QuickBooks production bill', b: "On the Box printer screen, a “Send to QuickBooks” button files today’s production as a $0 bill (quantities only — brings the boxes into stock, never touches money), exactly like you enter it by hand: vendor Chuster Packaging Retail, Net 30, site 01 Chuster, cost 0.00. It waits in To QuickBooks for your OK before anything posts. Match each printer label to its product once (the list now shows code, pack size and loose/case so you pick the right one).", r: 'Owner' },
   { d: '2026-11-12', t: 'Box printer: live box counts', b: "New Box printer screen (under Packing / Warehouse). Every box the Markoprint prints is counted automatically, by product \u2014 no more counting by hand. See what's running now, how many of each product were made today, and your stock plus today's production. Match each printer label to a product once and it remembers. Goes fully live once the factory PC is set to push its counts up.", r: 'Owner' },
   { d: '2026-11-12', t: 'Email inbox: tap to open & clear', b: "Tap an email to open it in Outlook, and hit \u201c\u2713 Done\u201d to clear ones you\u2019ve handled (they move to a Cleared list you can undo).", r: 'Owner' },
@@ -2160,6 +2161,11 @@ function prodLabel(p) {
   const lt = looseTag(p); if (lt) bits.push(lt);
   return p.name + (bits.length ? '  ·  ' + bits.join(' · ') : '');
 }
+// Colour each product by its category, matching the colours used across the app (catalog, forecast, sales).
+const CAT_DOT = { 'Egg noodles': '🔵', 'Pasta': '🟡', 'Snacks': '🟢', 'Other': '🟣' };
+function prodCat(p) { return p ? catOf({ group: p.cat, name: p.name, full: p.full }) : 'Other'; }
+function prodDot(p) { return (p && CAT_DOT[prodCat(p)]) || ''; }
+function prodDotKey(k) { return prodDot(prodByKey(k)); }
 function printProd(label) { return printMapRaw()[label] || ''; }
 // Best-guess product (by shared words) for a printer label — returns its id, to confirm in the matcher.
 function printGuess(label) {
@@ -2175,7 +2181,7 @@ function printGuess(label) {
 }
 function printProdOpts(sel) {
   const list = (S.catalog || []).slice().filter(p => p && p.name).sort((a, b) => prodLabel(a) < prodLabel(b) ? -1 : 1);
-  return '<option value="">— not matched —</option>' + list.map(p => { const k = prodKeyOf(p); return `<option value="${esc(k)}"${k === sel ? ' selected' : ''}>${esc(prodLabel(p))}</option>`; }).join('');
+  return '<option value="">— not matched —</option>' + list.map(p => { const k = prodKeyOf(p); const dot = prodDot(p); return `<option value="${esc(k)}"${k === sel ? ' selected' : ''}>${dot ? dot + ' ' : ''}${esc(prodLabel(p))}</option>`; }).join('');
 }
 function renderPrinter() {
   const A = printAll(), data = A.data, live = A.live;
@@ -2203,7 +2209,7 @@ function renderPrinter() {
     const stColor = now.state === 0 ? '#15803d' : now.state === 1 ? '#b45309' : 'var(--muted)';
     runNow = `<div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-top:12px;padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:var(--card2,transparent)">
       <div style="flex:1;min-width:160px"><div class="sub" style="margin:0;font-size:11px;text-transform:uppercase;letter-spacing:.5px">Running now</div>
-        <div style="font-size:17px;font-weight:800;margin-top:2px">${esc(pk ? prodName(pk) : now.label)}</div>
+        <div style="font-size:17px;font-weight:800;margin-top:2px">${pk && prodDotKey(pk) ? prodDotKey(pk) + ' ' : ''}${esc(pk ? prodName(pk) : now.label)}</div>
         <div class="sub" style="margin:2px 0 0">Label: ${esc(now.label)}${st ? ' · <span style="color:' + stColor + ';font-weight:700">' + st + '</span>' : ''}</div></div>
       <div style="text-align:right"><div style="font-size:30px;font-weight:800;line-height:1">${fn(now.counter || 0)}</div><div class="sub" style="margin:0;font-size:11px">on this label</div></div>
     </div>`;
@@ -2215,13 +2221,13 @@ function renderPrinter() {
     const n = labels[lab] || 0, prodK = printProd(lab);
     if (!prodK) { unmapped.push({ lab, n, guess: printGuess(lab) }); return; }
     const ci = prodByKey(prodK);
-    rows.push({ prod: ci ? ci.name : prodK, lab, n, stock: ci && typeof ci.stock === 'number' ? ci.stock : null });
+    rows.push({ prod: ci ? ci.name : prodK, dot: prodDot(ci), lab, n, stock: ci && typeof ci.stock === 'number' ? ci.stock : null });
   });
   rows.sort((a, b) => b.n - a.n);
   const total = Object.values(labels).reduce((s, x) => s + (+x || 0), 0);
 
   const tableRows = rows.map(r => `<tr>
-    <td style="font-weight:600">${esc(r.prod)}<div class="sub" style="margin:0;font-size:11px">${esc(r.lab)}</div></td>
+    <td style="font-weight:600">${r.dot ? r.dot + ' ' : ''}${esc(r.prod)}<div class="sub" style="margin:0;font-size:11px">${esc(r.lab)}</div></td>
     <td class="num" style="text-align:right;font-weight:800;font-size:16px">${fn(r.n)}</td>
     <td class="num" style="text-align:right;color:${r.stock != null && r.stock < 0 ? 'var(--bad-text)' : 'var(--muted)'}">${r.stock != null ? fn(r.stock) : '—'}</td>
     <td class="num" style="text-align:right;font-weight:700">${r.stock != null ? fn(r.stock + r.n) : '—'}</td>
@@ -2234,7 +2240,7 @@ function renderPrinter() {
     <div style="font-weight:700;margin-bottom:6px">${unmapped.length} label${unmapped.length > 1 ? 's' : ''} not matched to a product yet</div>
     <div class="sub" style="margin:0 0 10px">These boxes were printed but the app doesn't know which product the label is. Tap to match — then they jump into the list above.</div>
     ${unmapped.map(u => `<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:6px 0">
-      <div class="sub" style="margin:0;flex:1;min-width:150px">• <b>${esc(u.lab)}</b> — ${fn(u.n)} printed${u.guess ? ' · looks like <b>' + esc(prodName(u.guess)) + '</b>' : ''}</div>
+      <div class="sub" style="margin:0;flex:1;min-width:150px">• <b>${esc(u.lab)}</b> — ${fn(u.n)} printed${u.guess ? ' · looks like <b>' + (prodDotKey(u.guess) ? prodDotKey(u.guess) + ' ' : '') + esc(prodName(u.guess)) + '</b>' : ''}</div>
       ${u.guess ? `<button class="btn primary" data-act="mp-usematch" data-lab="${esc(u.lab)}" data-key="${esc(u.guess)}" style="padding:5px 12px;font-size:13px;white-space:nowrap">✓ Match to ${esc(prodName(u.guess))}</button>` : `<button class="btn ghost" data-act="mp-maptoggle" style="padding:5px 12px;font-size:13px;white-space:nowrap">Match…</button>`}
     </div>`).join('')}
   </div>` : '';
@@ -2301,7 +2307,7 @@ function renderPrinter() {
 
   <section class="card">
     <button class="btn ghost" data-act="mp-maptoggle" style="width:100%;text-align:left">${S.mpMapOpen ? '▾' : '▸'} Match printer labels to products${labelList.length ? ' (' + labelList.length + ')' : ''}</button>
-    ${S.mpMapOpen ? `<div style="margin-top:8px"><p class="sub" style="margin:0 0 4px">Pick which product each printer label is. You set this once; it syncs to everyone.</p>${mapRows}</div>` : ''}
+    ${S.mpMapOpen ? `<div style="margin-top:8px"><p class="sub" style="margin:0 0 6px">Pick which product each printer label is. You set this once; it syncs to everyone.</p><div style="display:flex;gap:14px;flex-wrap:wrap;font-size:12px;margin:0 0 8px">${CATS.map(c => `<span>${CAT_DOT[c]} ${c}</span>`).join('')}</div>${mapRows}</div>` : ''}
   </section>`;
 }
 
