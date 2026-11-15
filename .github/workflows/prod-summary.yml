@@ -1,0 +1,60 @@
+name: End-of-day production summary
+on: workflow_dispatch
+permissions:
+  contents: write
+jobs:
+  sum:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip install cryptography==43.0.3
+      - name: Build today's production summary from the live box-printer data
+        env:
+          CHUSTER_SECRETS: ${{ secrets.CHUSTER_SECRETS }}
+        run: |
+          python3 - <<'PY'
+          import json, os, base64, urllib.request, datetime, re
+          from zoneinfo import ZoneInfo
+          from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+          S = json.loads(os.environ['CHUSTER_SECRETS'])['sync']; space = S['space']; key = base64.b64decode(S['key'])
+          raw = urllib.request.urlopen(f"https://chuster.netlify.app/db/{space}/mp.json", timeout=20).read()
+          data = json.loads(raw) or {}
+          def dec(rec):
+              v = base64.b64decode(rec['v']); return json.loads(AESGCM(key).decrypt(v[:12], v[12:], None))
+          vals = {}
+          for kid, rec in data.items():
+              try: d = dec(rec)
+              except Exception: continue
+              vals[d.get('k')] = d.get('val')
+          today = datetime.datetime.now(ZoneInfo('America/New_York')).strftime('%Y-%m-%d')
+          day = vals.get(today) if isinstance(vals.get(today), dict) else {}
+          labels = (day or {}).get('labels', {}) or {}
+          order = (day or {}).get('order') or list(labels.keys())
+          mp_map = vals.get('map', {}) or {}
+          packmap = vals.get('packmap', {}) or {}
+          auto = vals.get('autoset', {}) or {}
+          def nice(fullkey):
+              if not fullkey: return None
+              leaf = str(fullkey).split(':')[-1].strip()
+              leaf = re.sub(r'^\d+\s*', '', leaf)
+              leaf = re.sub(r'\s*(\d+\s*[/x]\s*[\d.]+.*|\d+\s*Lb|\d+\s*P(ac)?ks?.*)$', '', leaf, flags=re.I).strip()
+              return leaf or None
+          items = []; tot = 0; totpk = 0; seen = set()
+          for lab in list(order) + [l for l in labels if l not in order]:
+              if lab in seen or lab not in labels: continue
+              seen.add(lab); n = int(labels[lab] or 0)
+              if n <= 0: continue
+              key = mp_map.get(lab); per = int(packmap.get(key, 0) or 0) if key else 0
+              items.append({'label': lab, 'name': nice(key) or lab, 'boxes': n, 'packs': n * per})
+              tot += n; totpk += n * per
+          out = {'date': today, 'on': bool(auto.get('summary')), 'total': tot, 'packs': totpk, 'items': items}
+          os.makedirs('reports', exist_ok=True)
+          json.dump(out, open('reports/prod-summary.json', 'w'), indent=1)
+          print("::notice::prod-summary " + json.dumps(out)[:500])
+          PY
+      - name: Commit the report
+        run: |
+          git config user.name "Chuster prod summary"; git config user.email actions@users.noreply.github.com
+          git add reports/prod-summary.json
+          git commit -m "Production summary report" || echo "no change"
+          for i in 1 2 3; do git push origin HEAD:main && break; git pull --rebase origin main; done || true
