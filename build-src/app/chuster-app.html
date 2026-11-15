@@ -1264,6 +1264,7 @@ Object.assign(S, {
     { id: 'brief', label: 'Morning summary', on: true },
     { id: 'hero', label: 'Goal and quick buttons', on: true },
     { id: 'tiles', label: 'Sales and money boxes', on: true },
+    { id: 'printer', label: 'Box printer (live)', on: true },
     { id: 'charts', label: 'Charts', on: true },
     { id: 'bottom', label: 'Needs attention and trucks', on: true }
   ]
@@ -1932,6 +1933,7 @@ function renderSalesReport() {
 
 // What's new — a running list of what shipped, newest first. r: role that sees it (Owner-only if set).
 const CHANGELOG = [
+  { d: '2026-11-15', t: 'Box printer on the dashboard', b: "A live Box printer card now sits on your dashboard — status (Recording/Idle), what's running now, today's boxes & packs, and this week. Tap it to open the full screen, and if the line goes idle in work hours the nudge shows right on the home screen. Hide or reorder it in Tools → Dashboard.", r: 'Owner' },
   { d: '2026-11-15', t: 'Box printer: automation + lot stamp', b: "New Automation card on the Box printer screen: a soft idle nudge if the line sits 30+ min in work hours (no popup), a date-based LOT stamp per day for kosher/recall traceability, and an end-of-day production summary (push + email). Records now also shows cartons used (estimate).", r: 'Owner' },
   { d: '2026-11-15', t: 'Box printer: Day / Week view', b: "New Day / Week toggle on the Box printer screen. Flip to Week and it totals the whole week (Sun–Sat) — boxes, packs and value — and lists every product made that week, biggest first. Pick any date to jump to that week.", r: 'Owner' },
   { d: '2026-11-15', t: 'Box printer: pack-next, heatmap, records', b: "Three more tools on the Box printer screen: Pack next (products low/negative in stock that you haven't made today, from QuickBooks — worst first); a month output heatmap where you tap any day to open it; and a Records card (best day ever, this day vs your usual same-weekday, packs that day).", r: 'Owner' },
@@ -2828,6 +2830,12 @@ function tileSheet() {
   return `<div class="sheet-wrap" data-act="tile-close"><div class="sheet" data-act="tile-noop" role="dialog" aria-modal="true"><div class="card-head" style="margin:0"><h2>${esc(title)}</h2><button class="btn ghost sm" data-act="tile-close" aria-label="Close">✕</button></div>${body}</div></div>`;
 }
 function renderHome() {
+  // one-time: slot the Box printer block into existing saved dashboards (after the money tiles)
+  if (Array.isArray(S.dash) && !S.dash.some(d => d.id === 'printer')) {
+    const i = S.dash.findIndex(d => d.id === 'tiles');
+    S.dash.splice(i >= 0 ? i + 1 : S.dash.length, 0, { id: 'printer', label: 'Box printer (live)', on: true });
+    try { save(); } catch (e) { }
+  }
   const html = renderHomeRaw();
   const first = html.indexOf('<!--@');
   const endIdx = html.indexOf('<!--@end-->');
@@ -3962,6 +3970,33 @@ function topItemsCard() {
     <button class="btn ghost full" style="margin-top:10px" data-act="dash-all" data-w="items">${S.dashAllItems ? 'Show only the top 8' : `Show all items (${all.length})`}</button>
     ${S.dashAllItems ? '<p class="sample" style="margin:8px 0 0">Item sales are before discounts and credits, so they add up to a bit more than total sales.</p>' : ''}</section>`;
 }
+function printerDashCard() {
+  const A = printAll(), data = A.data, live = A.live, now = data.now || null;
+  const today = isoOf(TODAY);
+  const labels = (data[today] || {}).labels || {};
+  let boxes = 0; Object.values(labels).forEach(v => boxes += (+v || 0));
+  let packs = 0; Object.keys(labels).forEach(l => { const k = printProd(l); if (k) { const per = packPerBox(k); if (per) packs += (labels[l] || 0) * per; } });
+  const dayTot = dd => Object.values((data[dd] || {}).labels || {}).reduce((s, x) => s + (+x || 0), 0);
+  const tRd = isoRd(today), wsRd = tRd - dateOf(tRd).getDay();
+  let wk = 0; printDays(data).forEach(dd => { if (isoRd(dd) >= wsRd) wk += dayTot(dd); });
+  const dot = (bg, c, t) => `<span style="font-size:11px;font-weight:700;padding:3px 9px;border-radius:999px;background:${bg};color:${c}">${t}</span>`;
+  let pill = dot('#9aa0a622', 'var(--muted)', 'No signal'), idle = '';
+  if (now && now.at) {
+    const age = (Date.now() - Date.parse(now.at)) / 60000;
+    if (live && age < 8) pill = dot('#16a34a22', '#15803d', '● Recording');
+    else if (live) { pill = dot('#f59e0b22', '#b45309', 'Idle'); const nd = new Date(); if (printAutoRaw().idle && age > 30 && nd.getDay() >= 1 && nd.getDay() <= 5 && nd.getHours() >= 6 && nd.getHours() < 18) idle = `<div style="margin-top:8px;padding:8px 12px;border:1px solid #f59e0b66;background:#f59e0b18;border-radius:10px;font-weight:700;color:#92600a;font-size:13px">⚠️ Line idle ${age < 120 ? Math.round(age) + ' min' : Math.round(age / 60) + ' hr'} — nothing printing.</div>`; }
+    else pill = dot('#9aa0a622', 'var(--muted)', 'Last report');
+  }
+  let runLine = '';
+  if (now && now.label) { const pk = printProd(now.label) || printGuess(now.label); runLine = `<div class="sub" style="margin-top:8px;font-size:13px">▶ Running <b>${esc(pk ? prodName(pk) : now.label)}</b> · ${fn(now.counter || 0)} on this label</div>`; }
+  const stat = (v, l) => `<div><div style="font-size:23px;font-weight:800;line-height:1">${fn(v)}</div><div class="sub" style="font-size:11.5px;margin:0">${l}</div></div>`;
+  return `<section class="card"><a href="#printer" data-go="printer" style="display:block;text-decoration:none;color:inherit">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><div style="display:flex;align-items:center;gap:10px"><h2 style="margin:0">Box printer</h2>${pill}</div><span class="sub" style="font-size:12px;white-space:nowrap">Open ›</span></div>
+    ${runLine}
+    <div style="display:flex;gap:22px;flex-wrap:wrap;margin-top:12px">${stat(boxes, 'boxes today')}${packs ? stat(packs, 'packs today') : ''}${stat(wk, 'this week')}</div>
+    ${idle}
+  </a></section>`;
+}
 function renderHomeReal() {
   const D = REAL;
   const CY = +D.asOf.slice(0, 4), PY = CY - 1, PPY = CY - 2, CM = +D.asOf.slice(5, 7) - 1, MN = MON[CM];
@@ -4019,6 +4054,8 @@ function renderHomeReal() {
     <div class="tile ct ct-red tap" data-act="tile" data-t="owe" role="button" tabindex="0"><div class="k">Stores owe us</div><div class="v">${fm(D.ar.total)}</div><div class="s" style="color:var(--bad-text);font-weight:700">${fm(past)} past due · ${fm(over60)} over 60 days</div></div>
     <div class="tile ct ct-gold tap" data-act="tile" data-t="day" role="button" tabindex="0"><div class="k">${fmtShort(prevRd)}</div><div class="v">${D.prevDay.count} invoices</div><div class="s">${fm(D.prevDay.amount)} · ${prevRd === TODAY - 1 ? 'yesterday' : 'last full day'}</div></div>
   </div>
+
+  <!--@printer-->${printerDashCard()}
 
   <!--@charts--><div class="split">
     <figure class="card" style="margin:0">
