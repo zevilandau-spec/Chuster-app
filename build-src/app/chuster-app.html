@@ -2187,6 +2187,7 @@ function printProdOpts(sel) {
 function mpCatList() {
   const q = (S.mpQ || '').trim().toLowerCase(), qn = q.replace(/^0+/, '');
   return (S.catalog || []).filter(p => p && p.name).filter(p => {
+    if (p.off) return false; // hide discontinued / not-in-use products, same as the order screen
     if (S.mpGroup && S.mpGroup !== 'All' && (p.brand || p.cat) !== S.mpGroup) return false;
     if (q && !(p.name.toLowerCase().includes(q) || (p.pack || '').toLowerCase().includes(q) || String(p.code || '').toLowerCase().includes(q) || (p.brand || p.cat || '').toLowerCase().includes(q) || (qn && String(p.code).replace(/^0+/, '').includes(qn)))) return false;
     return true;
@@ -2205,7 +2206,8 @@ function mpPickRows(label) {
     if (p.pack) parts.push(esc(p.pack));
     const lt = looseTag(p); if (lt) parts.push(lt);
     if (typeof p.stock === 'number') parts.push(`<span style="color:${p.stock < 0 ? 'var(--bad-text)' : 'inherit'};font-weight:${p.stock < 0 ? 800 : 600}">${fn(p.stock)} in stock</span>`);
-    return hdr + `<button class="irow ${gcls(g)}${k === cur ? ' on' : ''}" data-act="mp-pick" data-lab="${esc(label)}" data-key="${esc(k)}" style="width:100%;text-align:left;font:inherit;color:inherit;cursor:pointer">
+    return hdr + `<button class="irow or-row ${gcls(g)}${k === cur ? ' on' : ''}" data-act="mp-pick" data-lab="${esc(label)}" data-key="${esc(k)}" style="width:100%;text-align:left;font:inherit;color:inherit;cursor:pointer">
+      <span class="or-photo">${photoThumb(p.code, 42)}</span>
       <div class="main"><div class="name">${esc(p.name)}</div><div class="meta">${parts.join(' · ')}</div></div>
       ${k === cur ? '<span style="color:var(--gt);font-weight:800;font-size:18px;flex:none">✓</span>' : ''}
     </button>`;
