@@ -1932,6 +1932,7 @@ function renderSalesReport() {
 
 // What's new — a running list of what shipped, newest first. r: role that sees it (Owner-only if set).
 const CHANGELOG = [
+  { d: '2026-11-15', t: 'Box printer: Day / Week view', b: "New Day / Week toggle on the Box printer screen. Flip to Week and it totals the whole week (Sun–Sat) — boxes, packs and value — and lists every product made that week, biggest first. Pick any date to jump to that week.", r: 'Owner' },
   { d: '2026-11-15', t: 'Box printer: pack-next, heatmap, records', b: "Three more tools on the Box printer screen: Pack next (products low/negative in stock that you haven't made today, from QuickBooks — worst first); a month output heatmap where you tap any day to open it; and a Records card (best day ever, this day vs your usual same-weekday, packs that day).", r: 'Owner' },
   { d: '2026-11-15', t: 'Box printer: day tiles + run pace', b: "New summary strip on the Box printer screen: Boxes · Packs · Value made (boxes × list price) · This week (with ▲/▼ vs last week). Plus a run-time line — time on the line, boxes per hour, longest gap, and first/last box times — all from the print times.", r: 'Owner' },
   { d: '2026-11-15', t: 'Box printer: cleaner list + packs total', b: "Freshened up the day's list — a color bar per product, label and time on one line, and the packs shown as a tinted pill next to the boxes. The day total up top now shows total packs too (e.g. 169 boxes · 2,766 packs).", r: 'Owner' },
@@ -2260,9 +2261,19 @@ function renderPrinter() {
   const A = printAll(), data = A.data, live = A.live;
   const days = printDays(data);
   const day = S.mpDay || days[0] || isoOf(TODAY);
-  const isToday = day === isoOf(TODAY);
-  const dayObj = data[day] || { labels: {} };
-  const labels = dayObj.labels || {};
+  const weekMode = S.mpView === 'week';
+  const wd = isoRd(day), wStart = new Date(wd); wStart.setDate(wd.getDate() - wd.getDay());
+  const wEnd = new Date(wStart); wEnd.setDate(wStart.getDate() + 6);
+  const weekStartIso = isoOf(wStart), weekEndIso = isoOf(wEnd);
+  const isToday = !weekMode && day === isoOf(TODAY);
+  let dayObj, labels;
+  if (weekMode) {
+    const merged = {};
+    days.forEach(dd => { if (dd >= weekStartIso && dd <= weekEndIso) { const L = (data[dd] || {}).labels || {}; Object.keys(L).forEach(k => { merged[k] = (merged[k] || 0) + (+L[k] || 0); }); } });
+    dayObj = { labels: merged }; labels = merged;
+  } else {
+    dayObj = data[day] || { labels: {} }; labels = dayObj.labels || {};
+  }
   const now = data.now || null;
 
   // ---- live status pill ----
@@ -2297,10 +2308,14 @@ function renderPrinter() {
     const ci = prodByKey(prodK);
     rows.push({ prod: ci ? ci.name : prodK, grp: prodGroup(ci), swatch: prodSwatch(ci), lab, n, key: prodK, per: packPerBox(prodK), stock: ci && typeof ci.stock === 'number' ? ci.stock : null, times: (dayObj.times || {})[lab] || null });
   });
-  // Show products in the order they were packed that day (first packed on top), not biggest-batch first.
-  const ord = Array.isArray(dayObj.order) ? dayObj.order : Object.keys(labels);
-  const opos = {}; ord.forEach((l, i) => { if (opos[l] == null) opos[l] = i; });
-  rows.sort((a, b) => (opos[a.lab] == null ? 1e9 : opos[a.lab]) - (opos[b.lab] == null ? 1e9 : opos[b.lab]));
+  if (weekMode) {
+    rows.sort((a, b) => b.n - a.n); // week view: biggest first (packing order spans days)
+  } else {
+    // Show products in the order they were packed that day (first packed on top), not biggest-batch first.
+    const ord = Array.isArray(dayObj.order) ? dayObj.order : Object.keys(labels);
+    const opos = {}; ord.forEach((l, i) => { if (opos[l] == null) opos[l] = i; });
+    rows.sort((a, b) => (opos[a.lab] == null ? 1e9 : opos[a.lab]) - (opos[b.lab] == null ? 1e9 : opos[b.lab]));
+  }
   const total = Object.values(labels).reduce((s, x) => s + (+x || 0), 0);
   const totalPacks = rows.reduce((s, r) => s + (r.per ? r.n * r.per : 0), 0);
   // $ value made that day = boxes (cases) × the product's list price
@@ -2422,7 +2437,7 @@ function renderPrinter() {
   const billUnmapped = Object.keys(labels).reduce((s, lab) => s + (printProd(lab) ? 0 : (labels[lab] || 0)), 0);
   const billExists = mpBillExists(day);
   const canBill = S.role === 'Owner' || S.role === 'Office';
-  const qbSection = (!canBill || (!billLines.length && !billExists)) ? '' : `
+  const qbSection = (!canBill || weekMode || (!billLines.length && !billExists)) ? '' : `
   <section class="card">
     <div class="card-head"><h2 style="margin:0">Send to QuickBooks</h2></div>
     <p class="sub" style="margin:0 0 10px">Files ${dayWord} production into QuickBooks as a <b>$0 bill</b> — quantities only, so it brings the boxes into your stock and never touches money. You review it and tap Send before anything posts.</p>
@@ -2458,13 +2473,18 @@ function renderPrinter() {
   ${packNextCard}
 
   <section class="card">
-    <div class="card-head"><h2 style="margin:0">Made ${day === isoOf(TODAY) ? 'today' : 'on ' + esc(fmtShort(isoRd(day)))}</h2><div style="text-align:right"><div style="font-size:22px;font-weight:800;line-height:1.1">${fn(total)}<span class="sub" style="font-weight:600;font-size:12px"> boxes</span></div>${totalPacks || totalValue ? `<div style="font-size:13px;font-weight:800;color:var(--muted);margin-top:2px">${totalPacks ? fn(totalPacks) + ' packs' : ''}${totalPacks && totalValue ? ' · ' : ''}${totalValue ? mpMoney(totalValue) : ''}</div>` : ''}</div></div>
-    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:4px 0 12px">
-      <label for="mp-date" class="sub" style="margin:0;font-weight:600">📅 Pick a day</label>
+    <div class="card-head"><h2 style="margin:0">${weekMode ? 'Week of ' + esc(fmtShort(isoRd(weekStartIso))) : 'Made ' + (day === isoOf(TODAY) ? 'today' : 'on ' + esc(fmtShort(isoRd(day))))}</h2><div style="text-align:right"><div style="font-size:22px;font-weight:800;line-height:1.1">${fn(total)}<span class="sub" style="font-weight:600;font-size:12px"> boxes</span></div>${totalPacks || totalValue ? `<div style="font-size:13px;font-weight:800;color:var(--muted);margin-top:2px">${totalPacks ? fn(totalPacks) + ' packs' : ''}${totalPacks && totalValue ? ' · ' : ''}${totalValue ? mpMoney(totalValue) : ''}</div>` : ''}</div></div>
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:6px 0 12px">
+      <div style="display:inline-flex;border:1px solid var(--line);border-radius:999px;overflow:hidden">
+        <button data-act="mp-view" data-v="day" style="border:none;padding:6px 14px;font:inherit;font-weight:700;font-size:13px;cursor:pointer;background:${weekMode ? 'transparent' : '#1e3a8a'};color:${weekMode ? 'var(--muted)' : '#fff'}">Day</button>
+        <button data-act="mp-view" data-v="week" style="border:none;padding:6px 14px;font:inherit;font-weight:700;font-size:13px;cursor:pointer;background:${weekMode ? '#1e3a8a' : 'transparent'};color:${weekMode ? '#fff' : 'var(--muted)'}">Week</button>
+      </div>
+      <label for="mp-date" class="sub" style="margin:0;font-weight:600">📅 ${weekMode ? 'Week of' : 'Pick a day'}</label>
       <input type="date" id="mp-date" value="${day}" max="${isoOf(TODAY)}" class="inp" style="max-width:170px">
-      ${days.length > 1 ? `<div style="display:flex;gap:6px;flex-wrap:wrap">${dayChips}</div>` : ''}
+      ${!weekMode && days.length > 1 ? `<div style="display:flex;gap:6px;flex-wrap:wrap">${dayChips}</div>` : ''}
     </div>
-    <div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;padding:0 2px 2px"><span>Product${rows.length > 1 ? ' · in the order packed' : ''}</span><span>Packed</span></div>
+    ${weekMode ? `<p class="sub" style="margin:-4px 0 10px;font-size:12px">${esc(fmtShort(isoRd(weekStartIso)))} – ${esc(fmtShort(isoRd(weekEndIso)))} · all ${rows.length} product${rows.length === 1 ? '' : 's'} made this week</p>` : ''}
+    <div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;padding:0 2px 2px"><span>Product${rows.length > 1 && !weekMode ? ' · in the order packed' : ''}</span><span>Packed</span></div>
     ${listRows || emptyRow}
     ${isToday && rows.some(r => r.stock != null) ? '<p class="sub" style="margin:12px 0 0;font-size:12px"><b>With today</b> adds the boxes you just made (not yet in QuickBooks) to your QuickBooks stock — what you really have on the floor.</p>' : ''}
     ${unmappedBlock}
@@ -9214,6 +9234,7 @@ document.addEventListener('click', e => {
     case 'pk-xrun': { const lines = Object.keys(S.pkxDraft || {}).map(f => [f, Math.round(+S.pkxDraft[f] || 0)]).filter(l => l[1] > 0); if (!lines.length) { toast('Enter how many to bring.'); break; } const bm = bmByFull(); const nm = f => { const c = S.catalog.find(x => x.full === f); return c ? c.name : f; }; putMove({ id: 'mv' + Date.now().toString(36) + Math.floor(Math.random() * 1e4).toString(36), from: 'BM', to: 'Chuster', d: isoOf(TODAY), lines: lines.map(l => [l[0], Math.min(l[1], bm[l[0]] || l[1]), nm(l[0])]), st: 'pending', by: byName(), at: nowIso() }); S.pkxDraft = {}; toast('BM → Chuster run created. Mark it Done when it arrives.'); keep(); break; }
     case 'em-done': { S.emDone = S.emDone || {}; S.emDone[d.id] = 1; try { localStorage.setItem('chuster-em-done-v1', JSON.stringify(S.emDone)); } catch (e) { } render(); break; }
     case 'mp-day': S.mpDay = d.day; render(); break;
+    case 'mp-view': S.mpView = d.v; render(); break;
     case 'mp-maptoggle': S.mpMapOpen = !S.mpMapOpen; render(); break;
     case 'mp-tobill': { if (qwFromProduction(S.mpDay || isoOf(TODAY))) { S.qbTab = 'wait'; go('toqb'); } break; }
     case 'mp-usematch': { const map = Object.assign({}, printMapRaw()); map[d.lab] = d.key; S.mpMap = map; try { localStorage.setItem('chuster-mpmap-v1', JSON.stringify(map)); } catch (e) { } try { SYNC.put('mp', 'map', map); } catch (e) { } render(); toast('Matched to ' + prodName(d.key)); break; }
