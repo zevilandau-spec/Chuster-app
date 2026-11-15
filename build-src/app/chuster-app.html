@@ -1932,6 +1932,7 @@ function renderSalesReport() {
 
 // What's new — a running list of what shipped, newest first. r: role that sees it (Owner-only if set).
 const CHANGELOG = [
+  { d: '2026-11-15', t: 'Box printer: automation + lot stamp', b: "New Automation card on the Box printer screen: a soft idle nudge if the line sits 30+ min in work hours (no popup), a date-based LOT stamp per day for kosher/recall traceability, and an end-of-day production summary (push + email). Records now also shows cartons used (estimate).", r: 'Owner' },
   { d: '2026-11-15', t: 'Box printer: Day / Week view', b: "New Day / Week toggle on the Box printer screen. Flip to Week and it totals the whole week (Sun–Sat) — boxes, packs and value — and lists every product made that week, biggest first. Pick any date to jump to that week.", r: 'Owner' },
   { d: '2026-11-15', t: 'Box printer: pack-next, heatmap, records', b: "Three more tools on the Box printer screen: Pack next (products low/negative in stock that you haven't made today, from QuickBooks — worst first); a month output heatmap where you tap any day to open it; and a Records card (best day ever, this day vs your usual same-weekday, packs that day).", r: 'Owner' },
   { d: '2026-11-15', t: 'Box printer: day tiles + run pace', b: "New summary strip on the Box printer screen: Boxes · Packs · Value made (boxes × list price) · This week (with ▲/▼ vs last week). Plus a run-time line — time on the line, boxes per hour, longest gap, and first/last box times — all from the print times.", r: 'Owner' },
@@ -2175,6 +2176,14 @@ function autoPacksPerCase(p) {
 }
 // Manual override (owner-set) wins; otherwise use the QuickBooks pack spec.
 function packPerBox(k) { const v = +printPackRaw()[k]; if (isFinite(v) && v > 0) return v; return autoPacksPerCase(prodByKey(k)); }
+// Box-printer automation preferences (synced to everyone). idle nudge on by default.
+function printAutoRaw() {
+  if (S.mpAuto) return S.mpAuto;
+  let local = {}; try { local = JSON.parse(localStorage.getItem('chuster-mpauto-v1')) || {}; } catch (e) { local = {}; }
+  const synced = (S.mpLive && S.mpLive.autoset) || (PRINT_SEED && PRINT_SEED.autoset) || {};
+  const m = Object.assign({ idle: true }, synced, local);
+  S.mpAuto = m; return m;
+}
 // Products are matched by their unique id (full QuickBooks name), never by display name — two products
 // (a loose one and a cased one) often share the same name, so matching by name would pick the wrong one.
 function prodKeyOf(p) { return (p && (p.full || p.name)) || ''; }
@@ -2374,8 +2383,30 @@ function renderPrinter() {
     ${bestDay ? `<div style="display:flex;justify-content:space-between;padding:8px 0"><span class="sub" style="margin:0">Best day</span><b>${esc(fmtShort(isoRd(bestDay.iso)))} · ${fn(bestDay.tot)} boxes</b></div>` : ''}
     ${vsPct != null ? `<div style="display:flex;justify-content:space-between;padding:8px 0;border-top:1px solid var(--line)"><span class="sub" style="margin:0">${esc(fmtShort(isoRd(day)))} vs usual ${DOW3[selDow]}</span><b style="color:${vsPct >= 0 ? '#15803d' : 'var(--bad-text)'}">${vsPct >= 0 ? '▲ ' : '▼ '}${Math.abs(vsPct)}%</b></div>` : ''}
     ${totalPacks ? `<div style="display:flex;justify-content:space-between;padding:8px 0;border-top:1px solid var(--line)"><span class="sub" style="margin:0">Packs this day</span><b>${fn(totalPacks)}</b></div>` : ''}
+    ${total > 0 ? `<div style="display:flex;justify-content:space-between;padding:8px 0;border-top:1px solid var(--line)"><span class="sub" style="margin:0">Cartons used ≈</span><b>${fn(total)}</b></div>` : ''}
   </section>` : '';
   const trendCards = (calCard || recordsCard) ? `<div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:16px">${calCard}${recordsCard}</div>` : '';
+  // ---- Batch 3: automation (idle nudge, lot stamp, end-of-day summary) ----
+  const auto = printAutoRaw();
+  let idleNudge = '';
+  if (auto.idle && live && now && now.at) {
+    const ageMin = (Date.now() - Date.parse(now.at)) / 60000;
+    const nd = new Date(), dw = nd.getDay(), hr = nd.getHours();
+    if (ageMin > 30 && dw >= 1 && dw <= 5 && hr >= 6 && hr < 18) idleNudge = `<div style="margin-top:10px;padding:10px 14px;border:1px solid #f59e0b66;background:#f59e0b18;border-radius:12px;font-weight:700;color:#92600a">⚠️ Line idle ${ageMin < 120 ? Math.round(ageMin) + ' min' : Math.round(ageMin / 60) + ' hr'} during work hours — nothing printing.</div>`;
+  }
+  const lotOn = !!auto.lot;
+  const lotCode = 'L' + day.replace(/-/g, '');
+  const cartonsEst = total; // ~1 shipping carton per box
+  const swBg = on => `width:40px;height:23px;border-radius:999px;position:relative;flex:none;border:none;cursor:pointer;background:${on ? '#1e3a8a' : '#cdc6b6'}`;
+  const swKnob = on => `<span style="position:absolute;top:2px;${on ? 'right:2px' : 'left:2px'};width:19px;height:19px;border-radius:50%;background:#fff"></span>`;
+  const toggleRow = (k, title, desc, first) => { const on = !!auto[k]; return `<div style="display:flex;justify-content:space-between;align-items:center;gap:14px;padding:12px 0;${first ? '' : 'border-top:1px solid var(--line)'}"><div style="min-width:0"><div style="font-weight:700">${title}</div><div class="sub" style="font-size:11.5px;margin:0">${desc}</div></div><button data-act="mp-auto" data-k="${k}" aria-pressed="${on}" style="${swBg(on)}">${swKnob(on)}</button></div>`; };
+  const autoCard = canBill ? `
+  <section class="card">
+    <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;font-weight:700;margin-bottom:2px">Automation</div>
+    ${toggleRow('summary', 'End-of-day production summary', 'A daily push + email with boxes &amp; packs by product', true)}
+    ${toggleRow('idle', 'Idle nudge in work hours', 'A soft banner on this screen if the line sits 30+ min — no popup')}
+    ${toggleRow('lot', 'Lot & date stamp each run', 'Shows a lot code (date-based) for kosher / recall traceability')}
+  </section>` : '';
 
   const listRows = rows.map((r, i) => {
     const meta = [esc(r.lab), timeRange(r.times) ? '🕑 ' + esc(timeRange(r.times)) : ''].filter(Boolean).join('&nbsp; · &nbsp;');
@@ -2465,6 +2496,7 @@ function renderPrinter() {
   <section class="card">
     <div class="card-head" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap"><h2 style="margin:0">Box printer</h2>${pill}<span class="sub" style="margin:0;flex:1;min-width:140px">${pillNote}</span></div>
     <p class="sub" style="margin:4px 0 0">Every box the Markoprint prints is counted here automatically, by product. No more counting boxes by hand.</p>
+    ${idleNudge}
     ${banner}
     ${runNow}
   </section>
@@ -2483,6 +2515,7 @@ function renderPrinter() {
       ${!weekMode && days.length > 1 ? `<div style="display:flex;gap:6px;flex-wrap:wrap">${dayChips}</div>` : ''}
     </div>
     ${weekMode ? `<p class="sub" style="margin:-4px 0 10px;font-size:12px">${esc(fmtShort(isoRd(weekStartIso)))} – ${esc(fmtShort(isoRd(weekEndIso)))} · all ${rows.length} product${rows.length === 1 ? '' : 's'} made this week</p>` : ''}
+    ${lotOn && !weekMode && total > 0 ? `<div style="margin:-2px 0 10px"><span style="display:inline-block;font-size:11px;font-weight:800;letter-spacing:.5px;padding:3px 10px;border-radius:8px;background:#eef1fb;color:#1e3a8a">LOT ${lotCode}</span></div>` : ''}
     <div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;padding:0 2px 2px"><span>Product${rows.length > 1 && !weekMode ? ' · in the order packed' : ''}</span><span>Packed</span></div>
     ${listRows || emptyRow}
     ${isToday && rows.some(r => r.stock != null) ? '<p class="sub" style="margin:12px 0 0;font-size:12px"><b>With today</b> adds the boxes you just made (not yet in QuickBooks) to your QuickBooks stock — what you really have on the floor.</p>' : ''}
@@ -2494,7 +2527,8 @@ function renderPrinter() {
   <section class="card">
     <button class="btn ghost" data-act="mp-maptoggle" style="width:100%;text-align:left">${S.mpMapOpen ? '▾' : '▸'} Match printer labels to products${labelList.length ? ' (' + labelList.length + ')' : ''}</button>
     ${S.mpMapOpen ? `<div style="margin-top:8px"><p class="sub" style="margin:0 0 6px">Pick which product each printer label is. You set this once; it syncs to everyone.</p><div style="display:flex;gap:14px;flex-wrap:wrap;font-size:12px;margin:0 0 8px">${Object.keys(GROUP_COLOR).map(g => `<span style="display:inline-flex;align-items:center">${grpSwatch(g)}${g}</span>`).join('')}</div>${mapRows}</div>` : ''}
-  </section>`;
+  </section>
+  ${autoCard}`;
 }
 
 const VIEWS = {
@@ -8014,7 +8048,7 @@ SYNC.on('ec', (k, val) => { S.emailConn = S.emailConn || {}; if (val == null) de
 S.emailLive = {};
 SYNC.on('ei', (k, val) => { S.emailLive = S.emailLive || {}; if (val == null) delete S.emailLive[k]; else S.emailLive[k] = val; });
 S.mpLive = {};
-SYNC.on('mp', (k, val) => { S.mpLive = S.mpLive || {}; if (val == null) delete S.mpLive[k]; else S.mpLive[k] = val; if (k === 'map') S.mpMap = null; if (k === 'packmap') S.mpPack = null; try { if (S.view === 'printer') render(); } catch (e) { } });
+SYNC.on('mp', (k, val) => { S.mpLive = S.mpLive || {}; if (val == null) delete S.mpLive[k]; else S.mpLive[k] = val; if (k === 'map') S.mpMap = null; if (k === 'packmap') S.mpPack = null; if (k === 'autoset') S.mpAuto = null; try { if (S.view === 'printer') render(); } catch (e) { } });
 // BM contents = sum of received moves into BM minus runs out of BM (only 'done' moves count)
 function bmByFull() { const m = {}; Object.values(S.moves || {}).forEach(mv => { if (!mv || mv.st !== 'done') return; const sign = mv.to === 'BM' ? 1 : mv.from === 'BM' ? -1 : 0; if (!sign) return; (mv.lines || []).forEach(l => { const full = l[0], q = +l[1] || 0; if (!full || !q) return; m[full] = (m[full] || 0) + sign * q; }); }); return m; }
 let avSeen = {}; // throttle screen logging this session
@@ -9234,6 +9268,7 @@ document.addEventListener('click', e => {
     case 'em-done': { S.emDone = S.emDone || {}; S.emDone[d.id] = 1; try { localStorage.setItem('chuster-em-done-v1', JSON.stringify(S.emDone)); } catch (e) { } render(); break; }
     case 'mp-day': S.mpDay = d.day; render(); break;
     case 'mp-view': S.mpView = d.v; render(); break;
+    case 'mp-auto': { const m = Object.assign({}, printAutoRaw()); m[d.k] = !m[d.k]; S.mpAuto = m; try { localStorage.setItem('chuster-mpauto-v1', JSON.stringify(m)); } catch (e) { } try { SYNC.put('mp', 'autoset', m); } catch (e) { } render(); break; }
     case 'mp-maptoggle': S.mpMapOpen = !S.mpMapOpen; render(); break;
     case 'mp-tobill': { if (qwFromProduction(S.mpDay || isoOf(TODAY))) { S.qbTab = 'wait'; go('toqb'); } break; }
     case 'mp-usematch': { const map = Object.assign({}, printMapRaw()); map[d.lab] = d.key; S.mpMap = map; try { localStorage.setItem('chuster-mpmap-v1', JSON.stringify(map)); } catch (e) { } try { SYNC.put('mp', 'map', map); } catch (e) { } render(); toast('Matched to ' + prodName(d.key)); break; }
