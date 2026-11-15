@@ -2438,7 +2438,7 @@ function renderPrinter() {
 
   const listRows = rows.map((r, i) => {
     const meta = [esc(r.lab), timeRange(r.times) ? '🕑 ' + esc(timeRange(r.times)) : ''].filter(Boolean).join('&nbsp; · &nbsp;');
-    const stockLine = isToday && r.stock != null ? `<div style="font-size:11px;margin-top:4px;color:${r.stock < 0 ? 'var(--bad-text)' : 'var(--muted)'}">In stock ${fn(r.stock)} → <b>${fn(r.stock + r.n)}</b> with today</div>` : '';
+    const stockLine = !weekMode && r.stock != null ? `<div style="font-size:11px;margin-top:4px;color:${r.stock < 0 ? 'var(--bad-text)' : 'var(--muted)'}">In stock <b>${fn(r.stock)}</b> → <b>${fn(r.stock + r.n)}</b> with ${isToday ? 'today' : 'this day'}</div>` : '';
     return `<div style="display:flex;align-items:stretch;gap:12px;padding:13px 2px;${i ? 'border-top:1px solid var(--line)' : ''}">
       <span class="${gcls(r.grp)}" style="width:4px;border-radius:3px;background:var(--gt);flex:none"></span>
       <div style="flex:1;min-width:0">
@@ -2545,7 +2545,7 @@ function renderPrinter() {
     ${lotOn && !weekMode && total > 0 ? `<div style="margin:-2px 0 10px"><span style="display:inline-block;font-size:11px;font-weight:800;letter-spacing:.5px;padding:3px 10px;border-radius:8px;background:#eef1fb;color:#1e3a8a">LOT ${lotCode}</span></div>` : ''}
     <div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;padding:0 2px 2px"><span>Product${rows.length > 1 && !weekMode ? ' · in the order packed' : ''}</span><span>Packed</span></div>
     ${listRows || emptyRow}
-    ${isToday && rows.some(r => r.stock != null) ? '<p class="sub" style="margin:12px 0 0;font-size:12px"><b>With today</b> adds the boxes you just made (not yet in QuickBooks) to your QuickBooks stock — what you really have on the floor.</p>' : ''}
+    ${!weekMode && rows.some(r => r.stock != null) ? `<p class="sub" style="margin:12px 0 0;font-size:12px"><b>In stock</b> is your QuickBooks number. <b>With ${isToday ? 'today' : 'this day'}</b> adds that day's boxes (not yet in QuickBooks) so you can see what you really have on the floor.</p>` : ''}
     ${unmappedBlock}
   </section>
   ${trendCards}
