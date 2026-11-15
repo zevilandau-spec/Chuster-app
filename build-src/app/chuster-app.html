@@ -2262,9 +2262,8 @@ function renderPrinter() {
   const days = printDays(data);
   const day = S.mpDay || days[0] || isoOf(TODAY);
   const weekMode = S.mpView === 'week';
-  const wd = isoRd(day), wStart = new Date(wd); wStart.setDate(wd.getDate() - wd.getDay());
-  const wEnd = new Date(wStart); wEnd.setDate(wStart.getDate() + 6);
-  const weekStartIso = isoOf(wStart), weekEndIso = isoOf(wEnd);
+  const dayRd = isoRd(day); const wStartRd = dayRd - dateOf(dayRd).getDay(); const wEndRd = wStartRd + 6;
+  const weekStartIso = isoOf(wStartRd), weekEndIso = isoOf(wEndRd);
   const isToday = !weekMode && day === isoOf(TODAY);
   let dayObj, labels;
   if (weekMode) {
@@ -2331,8 +2330,8 @@ function renderPrinter() {
   if (mpRuns.length) { const first = mpRuns[0].s, last = Math.max(...mpRuns.map(r => r.e)); const activeMin = Math.max(0, last - first); let gap = 0; for (let i = 1; i < mpRuns.length; i++) { const g = mpRuns[i].s - mpRuns[i - 1].e; if (g > gap) gap = g; } pace = { activeMin, first, last, gap, rate: activeMin > 0 ? Math.round(total / (activeMin / 60)) : 0 }; }
   // this week vs last week (box totals across stored days)
   const mpDayTot = dd => Object.values((data[dd] || {}).labels || {}).reduce((s, x) => s + (+x || 0), 0);
-  const mpToday = isoRd(isoOf(TODAY)); const mpWs = new Date(mpToday); mpWs.setHours(0, 0, 0, 0); mpWs.setDate(mpToday.getDate() - mpToday.getDay()); const mpLs = new Date(mpWs); mpLs.setDate(mpWs.getDate() - 7);
-  let wkThis = 0, wkLast = 0; printDays(data).forEach(dd => { const d = isoRd(dd); const tt = mpDayTot(dd); if (d >= mpWs) wkThis += tt; else if (d >= mpLs) wkLast += tt; });
+  const mpTodayRd = isoRd(isoOf(TODAY)); const mpWsRd = mpTodayRd - dateOf(mpTodayRd).getDay(); const mpLsRd = mpWsRd - 7;
+  let wkThis = 0, wkLast = 0; printDays(data).forEach(dd => { const rd = isoRd(dd); const tt = mpDayTot(dd); if (rd >= mpWsRd) wkThis += tt; else if (rd >= mpLsRd) wkLast += tt; });
   const wkPct = wkLast > 0 ? Math.round((wkThis - wkLast) / wkLast * 100) : null;
   // ---- Batch 2: pack-next (low stock), heatmap calendar, records ----
   const madeTodayNames = new Set();
@@ -2348,7 +2347,7 @@ function renderPrinter() {
     ${packNextTop.map(p => { const short = p.stock < 0; const tagBg = short ? '#fde8e8' : '#fef3d8', tagC = short ? '#b42318' : '#92600a', tagT = short ? fn(p.stock) : fn(p.stock) + ' left'; return `<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:9px 2px;border-top:1px solid var(--line)"><div style="display:flex;align-items:center;gap:8px;min-width:0"><span class="${gcls(p.group)}" style="width:4px;height:16px;border-radius:3px;background:var(--gt);flex:none"></span><div style="min-width:0"><div style="font-weight:600;font-size:14px">${esc(p.name)}</div>${p.sold28 ? `<div class="sub" style="font-size:11px;margin:0">sold ${fn(p.sold28)} in 4 wks</div>` : ''}</div></div><span style="font-size:11px;font-weight:800;padding:2px 9px;border-radius:999px;background:${tagBg};color:${tagC};white-space:nowrap">${tagT}</span></div>`; }).join('')}
   </section>` : '';
   // heatmap calendar for the month of the selected day
-  const calD = isoRd(day), calY = calD.getFullYear(), calM = calD.getMonth();
+  const calDate = dateOf(isoRd(day)), calY = calDate.getFullYear(), calM = calDate.getMonth();
   const dim = new Date(calY, calM + 1, 0).getDate(), lead = new Date(calY, calM, 1).getDay();
   const iso2 = (y, m, d) => y + '-' + String(m + 1).padStart(2, '0') + '-' + String(d).padStart(2, '0');
   const dayTots = {}; let maxTot = 0; printDays(data).forEach(dd => { const t = mpDayTot(dd); dayTots[dd] = t; if (t > maxTot) maxTot = t; });
@@ -2364,8 +2363,8 @@ function renderPrinter() {
   </section>`;
   const allDaysArr = printDays(data).map(dd => ({ iso: dd, tot: mpDayTot(dd) })).filter(x => x.tot > 0);
   const bestDay = allDaysArr.reduce((a, b) => b.tot > (a ? a.tot : -1) ? b : a, null);
-  const selDow = isoRd(day).getDay();
-  const sameDow = allDaysArr.filter(x => x.iso !== day && isoRd(x.iso).getDay() === selDow);
+  const selDow = dateOf(isoRd(day)).getDay();
+  const sameDow = allDaysArr.filter(x => x.iso !== day && dateOf(isoRd(x.iso)).getDay() === selDow);
   const usual = sameDow.length ? sameDow.reduce((s, x) => s + x.tot, 0) / sameDow.length : null;
   const vsPct = (usual && total > 0) ? Math.round((total - usual) / usual * 100) : null;
   const DOW3 = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
