@@ -1932,6 +1932,7 @@ function renderSalesReport() {
 
 // What's new — a running list of what shipped, newest first. r: role that sees it (Owner-only if set).
 const CHANGELOG = [
+  { d: '2026-11-15', t: 'Box printer: day tiles + run pace', b: "New summary strip on the Box printer screen: Boxes · Packs · Value made (boxes × list price) · This week (with ▲/▼ vs last week). Plus a run-time line — time on the line, boxes per hour, longest gap, and first/last box times — all from the print times.", r: 'Owner' },
   { d: '2026-11-15', t: 'Box printer: cleaner list + packs total', b: "Freshened up the day's list — a color bar per product, label and time on one line, and the packs shown as a tinted pill next to the boxes. The day total up top now shows total packs too (e.g. 169 boxes · 2,766 packs).", r: 'Owner' },
   { d: '2026-11-15', t: 'Box printer: packs per box', b: "Each product now shows the pack count next to its boxes — e.g. Landaus Toast Barley 2 boxes = 48 packs. The app reads the case size straight from QuickBooks (24/11 → 24 packs a case), so it fills in by itself. A few snacks with no size in QuickBooks (like the Tortilla Mini Rounds) show a ‘packs/box’ box in the Match list — set those once and they stick.", r: 'Owner' },
   { d: '2026-11-14', t: 'Box printer: as-packed order + times', b: "The day's product list now reads in the order you actually packed it — first product on top, last at the bottom — instead of biggest batch first. Each product also shows its start–finish time (when the first and last box of that run printed), e.g. 7:05 AM – 9:04 AM. Mondays onward fill in automatically; Thursday & Friday were re-posted so they show it too.", r: 'Owner' },
@@ -2301,6 +2302,22 @@ function renderPrinter() {
   rows.sort((a, b) => (opos[a.lab] == null ? 1e9 : opos[a.lab]) - (opos[b.lab] == null ? 1e9 : opos[b.lab]));
   const total = Object.values(labels).reduce((s, x) => s + (+x || 0), 0);
   const totalPacks = rows.reduce((s, r) => s + (r.per ? r.n * r.per : 0), 0);
+  // $ value made that day = boxes (cases) × the product's list price
+  const totalValue = rows.reduce((s, r) => { const p = prodByKey(r.key); const pr = p && p.price ? parseFloat(p.price) : 0; return s + (pr > 0 ? r.n * pr : 0); }, 0);
+  const mpMoney = v => '$' + fn(Math.round(v));
+  // run time & pace, from the day's first/last box times
+  const mpToMin = s => { const m = String(s || '').match(/^(\d\d?):(\d\d)/); return m ? (+m[1]) * 60 + (+m[2]) : null; };
+  const mpClk = m => { let h = Math.floor(m / 60), mm = m % 60; const ap = h < 12 ? 'AM' : 'PM'; h = h % 12; if (h === 0) h = 12; return h + ':' + (mm < 10 ? '0' : '') + mm + ' ' + ap; };
+  const mpDur = m => { m = Math.round(m); const h = Math.floor(m / 60), mm = m % 60; return (h ? h + 'h ' : '') + mm + 'm'; };
+  const mpRuns = []; Object.keys(labels).forEach(l => { const t = (dayObj.times || {})[l]; if (!t) return; const a = mpToMin(t.s); if (a == null) return; const b = mpToMin(t.e); mpRuns.push({ s: a, e: b == null ? a : b }); });
+  mpRuns.sort((a, b) => a.s - b.s);
+  let pace = null;
+  if (mpRuns.length) { const first = mpRuns[0].s, last = Math.max(...mpRuns.map(r => r.e)); const activeMin = Math.max(0, last - first); let gap = 0; for (let i = 1; i < mpRuns.length; i++) { const g = mpRuns[i].s - mpRuns[i - 1].e; if (g > gap) gap = g; } pace = { activeMin, first, last, gap, rate: activeMin > 0 ? Math.round(total / (activeMin / 60)) : 0 }; }
+  // this week vs last week (box totals across stored days)
+  const mpDayTot = dd => Object.values((data[dd] || {}).labels || {}).reduce((s, x) => s + (+x || 0), 0);
+  const mpToday = isoRd(isoOf(TODAY)); const mpWs = new Date(mpToday); mpWs.setHours(0, 0, 0, 0); mpWs.setDate(mpToday.getDate() - mpToday.getDay()); const mpLs = new Date(mpWs); mpLs.setDate(mpWs.getDate() - 7);
+  let wkThis = 0, wkLast = 0; printDays(data).forEach(dd => { const d = isoRd(dd); const tt = mpDayTot(dd); if (d >= mpWs) wkThis += tt; else if (d >= mpLs) wkLast += tt; });
+  const wkPct = wkLast > 0 ? Math.round((wkThis - wkLast) / wkLast * 100) : null;
 
   const listRows = rows.map((r, i) => {
     const meta = [esc(r.lab), timeRange(r.times) ? '🕑 ' + esc(timeRange(r.times)) : ''].filter(Boolean).join('&nbsp; · &nbsp;');
@@ -2370,6 +2387,22 @@ function renderPrinter() {
       : `<button class="btn primary" data-act="mp-tobill" style="width:100%">Send ${billLines.length} product${billLines.length > 1 ? 's' : ''} · ${fn(billBoxes)} boxes to QuickBooks</button>${billUnmapped ? `<p class="sub" style="margin:8px 0 0">${fn(billUnmapped)} box${billUnmapped > 1 ? 'es are' : ' is'} on labels not matched yet — match them below to include them.</p>` : ''}`}
   </section>`;
 
+  const tile = (k, v, d) => `<div style="border:1px solid var(--line);border-radius:14px;padding:12px 14px"><div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px">${k}</div><div style="font-size:22px;font-weight:800;margin-top:3px;line-height:1">${v}</div><div class="sub" style="margin:3px 0 0;font-size:11.5px">${d}</div></div>`;
+  const tilesCard = total > 0 ? `
+  <section class="card">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(132px,1fr));gap:12px">
+      ${tile('Boxes', fn(total), isToday ? 'today' : esc(fmtShort(isoRd(day))))}
+      ${tile('Packs', totalPacks ? fn(totalPacks) : '—', 'all products')}
+      ${tile('Value made', totalValue ? mpMoney(totalValue) : '—', 'at list price')}
+      ${tile('This week', fn(wkThis), wkPct == null ? 'boxes' : (wkPct >= 0 ? '<span style="color:#15803d;font-weight:700">▲ ' + wkPct + '%</span>' : '<span style="color:var(--bad-text);font-weight:700">▼ ' + Math.abs(wkPct) + '%</span>') + ' vs last week')}
+    </div>
+    ${pace ? `<div style="display:flex;gap:22px;flex-wrap:wrap;align-items:center;margin-top:14px;padding-top:14px;border-top:1px solid var(--line)">
+      <div><div style="font-size:18px;font-weight:800">${mpDur(pace.activeMin)}</div><div class="sub" style="font-size:11.5px">on the line</div></div>
+      <div><div style="font-size:18px;font-weight:800">${pace.rate ? '~' + fn(pace.rate) + '/hr' : '—'}</div><div class="sub" style="font-size:11.5px">boxes per hour</div></div>
+      <div><div style="font-size:18px;font-weight:800">${pace.gap >= 1 ? mpDur(pace.gap) : '—'}</div><div class="sub" style="font-size:11.5px">longest gap</div></div>
+      <div style="flex:1;min-width:150px;text-align:right"><div class="sub" style="font-size:11.5px">First box ${mpClk(pace.first)} · last ${mpClk(pace.last)}</div></div>
+    </div>` : ''}
+  </section>` : '';
   return `
   <section class="card">
     <div class="card-head" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap"><h2 style="margin:0">Box printer</h2>${pill}<span class="sub" style="margin:0;flex:1;min-width:140px">${pillNote}</span></div>
@@ -2377,9 +2410,10 @@ function renderPrinter() {
     ${banner}
     ${runNow}
   </section>
+  ${tilesCard}
 
   <section class="card">
-    <div class="card-head"><h2 style="margin:0">Made ${day === isoOf(TODAY) ? 'today' : 'on ' + esc(fmtShort(isoRd(day)))}</h2><div style="text-align:right"><div style="font-size:22px;font-weight:800;line-height:1.1">${fn(total)}<span class="sub" style="font-weight:600;font-size:12px"> boxes</span></div>${totalPacks ? `<div style="font-size:13px;font-weight:800;color:var(--muted);margin-top:2px">${fn(totalPacks)} packs</div>` : ''}</div></div>
+    <div class="card-head"><h2 style="margin:0">Made ${day === isoOf(TODAY) ? 'today' : 'on ' + esc(fmtShort(isoRd(day)))}</h2><div style="text-align:right"><div style="font-size:22px;font-weight:800;line-height:1.1">${fn(total)}<span class="sub" style="font-weight:600;font-size:12px"> boxes</span></div>${totalPacks || totalValue ? `<div style="font-size:13px;font-weight:800;color:var(--muted);margin-top:2px">${totalPacks ? fn(totalPacks) + ' packs' : ''}${totalPacks && totalValue ? ' · ' : ''}${totalValue ? mpMoney(totalValue) : ''}</div>` : ''}</div></div>
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:4px 0 12px">
       <label for="mp-date" class="sub" style="margin:0;font-weight:600">📅 Pick a day</label>
       <input type="date" id="mp-date" value="${day}" max="${isoOf(TODAY)}" class="inp" style="max-width:170px">
