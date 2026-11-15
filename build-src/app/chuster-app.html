@@ -2319,21 +2319,20 @@ function renderPrinter() {
     <div class="sub" style="margin:0">This is the real count from your Markoprint report (Nov 12). Once the factory PC is set to push live, this screen turns <b style="color:#15803d">green</b> and updates by itself as boxes print — no counting by hand.</div>
   </div>` : '';
 
-  // ---- QuickBooks production bill (today only) ----
-  const billLines = isToday ? mpBillLines(day) : [];
+  // ---- QuickBooks production bill (for the day you're viewing) ----
+  const dayWord = isToday ? 'today’s' : esc(fmtShort(isoRd(day)));
+  const billLines = mpBillLines(day);
   const billBoxes = billLines.reduce((s, l) => s + l[1], 0);
-  const billUnmapped = isToday ? Object.keys(labels).reduce((s, lab) => s + (printProd(lab) ? 0 : (labels[lab] || 0)), 0) : 0;
-  const billExists = isToday && mpBillExists(day);
+  const billUnmapped = Object.keys(labels).reduce((s, lab) => s + (printProd(lab) ? 0 : (labels[lab] || 0)), 0);
+  const billExists = mpBillExists(day);
   const canBill = S.role === 'Owner' || S.role === 'Office';
-  const qbSection = (!isToday || !canBill) ? '' : `
+  const qbSection = (!canBill || (!billLines.length && !billExists)) ? '' : `
   <section class="card">
     <div class="card-head"><h2 style="margin:0">Send to QuickBooks</h2></div>
-    <p class="sub" style="margin:0 0 10px">Files today’s production into QuickBooks as a <b>$0 bill</b> — quantities only, so it brings the boxes into your stock and never touches money. You review it and tap Send before anything posts.</p>
+    <p class="sub" style="margin:0 0 10px">Files ${dayWord} production into QuickBooks as a <b>$0 bill</b> — quantities only, so it brings the boxes into your stock and never touches money. You review it and tap Send before anything posts.</p>
     ${billExists
-      ? `<div style="padding:10px 12px;border:1px solid #16a34a55;background:#16a34a14;border-radius:10px;margin-bottom:10px">Today’s production bill is already waiting in <b>To QuickBooks</b>.</div><a class="btn ghost" href="#toqb" data-go="toqb">Open To QuickBooks</a>`
-      : billLines.length
-        ? `<button class="btn primary" data-act="mp-tobill" style="width:100%">Send ${billLines.length} product${billLines.length > 1 ? 's' : ''} · ${fn(billBoxes)} boxes to QuickBooks</button>${billUnmapped ? `<p class="sub" style="margin:8px 0 0">${fn(billUnmapped)} box${billUnmapped > 1 ? 'es are' : ' is'} on labels not matched yet — match them below to include them.</p>` : ''}`
-        : `<p class="sub" style="margin:0">Match your printer labels to products first (below), then today’s boxes can go to QuickBooks.</p>`}
+      ? `<div style="padding:10px 12px;border:1px solid #16a34a55;background:#16a34a14;border-radius:10px;margin-bottom:10px">The production bill for ${esc(fmtShort(isoRd(day)))} is already waiting in <b>To QuickBooks</b>.</div><a class="btn ghost" href="#toqb" data-go="toqb">Open To QuickBooks</a>`
+      : `<button class="btn primary" data-act="mp-tobill" style="width:100%">Send ${billLines.length} product${billLines.length > 1 ? 's' : ''} · ${fn(billBoxes)} boxes to QuickBooks</button>${billUnmapped ? `<p class="sub" style="margin:8px 0 0">${fn(billUnmapped)} box${billUnmapped > 1 ? 'es are' : ' is'} on labels not matched yet — match them below to include them.</p>` : ''}`}
   </section>`;
 
   return `
@@ -8419,15 +8418,15 @@ function mpBillLines(day) {
   return Object.keys(agg).map(full => [full, agg[full], 0]);
 }
 function mpBillExists(day) { return Object.values(S.qw || {}).some(r => r && r.kind === 'bill' && r.d === day && r.st !== 'cancel'); }
-function qwFromProduction() {
+function qwFromProduction(day) {
   if (!REAL) { toast('This works with your real numbers only.'); return false; }
   if (!SYNC.ready()) { toast('Set up the shared database first (Tools).'); return false; }
-  const day = isoOf(TODAY);
-  if (mpBillExists(day)) { toast("Today's production bill is already in To QuickBooks."); return true; }
+  day = day || S.mpDay || isoOf(TODAY);
+  if (mpBillExists(day)) { toast('The production bill for ' + fmtShort(isoRd(day)) + ' is already in To QuickBooks.'); return true; }
   const lines = mpBillLines(day);
   if (!lines.length) { toast('Match your printer labels to products first, then try again.'); return false; }
   const boxes = lines.reduce((s, l) => s + l[1], 0);
-  qwSave({ id: qwId(), kind: 'bill', st: 'wait', try: 0, v: MP_VENDOR, c: MP_VENDOR, d: day, terms: 'Net 30', site: MP_SITE, lines, total: 0, boxes, memo: 'Production ' + fmtShort(TODAY), by: byName(), at: nowIso(), okBy: byName(), okAt: nowIso() });
+  qwSave({ id: qwId(), kind: 'bill', st: 'wait', try: 0, v: MP_VENDOR, c: MP_VENDOR, d: day, terms: 'Net 30', site: MP_SITE, lines, total: 0, boxes, memo: 'Production ' + fmtShort(isoRd(day)), by: byName(), at: nowIso(), okBy: byName(), okAt: nowIso() });
   toast('Bill ready — review it and tap “Send to QuickBooks”.');
   return true;
 }
@@ -9103,7 +9102,7 @@ document.addEventListener('click', e => {
     case 'em-done': { S.emDone = S.emDone || {}; S.emDone[d.id] = 1; try { localStorage.setItem('chuster-em-done-v1', JSON.stringify(S.emDone)); } catch (e) { } render(); break; }
     case 'mp-day': S.mpDay = d.day; render(); break;
     case 'mp-maptoggle': S.mpMapOpen = !S.mpMapOpen; render(); break;
-    case 'mp-tobill': { if (qwFromProduction()) { S.qbTab = 'wait'; go('toqb'); } break; }
+    case 'mp-tobill': { if (qwFromProduction(S.mpDay || isoOf(TODAY))) { S.qbTab = 'wait'; go('toqb'); } break; }
     case 'mp-usematch': { const map = Object.assign({}, printMapRaw()); map[d.lab] = d.key; S.mpMap = map; try { localStorage.setItem('chuster-mpmap-v1', JSON.stringify(map)); } catch (e) { } try { SYNC.put('mp', 'map', map); } catch (e) { } render(); toast('Matched to ' + prodName(d.key)); break; }
     case 'mp-pickopen': S.mpPickFor = d.lab; S.mpQ = ''; S.mpGroup = 'All'; render(); window.scrollTo(0, 0); break;
     case 'mp-pick-cancel': S.mpPickFor = null; S.mpQ = ''; render(); break;
