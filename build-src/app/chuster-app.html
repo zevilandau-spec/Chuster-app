@@ -7580,7 +7580,10 @@ const SYNC = (function () {
       const mark = await readJ(mr);
       if (st.full && mark === st.mark && Date.now() - st.full < 180000) { st.ok = true; st.err = ''; st.last = Date.now(); st.pulling = false; badge(); return; }
       for (const c of COLLS) {
-        const since = st.since[c] || 0;
+        // Box-printer day records ('mp') are written once and kept for a long time, so the incremental
+        // sync can skip an older day once the pointer moves past it. 'mp' is tiny — always pull it whole.
+        const full = (c === 'mp');
+        const since = full ? 0 : (st.since[c] || 0);
         const res = await fetch(`${base()}/${c}.json?orderBy=%22t%22&startAt=${since}`);
         if (!res.ok) throw new Error(await dbErr(res));
         const j = (await readJ(res)) || {}; let max = since;
@@ -7589,7 +7592,7 @@ const SYNC = (function () {
           const sid = c + '/' + id; if (st.out[sid] || st.seen[sid] === r.v) continue;
           try { const o = await dec(r.v); st.seen[sid] = r.v; if (handlers[c]) { handlers[c](o.k, o.val, o); changed = true; } } catch (e) { /* written with another key */ }
         }
-        st.since[c] = max;
+        st.since[c] = full ? 0 : max;
       }
       st.mark = mark; st.full = Date.now();
       saveLS('chuster-sync-since', st.since); st.ok = true; st.err = ''; st.last = Date.now();
