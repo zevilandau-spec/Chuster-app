@@ -51,12 +51,17 @@ if ($Install) {
   $ps  = (Get-Command powershell.exe).Source
   $arg = '-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "' + (Join-Path $Here 'push.ps1') + '" -Watch'
   $act = New-ScheduledTaskAction -Execute $ps -Argument $arg
-  $trg = New-ScheduledTaskTrigger -AtStartup
+  # Two triggers so it ALWAYS comes back by itself: at boot, and a relaunch every minute (like the logger).
+  # The every-minute relaunch is what the first version lacked — without it, if the watch process ever
+  # died (PC slept, process killed) nothing restarted it until a reboot. Now it self-heals within a minute.
+  $trgA = New-ScheduledTaskTrigger -AtStartup
+  $trgB = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(1) -RepetitionInterval (New-TimeSpan -Minutes 1)
   $pr  = New-ScheduledTaskPrincipal -UserId 'SYSTEM' -LogonType ServiceAccount -RunLevel Highest
+  # MultipleInstances IgnoreNew + the in-script mutex mean the minute-relaunch never stacks a 2nd sender.
   $set = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable -MultipleInstances IgnoreNew -RestartInterval (New-TimeSpan -Minutes 1) -RestartCount 999 -ExecutionTimeLimit ([TimeSpan]::Zero)
-  Register-ScheduledTask -TaskName $TaskName -Action $act -Trigger $trg -Principal $pr -Settings $set -Force | Out-Null
+  Register-ScheduledTask -TaskName $TaskName -Action $act -Trigger @($trgA, $trgB) -Principal $pr -Settings $set -Force | Out-Null
   try { Start-ScheduledTask -TaskName $TaskName } catch { }
-  Log "Installed scheduled task '$TaskName' (stay-running, every $Interval sec, as SYSTEM) and started it."
+  Log "Installed scheduled task '$TaskName' (self-healing: boot + every-minute relaunch, every $Interval sec, as SYSTEM) and started it."
   return
 }
 
@@ -94,14 +99,20 @@ function Send-Once {
 
 # ---------- stay-running mode: send every ~$Interval seconds, log only on change or error ----------
 if ($Watch) {
+  # Single-instance guard: if a sender is already running, this relaunch quietly exits (no double-posting).
+  $createdNew = $false
+  $mtx = New-Object System.Threading.Mutex($true, 'Global\ChusterBoxPrintPusher', [ref]$createdNew)
+  if (-not $createdNew) { return }
   Log "Watch started - sending every $Interval sec."
   $lastSig = ''
-  while ($true) {
-    $r = Send-Once
-    if (-not $r.ok) { Log $r.msg }
-    elseif ($r.sig -ne $lastSig) { Log $r.msg; $lastSig = $r.sig }
-    Start-Sleep -Seconds $Interval
-  }
+  try {
+    while ($true) {
+      $r = Send-Once
+      if (-not $r.ok) { Log $r.msg }
+      elseif ($r.sig -ne $lastSig) { Log $r.msg; $lastSig = $r.sig }
+      Start-Sleep -Seconds $Interval
+    }
+  } finally { try { $mtx.ReleaseMutex() } catch { } }
 }
 
 # ---------- default / -Once ----------
