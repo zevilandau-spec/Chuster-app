@@ -2276,6 +2276,7 @@ function renderPrinter() {
   const dayRd = isoRd(day); const wStartRd = dayRd - dateOf(dayRd).getDay(); const wEndRd = wStartRd + 6;
   const weekStartIso = isoOf(wStartRd), weekEndIso = isoOf(wEndRd);
   const isToday = !weekMode && day === isoOf(TODAY);
+  const canBill = S.role === 'Owner' || S.role === 'Office';
   let dayObj, labels;
   if (weekMode) {
     const merged = {};
@@ -2468,7 +2469,6 @@ function renderPrinter() {
   const billBoxes = billLines.reduce((s, l) => s + l[1], 0);
   const billUnmapped = Object.keys(labels).reduce((s, lab) => s + (printProd(lab) ? 0 : (labels[lab] || 0)), 0);
   const billExists = mpBillExists(day);
-  const canBill = S.role === 'Owner' || S.role === 'Office';
   const qbSection = (!canBill || weekMode || (!billLines.length && !billExists)) ? '' : `
   <section class="card">
     <div class="card-head"><h2 style="margin:0">Send to QuickBooks</h2></div>
