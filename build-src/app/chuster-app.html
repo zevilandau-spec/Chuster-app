@@ -2436,22 +2436,20 @@ function renderPrinter() {
     ${toggleRow('lot', 'Lot & date stamp each run', 'Shows a lot code (date-based) for kosher / recall traceability')}
   </section>` : '';
 
-  const listRows = rows.map((r, i) => {
-    const meta = [esc(r.lab), timeRange(r.times) ? '🕑 ' + esc(timeRange(r.times)) : ''].filter(Boolean).join('&nbsp; · &nbsp;');
-    const stockLine = !weekMode && r.stock != null ? `<div style="font-size:11px;margin-top:4px;color:${r.stock < 0 ? 'var(--bad-text)' : 'var(--muted)'}">In stock <b>${fn(r.stock)}</b> → <b>${fn(r.stock + r.n)}</b> with ${isToday ? 'today' : 'this day'}</div>` : '';
-    return `<div style="display:flex;align-items:stretch;gap:12px;padding:13px 2px;${i ? 'border-top:1px solid var(--line)' : ''}">
-      <span class="${gcls(r.grp)}" style="width:4px;border-radius:3px;background:var(--gt);flex:none"></span>
-      <div style="flex:1;min-width:0">
-        <div style="font-weight:700;font-size:15px;line-height:1.25">${esc(r.prod)}</div>
-        <div class="sub" style="margin:3px 0 0;font-size:11.5px">${meta}</div>
-        ${stockLine}
-      </div>
-      <div style="text-align:right;flex:none;white-space:nowrap">
-        <div style="font-size:19px;font-weight:800;line-height:1">${fn(r.n)}<span style="font-size:11px;font-weight:600;color:var(--muted)"> box${r.n === 1 ? '' : 'es'}</span></div>
-        ${r.per ? `<div class="${gcls(r.grp)}" style="display:inline-block;margin-top:6px;font-size:11.5px;font-weight:800;color:var(--gt);background:var(--gs);padding:2px 9px;border-radius:999px">${fn(r.n * r.per)} packs</div>` : ''}
-      </div>
-    </div>`;
+  const showStock = !weekMode;
+  const withLbl = isToday ? 'With today' : 'With day';
+  const th = t => `<th style="text-align:right;padding:0 0 7px 10px;font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.3px;white-space:nowrap">${t}</th>`;
+  const listHead = `<tr style="border-bottom:1px solid var(--line)"><th style="text-align:left;padding:0 0 7px;font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.3px">Product${showStock && rows.length > 1 ? ' · in the order packed' : ''}</th>${th('Packed')}${showStock ? th('In stock') + th(withLbl) : ''}</tr>`;
+  const listBody = rows.map(r => {
+    const after = r.stock + r.n;
+    const meta = [esc(r.lab), timeRange(r.times) ? '🕑 ' + esc(timeRange(r.times)) : ''].filter(Boolean).join(' · ');
+    return `<tr style="border-top:1px solid var(--line)">
+      <td style="padding:11px 8px 11px 0;vertical-align:top"><div style="display:flex;gap:8px"><span class="${gcls(r.grp)}" style="width:9px;height:9px;border-radius:50%;background:var(--gt);flex:none;margin-top:5px"></span><div style="min-width:0"><div style="font-weight:700;font-size:14.5px;line-height:1.2">${esc(r.prod)}</div><div class="sub" style="font-size:11px;margin:2px 0 0">${meta}</div>${r.per ? `<div class="sub" style="font-size:11px;margin:1px 0 0;font-weight:700">${fn(r.n * r.per)} packs</div>` : ''}</div></div></td>
+      <td style="text-align:right;vertical-align:top;padding:11px 0 0 10px;font-weight:800;font-size:16px">${fn(r.n)}</td>
+      ${showStock ? `<td style="text-align:right;vertical-align:top;padding:13px 0 0 10px;color:${r.stock < 0 ? 'var(--bad-text)' : 'var(--muted)'}">${r.stock != null ? fn(r.stock) : '—'}</td><td style="text-align:right;vertical-align:top;padding:13px 0 0 10px;font-weight:700;color:${after < 0 ? 'var(--bad-text)' : '#15803d'}">${r.stock != null ? fn(after) : '—'}</td>` : ''}
+    </tr>`;
   }).join('');
+  const listRows = `<table style="width:100%;border-collapse:collapse">${listHead}${listBody}</table>`;
   const emptyRow = total > 0
     ? `<div class="sub" style="padding:12px 2px">${fn(total)} boxes ${isToday ? 'today' : 'that day'} — match the ${unmapped.length} label${unmapped.length > 1 ? 's' : ''} below to see them here.</div>`
     : `<div class="sub" style="padding:14px 2px">No boxes recorded for this day.</div>`;
@@ -2543,9 +2541,8 @@ function renderPrinter() {
     </div>
     ${weekMode ? `<p class="sub" style="margin:-4px 0 10px;font-size:12px">${esc(fmtShort(isoRd(weekStartIso)))} – ${esc(fmtShort(isoRd(weekEndIso)))} · all ${rows.length} product${rows.length === 1 ? '' : 's'} made this week</p>` : ''}
     ${lotOn && !weekMode && total > 0 ? `<div style="margin:-2px 0 10px"><span style="display:inline-block;font-size:11px;font-weight:800;letter-spacing:.5px;padding:3px 10px;border-radius:8px;background:#eef1fb;color:#1e3a8a">LOT ${lotCode}</span></div>` : ''}
-    <div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;padding:0 2px 2px"><span>Product${rows.length > 1 && !weekMode ? ' · in the order packed' : ''}</span><span>Packed</span></div>
-    ${listRows || emptyRow}
-    ${!weekMode && rows.some(r => r.stock != null) ? `<p class="sub" style="margin:12px 0 0;font-size:12px"><b>In stock</b> is your QuickBooks number. <b>With ${isToday ? 'today' : 'this day'}</b> adds that day's boxes (not yet in QuickBooks) so you can see what you really have on the floor.</p>` : ''}
+    ${rows.length ? listRows : emptyRow}
+    ${!weekMode && rows.some(r => r.stock != null) ? `<p class="sub" style="margin:12px 0 0;font-size:12px"><b>In stock</b> is your QuickBooks number. <b>With ${isToday ? 'today' : 'day'}</b> adds that day's boxes (not yet in QuickBooks) so you see what you really have — <span style="color:var(--bad-text);font-weight:700">red</span> if still short.</p>` : ''}
     ${unmappedBlock}
   </section>
   ${trendCards}
