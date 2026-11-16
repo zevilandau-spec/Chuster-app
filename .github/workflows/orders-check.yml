@@ -16,7 +16,7 @@ jobs:
           CHUSTER_DB_URL: ${{ secrets.CHUSTER_DB_URL }}
         run: |
           cd build-src
-          echo '{}' > sync.json
+          python3 -c "import json,os;s=json.loads(os.environ['CHUSTER_SECRETS'])['sync'];s['url']=os.environ['CHUSTER_DB_URL'].strip().rstrip('/');json.dump(s,open('sync.json','w'))"
           python3 tools/fetch_history.py "$CHUSTER_DB_URL" sync.json raw
           python3 -I tools/convert_raw.py raw export
           ASOF=$(python3 -c "import json;print(json.load(open('raw/meta.json'))['asOf'])")
