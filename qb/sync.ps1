@@ -339,6 +339,36 @@ function Add-ToQB($o) {
       return [ordered]@{ num = (T $ret 'RefNumber'); txn = (T $ret 'TxnID'); amt = (Money (N $ret 'TotalAmount')); unused = (Money (N $ret 'UnusedPayment')) }
     }
   }
+  if ($o.kind -eq 'bill') {
+    # the box printer's day of production, entered the way Zevi does by hand:
+    # a $0 vendor bill against Chuster Packaging Retail that raises on-hand quantities only (never touches money).
+    $vendX = '<VendorRef><FullName>' + (X ([string]$o.v)) + '</FullName></VendorRef>'
+    $termsX = if ($o.terms) { '<TermsRef><FullName>' + (X ([string]$o.terms)) + '</FullName></TermsRef>' } else { '' }
+    $refNum = 'PRD ' + [string]$o.d
+    $refX = '<RefNumber>' + (X $refNum) + '</RefNumber>'
+    # never post the same day's production twice
+    $chk = QB-Do 'BillQueryRq' ('<BillQueryRq requestID="1"><RefNumber>' + (X $refNum) + '</RefNumber><IncludeLineItems>false</IncludeLineItems></BillQueryRq>')
+    $crs = Rs $chk 'BillQueryRs'
+    if ($crs -and $crs.GetAttribute('statusCode') -eq '0' -and $crs.SelectNodes('BillRet').Count) {
+      $ex = $crs.SelectSingleNode('BillRet')
+      Log "Production bill $refNum is already in QuickBooks, not adding it again."
+      return [ordered]@{ num = (T $ex 'RefNumber'); txn = (T $ex 'TxnID'); amt = 0 }
+    }
+    if (-not @($o.lines).Count) { throw 'There are no items on it.' }
+    foreach ($withSite in @($true, $false)) {
+      $lines = ''
+      foreach ($l in @($o.lines)) {
+        $siteXml = if ($withSite -and $o.site) { '<InventorySiteRef><FullName>' + (X ([string]$o.site)) + '</FullName></InventorySiteRef>' } else { '' }
+        $lines += '<ItemLineAdd><ItemRef><FullName>' + (X ([string]$l[0])) + '</FullName></ItemRef>' + $siteXml + '<Quantity>' + (Q $l[1]) + '</Quantity><Cost>0.00</Cost><Amount>0.00</Amount></ItemLineAdd>'
+      }
+      $x = QB-Do 'BillAddRq' "<BillAddRq requestID=`"1`"><BillAdd>$vendX$date$refX$termsX<Memo>$memo</Memo>$lines</BillAdd></BillAddRq>"
+      $rs = Rs $x 'BillAddRs'
+      if ($withSite -and $o.site -and $rs -and $rs.GetAttribute('statusCode') -ne '0' -and ($rs.GetAttribute('statusMessage') -match '(?i)site|inventory')) { Log "Site '$($o.site)' was not accepted, sending the bill without it."; continue }
+      Check $rs ''
+      $ret = $rs.SelectSingleNode('BillRet')
+      return [ordered]@{ num = (T $ret 'RefNumber'); txn = (T $ret 'TxnID'); amt = 0 }
+    }
+  }
   throw "Unknown kind: $($o.kind)"
 }
 # Makes every approved item that isn't in QuickBooks yet. Only downloads what changed since last time.
