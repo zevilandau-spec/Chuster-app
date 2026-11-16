@@ -4027,12 +4027,12 @@ function printerDashCard() {
   </a></section>`;
 }
 function salesVsCard() {
-  if (!REAL || !REAL.orders || !REAL.orders.list) return '';
-  const byDay = {}, cntDay = {};
-  REAL.orders.list.forEach(o => { if (o.t !== 'inv') return; byDay[o.d] = (byDay[o.d] || 0) + (o.a || 0); cntDay[o.d] = (cntDay[o.d] || 0) + 1; });
-  const lo = REAL.orders.from, hi = REAL.orders.to;
-  const look = rd => { const iso = isoOf(rd); const has = iso >= lo && iso <= hi; return { rd, amt: has ? (byDay[iso] || 0) : 0, n: has ? (cntDay[iso] || 0) : 0, has }; };
-  const today = look(TODAY);
+  if (!REAL || !DLY || !DLY.days) return '';
+  // DLY.days[iso] = [[customerIndex, amount], ...] — ~2 years of daily sales
+  const look = rd => { const iso = isoOf(rd); const has = iso >= DLY.from && iso <= DLY.to; const L = has ? (DLY.days[iso] || []) : null; return { rd, amt: L ? L.reduce((s, e) => s + (e[1] || 0), 0) : 0, n: L ? L.length : 0, has }; };
+  let today = look(TODAY);
+  // today may not be in the daily rollup yet — take the fresher figure from orders.list if it has it
+  if (REAL.orders && REAL.orders.list) { const ti = isoOf(TODAY); let a = 0, n = 0; REAL.orders.list.forEach(o => { if (o.t === 'inv' && o.d === ti) { a += o.a || 0; n++; } }); if (n > 0 && (a >= today.amt)) today = { rd: TODAY, amt: a, n, has: true }; }
   const dt = dateOf(TODAY), secRd = RD(dt.getFullYear() - 1, dt.getMonth() + 1, dt.getDate());
   const sec = look(secRd), heb = look(sameDayLastYear(TODAY)), wd = look(TODAY - 364);
   const row = (label, sub, base) => {
@@ -4052,7 +4052,7 @@ function salesVsCard() {
     ${row('Same date last year', fmtLong(secRd), sec)}
     ${row('Same Hebrew date', hebStr(heb.rd, false) + ' · ' + fmtLong(heb.rd), heb)}
     ${row('Same ' + WD[dow(TODAY)] + ' last year', fmtLong(TODAY - 364), wd)}
-    ${isoOf(TODAY) > REAL.orders.to ? `<p class="sub" style="font-size:11px;margin:8px 0 0">Today fills in as invoices sync (latest: ${fmtShort(isoRd(REAL.orders.to))}).</p>` : ''}
+    ${today.n === 0 ? `<p class="sub" style="font-size:11px;margin:8px 0 0">Today fills in as invoices sync (latest data: ${fmtShort(isoRd(DLY.to))}).</p>` : ''}
   </a></section>`;
 }
 function renderHomeReal() {
