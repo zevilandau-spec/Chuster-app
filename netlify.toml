@@ -2,7 +2,7 @@
 [build]
   publish = "."
   # only publish when the app itself changed (saves Netlify credits)
-  ignore = "git diff --quiet $CACHED_COMMIT_REF $COMMIT_REF -- index.html version.json netlify.toml manifest.webmanifest *.png netlify qb"
+  ignore = "git diff --quiet $CACHED_COMMIT_REF $COMMIT_REF -- index.html version.json netlify.toml manifest.webmanifest *.png netlify qb mp"
 
 [[headers]]
   for = "/index.html"
@@ -28,5 +28,10 @@
 
 [[headers]]
   for = "/qb/*"
+  [headers.values]
+    Cache-Control = "no-cache"
+
+[[headers]]
+  for = "/mp/*"
   [headers.values]
     Cache-Control = "no-cache"

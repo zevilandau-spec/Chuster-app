@@ -17,6 +17,7 @@
 #   full path (as above), not with .\push.ps1 from an open window, or CrowdStrike will block it.
 
 param([switch]$Install, [switch]$Once, [switch]$Watch, [string]$Day)
+$Ver = '2026-11-16.2'
 $ErrorActionPreference = 'Stop'
 try { [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 } catch { }
 
@@ -115,16 +116,41 @@ function Send-Once {
   }
 }
 
+# ---------- self-update: pull a newer push.ps1 from the app's own site (the same address it sends to) ----------
+# Keeps this PC's pusher current by itself, like the office QuickBooks computer. It only ever replaces the
+# program with a newer-versioned copy served from chuster.netlify.app, and sanity-checks it first. When it
+# updates, it exits; the scheduled task's every-minute relaunch starts the new version within a minute.
+function Check-Update {
+  try {
+    $wc = New-Object Net.WebClient; $wc.Headers.Add('Cache-Control', 'no-cache')
+    $data = $wc.DownloadData('https://chuster.netlify.app/mp/push.ps1?t=' + [DateTime]::UtcNow.Ticks)
+    if (-not $data -or $data.Length -lt 2000) { return $false }
+    $txt = [Text.Encoding]::UTF8.GetString($data)
+    $m = [regex]::Match($txt, "(?m)^\s*\`$Ver\s*=\s*'([^']+)'")
+    if (-not $m.Success) { return $false }
+    $remote = $m.Groups[1].Value
+    if ($remote -eq $Ver) { return $false }
+    if ($txt -notmatch 'Chuster Box-Print Pusher') { Log 'Update: download did not look right, skipped.'; return $false }
+    [IO.File]::WriteAllBytes($PSCommandPath + '.prev', [IO.File]::ReadAllBytes($PSCommandPath))
+    [IO.File]::WriteAllBytes($PSCommandPath, $data)
+    Log ("Update: $Ver -> $remote downloaded, restarting to use it.")
+    return $true
+  } catch { Log ('Update check: ' + $_.Exception.Message); return $false }
+}
+
 # ---------- stay-running mode: send every ~$Interval seconds, log only on change or error ----------
 if ($Watch) {
   # Single-instance guard: if a sender is already running, this relaunch quietly exits (no double-posting).
   $createdNew = $false
   $mtx = New-Object System.Threading.Mutex($true, 'Global\ChusterBoxPrintPusher', [ref]$createdNew)
   if (-not $createdNew) { return }
-  Log "Watch started - sending every $Interval sec."
+  Log "Watch started (v$Ver) - sending every $Interval sec."
+  try { if (Check-Update) { return } } catch { }   # grab a newer version at startup, then let the task relaunch it
+  $lastUpd = Get-Date
   $lastSig = ''
   try {
     while ($true) {
+      if (((Get-Date) - $lastUpd).TotalMinutes -ge 5) { $lastUpd = Get-Date; if (Check-Update) { return } }
       $r = Send-Once
       if (-not $r.ok) { Log $r.msg }
       elseif ($r.sig -ne $lastSig) { Log $r.msg; $lastSig = $r.sig }
