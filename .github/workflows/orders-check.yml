@@ -1,0 +1,49 @@
+name: Orders freshness check
+on: workflow_dispatch
+jobs:
+  chk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12' }
+      - uses: actions/setup-node@v4
+        with: { node-version: '20' }
+      - run: pip install cryptography==43.0.3
+      - name: Build data + inspect recent order days
+        env:
+          CHUSTER_SECRETS: ${{ secrets.CHUSTER_SECRETS }}
+          CHUSTER_DB_URL: ${{ secrets.CHUSTER_DB_URL }}
+        run: |
+          cd build-src
+          echo '{}' > sync.json
+          python3 tools/fetch_history.py "$CHUSTER_DB_URL" sync.json raw
+          python3 -I tools/convert_raw.py raw export
+          ASOF=$(python3 -c "import json;print(json.load(open('raw/meta.json'))['asOf'])")
+          FROM=$(python3 -c "import json;print(json.load(open('raw/meta.json'))['from'])")
+          echo "::notice::raw meta asOf=$ASOF from=$FROM"
+          mkdir -p build
+          CHUSTER_NIGHTLY=1 sh tools/build_from.sh export build/data.json "$ASOF" "$FROM"
+          python3 - <<'PY'
+          import json
+          d=json.load(open('build/data.json'))
+          print("::notice::data asOf",d.get('asOf'),"snapAsOf",d.get('snapAsOf'))
+          # orders.list recent days
+          from collections import Counter
+          ol=(d.get('orders') or {}).get('list') or []
+          print("::notice::orders.list from",(d.get('orders') or {}).get('from'),"to",(d.get('orders') or {}).get('to'),"count",len(ol))
+          c=Counter(); amt={}
+          for o in ol:
+              if o.get('t')=='inv':
+                  c[o['d']]+=1; amt[o['d']]=amt.get(o['d'],0)+(o.get('a') or 0)
+          for day in ['2026-11-11','2026-11-12','2026-11-13','2026-11-14','2026-11-15','2026-11-16']:
+              print(f"::notice::orders {day}: {c.get(day,0)} invoices, ${amt.get(day,0):,.0f}")
+          # DLY daily
+          dly=d.get('daily') or {}
+          print("::notice::daily from",dly.get('from'),"to",dly.get('to'))
+          days=dly.get('days') or {}
+          for day in ['2026-11-13','2026-11-14','2026-11-15','2026-11-16']:
+              L=days.get(day) or []
+              print(f"::notice::daily {day}: {len(L)} entries, ${sum(e[1] for e in L):,.0f}")
+          PY
+          rm -rf raw export build sync.json
