@@ -78,6 +78,12 @@ button { font-family: inherit; }
 .nav a[aria-current="page"] { background: var(--side-active); color: var(--side-active-ink); font-weight: 800; }
 .nav a .soon { margin-left: auto; font-size: 10px; font-weight: 800; letter-spacing: 0.05em; color: var(--side-muted); border: 1px solid rgba(255,255,255,0.25); border-radius: 6px; padding: 1px 6px; }
 .nav a .count { margin-left: auto; background: var(--bad-soft); color: var(--bad-text); font-size: 11px; font-weight: 800; border-radius: 10px; padding: 2px 8px; }
+.nav a .nlab { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nav a .nlab + .count, .nav a .nlab + .soon { flex: none; }
+.nav a .nav-star { flex: none; margin-left: 6px; background: none; border: none; color: var(--side-muted); font-size: 16px; line-height: 1; cursor: pointer; padding: 2px 6px; border-radius: 8px; }
+.nav a .nav-star.on { color: var(--gold); }
+.nav a .nav-star:hover { background: rgba(255,255,255,0.12); }
+.nav-more-btn .nav-chev { margin-left: auto; opacity: 0.7; }
 .nav svg, .tabs svg, .icon { width: 18px; height: 18px; flex: none; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .side-foot { margin-top: auto; background: rgba(255,255,255,0.08); border-radius: 12px; padding: 12px; font-size: 12px; color: var(--side-muted); line-height: 1.5; }
 .side-foot b { color: var(--side-ink); display: block; font-size: 13px; }
@@ -142,6 +148,9 @@ main { min-width: 0; padding-block: 22px 40px; padding-left: max(16px, env(safe-
   .nav a[aria-current="page"] { border-color: transparent; }
   .nav a[aria-current="page"] svg { color: currentColor; }
   .nav a .count { position: absolute; top: 6px; right: 6px; margin: 0; }
+  .nav a .nlab { flex: none; }
+  .nav a .nav-star { position: absolute; top: 4px; left: 5px; margin: 0; padding: 0; font-size: 15px; }
+  .nav-more-btn .nav-chev { position: absolute; bottom: 5px; right: 8px; margin: 0; }
   main { padding-bottom: calc(124px + env(safe-area-inset-bottom, 0px)); }
   .page-head h1 { font-size: 22px; }
 }
@@ -1934,6 +1943,7 @@ function renderSalesReport() {
 
 // What's new — a running list of what shipped, newest first. r: role that sees it (Owner-only if set).
 const CHANGELOG = [
+  { d: '2026-11-15', t: 'Menu: pinned favorites', b: "The side menu is shorter now — a ★ Favorites section at the top with your most-used screens, and the full list tucked behind 'All screens'. Tap the star on any screen to pin or unpin it; your picks are remembered on your device.", r: 'Owner' },
   { d: '2026-11-15', t: 'Dashboard: today vs last year', b: "New dashboard card comparing today's sales to last year three ways — same secular date, same Hebrew date (e.g. 2 Kislev, the apples-to-apples one for Yom Tov timing), and the same weekday a year ago. Each shows last year's total and whether today is up or down. Hide or reorder it in Tools → Dashboard.", r: 'Owner' },
   { d: '2026-11-15', t: 'Pack next: hand-packed out', b: "The Pack next list now shows only products your box printer actually runs (anything it has never printed a label for — the stuff you pack by hand — is left out). Each row also has an ✕ to drop any straggler you pack by hand; it stays off and syncs to everyone.", r: 'Owner' },
   { d: '2026-11-15', t: 'Box printer on the dashboard', b: "A live Box printer card now sits on your dashboard — status (Recording/Idle), what's running now, today's boxes & packs, and this week. Tap it to open the full screen, and if the line goes idle in work hours the nudge shows right on the home screen. Hide or reorder it in Tools → Dashboard.", r: 'Owner' },
@@ -2701,10 +2711,19 @@ function drawChrome() {
   if (REAL) document.getElementById('data-note').textContent = qbLive() ? `QuickBooks live: sales, balances and stock straight from QuickBooks, updated ${qbAgo()}. Deliveries and payments by email are still examples.` : `Sales to ${fmtShort(isoRd(REAL.asOf))}, balances and stock ${REAL.snapAsOf ? fmtShort(isoRd(REAL.snapAsOf)) : ''}, from your QuickBooks export. Not live yet. Deliveries, WhatsApp orders and email payments are still examples.`;
   const navOk = it => it[0] ? allowed(it[0]) : (S.role === 'Owner' || S.role === 'Office');
   const NAV2 = NAV.map(g => Object.assign({}, g, { items: g.items.filter(navOk) })).filter(g => g.items.length);
-  document.getElementById('nav').innerHTML = NAV2.map(g => (g.h ? `<h3>${tr(g.h)}</h3>` : '') + g.items.map(([v, label, icon, count]) =>
-    v ? `<a href="#${v}" data-go="${v}"${S.view === v ? ' aria-current="page"' : ''}>${ic(icon)}${tr(label)}${cnt(count) ? `<span class="count">${cnt(count)}</span>` : ''}</a>`
-      : `<a href="#${S.view}" data-act="soon" data-name="${label}">${ic(icon)}${tr(label)}<span class="soon">SOON</span></a>`).join('')).join('')
-    + ((S.role === 'Owner' || officePlus()) ? `<h3>${tr(S.role === 'Owner' ? 'ONLY YOU SEE THIS' : 'Tools')}</h3>${isZevi() ? `<a href="#activity" data-go="activity"${S.view === 'activity' ? ' aria-current="page"' : ''}>${ic('clock')}${tr('Activity')}</a>` : ''}<a href="#tools" data-go="tools"${S.view === 'tools' ? ' aria-current="page"' : ''}>${ic('tools')}${tr('Tools')}</a>` : '');
+  const allItems = []; NAV2.forEach(g => g.items.forEach(it => { if (it[0]) allItems.push(it); }));
+  if (!Array.isArray(S.navFav)) { let f = null; try { f = JSON.parse(localStorage.getItem('chuster-navfav')); } catch (e) { } S.navFav = (Array.isArray(f) && f.length) ? f : ['home', 'command', 'inbox', 'payments', 'printer', 'inventory'].filter(v => allItems.some(it => it[0] === v)); }
+  const isFav = v => S.navFav.includes(v);
+  const star = v => `<button type="button" class="nav-star${isFav(v) ? ' on' : ''}" data-navpin="${v}" aria-label="${isFav(v) ? 'Unpin from favorites' : 'Pin to favorites'}" title="${isFav(v) ? 'Unpin' : 'Pin to favorites'}">${isFav(v) ? '★' : '☆'}</button>`;
+  const link = ([v, label, icon, count]) => v
+    ? `<a href="#${v}" data-go="${v}"${S.view === v ? ' aria-current="page"' : ''}>${ic(icon)}<span class="nlab">${tr(label)}</span>${cnt(count) ? `<span class="count">${cnt(count)}</span>` : ''}${star(v)}</a>`
+    : `<a href="#${S.view}" data-act="soon" data-name="${label}">${ic(icon)}<span class="nlab">${tr(label)}</span><span class="soon">SOON</span></a>`;
+  const favItems = S.navFav.map(v => allItems.find(it => it[0] === v)).filter(Boolean);
+  const favHtml = `<h3>★ ${tr('FAVORITES')}</h3>` + (favItems.length ? favItems.map(link).join('') : `<a href="#${S.view}" data-act="toast" data-msg="Tap the ☆ star on any menu item to pin it up here.">${ic('star')}<span class="nlab" style="opacity:.75">Pin your top screens</span></a>`);
+  const moreToggle = `<a href="#${S.view}" data-act="nav-more" class="nav-more-btn">${ic('menu')}<span class="nlab">${S.navMoreOpen ? tr('Hide menu') : tr('All screens')}</span><span class="nav-chev">${S.navMoreOpen ? '▲' : '▾'}</span></a>`;
+  const restHtml = S.navMoreOpen ? (NAV2.map(g => (g.h ? `<h3>${tr(g.h)}</h3>` : '') + g.items.map(link).join('')).join('')
+    + ((S.role === 'Owner' || officePlus()) ? `<h3>${tr(S.role === 'Owner' ? 'ONLY YOU SEE THIS' : 'Tools')}</h3>${isZevi() ? `<a href="#activity" data-go="activity"${S.view === 'activity' ? ' aria-current="page"' : ''}>${ic('clock')}<span class="nlab">${tr('Activity')}</span></a>` : ''}<a href="#tools" data-go="tools"${S.view === 'tools' ? ' aria-current="page"' : ''}>${ic('tools')}<span class="nlab">${tr('Tools')}</span></a>` : '')) : '';
+  document.getElementById('nav').innerHTML = favHtml + moreToggle + restHtml;
   const TN = [
     ['home', 'Dashboard'],
     ['finance', 'Finance'],
@@ -9200,6 +9219,15 @@ document.addEventListener('input', e => { if (e.target.id === 'plan-from' || e.t
   if (e.target.id === 'bk-from' || e.target.id === 'bk-to') { if (e.target.id === 'bk-from') S.bkFrom = e.target.value || null; else S.bkTo = e.target.value || null; S.bkPer = 'range'; render(); return; }
   if (e.target.id === 'bk-q') { S.bkQ = e.target.value; const pos = e.target.selectionStart; render(); const q = document.getElementById('bk-q'); if (q) { q.focus(); try { q.setSelectionRange(pos, pos); } catch (x) { /* ignore */ } } } });
 
+// Pin/unpin a favorite — capture phase so it fires before the data-go link navigation.
+document.addEventListener('click', e => {
+  const s = e.target.closest('.nav-star'); if (!s) return;
+  e.preventDefault(); e.stopPropagation();
+  const v = s.dataset.navpin; const i = S.navFav.indexOf(v);
+  if (i >= 0) S.navFav.splice(i, 1); else S.navFav.push(v);
+  try { localStorage.setItem('chuster-navfav', JSON.stringify(S.navFav)); } catch (err) { }
+  render();
+}, true);
 document.addEventListener('click', e => {
   const goEl = e.target.closest('[data-go]');
   if (goEl) { e.preventDefault(); go(goEl.dataset.go); return; }
@@ -9211,6 +9239,7 @@ document.addEventListener('click', e => {
   switch (a) {
     case 'menu': openMenu(); break;
     case 'menu-close': closeMenu(); break;
+    case 'nav-more': S.navMoreOpen = !S.navMoreOpen; render(); break;
     case 'soon': e.preventDefault(); toast(`${d.name} isn't designed yet. It's on the list.`); break;
     case 'toast': toast(d.msg); break;
     case 'oq': { const k = d.k; const v = Math.max(0, (S.oq[k] || 0) + +d.d); if (v) S.oq[k] = v; else delete S.oq[k]; keep(); break; }
