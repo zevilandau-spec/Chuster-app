@@ -1265,6 +1265,7 @@ Object.assign(S, {
     { id: 'hero', label: 'Goal and quick buttons', on: true },
     { id: 'tiles', label: 'Sales and money boxes', on: true },
     { id: 'printer', label: 'Box printer (live)', on: true },
+    { id: 'salesvs', label: 'Today vs last year', on: true },
     { id: 'charts', label: 'Charts', on: true },
     { id: 'bottom', label: 'Needs attention and trucks', on: true }
   ]
@@ -1933,6 +1934,7 @@ function renderSalesReport() {
 
 // What's new — a running list of what shipped, newest first. r: role that sees it (Owner-only if set).
 const CHANGELOG = [
+  { d: '2026-11-15', t: 'Dashboard: today vs last year', b: "New dashboard card comparing today's sales to last year three ways — same secular date, same Hebrew date (e.g. 2 Kislev, the apples-to-apples one for Yom Tov timing), and the same weekday a year ago. Each shows last year's total and whether today is up or down. Hide or reorder it in Tools → Dashboard.", r: 'Owner' },
   { d: '2026-11-15', t: 'Pack next: hand-packed out', b: "The Pack next list now shows only products your box printer actually runs (anything it has never printed a label for — the stuff you pack by hand — is left out). Each row also has an ✕ to drop any straggler you pack by hand; it stays off and syncs to everyone.", r: 'Owner' },
   { d: '2026-11-15', t: 'Box printer on the dashboard', b: "A live Box printer card now sits on your dashboard — status (Recording/Idle), what's running now, today's boxes & packs, and this week. Tap it to open the full screen, and if the line goes idle in work hours the nudge shows right on the home screen. Hide or reorder it in Tools → Dashboard.", r: 'Owner' },
   { d: '2026-11-15', t: 'Box printer: automation + lot stamp', b: "New Automation card on the Box printer screen: a soft idle nudge if the line sits 30+ min in work hours (no popup), a date-based LOT stamp per day for kosher/recall traceability, and an end-of-day production summary (push + email). Records now also shows cartons used (estimate).", r: 'Owner' },
@@ -2856,6 +2858,11 @@ function renderHome() {
   if (Array.isArray(S.dash) && !S.dash.some(d => d.id === 'printer')) {
     const i = S.dash.findIndex(d => d.id === 'tiles');
     S.dash.splice(i >= 0 ? i + 1 : S.dash.length, 0, { id: 'printer', label: 'Box printer (live)', on: true });
+    try { save(); } catch (e) { }
+  }
+  if (Array.isArray(S.dash) && !S.dash.some(d => d.id === 'salesvs')) {
+    const i = S.dash.findIndex(d => d.id === 'printer');
+    S.dash.splice(i >= 0 ? i + 1 : S.dash.length, 0, { id: 'salesvs', label: 'Today vs last year', on: true });
     try { save(); } catch (e) { }
   }
   const html = renderHomeRaw();
@@ -4019,6 +4026,35 @@ function printerDashCard() {
     ${idle}
   </a></section>`;
 }
+function salesVsCard() {
+  if (!REAL || !REAL.orders || !REAL.orders.list) return '';
+  const byDay = {}, cntDay = {};
+  REAL.orders.list.forEach(o => { if (o.t !== 'inv') return; byDay[o.d] = (byDay[o.d] || 0) + (o.a || 0); cntDay[o.d] = (cntDay[o.d] || 0) + 1; });
+  const lo = REAL.orders.from, hi = REAL.orders.to;
+  const look = rd => { const iso = isoOf(rd); const has = iso >= lo && iso <= hi; return { rd, amt: has ? (byDay[iso] || 0) : 0, n: has ? (cntDay[iso] || 0) : 0, has }; };
+  const today = look(TODAY);
+  const dt = dateOf(TODAY), secRd = RD(dt.getFullYear() - 1, dt.getMonth() + 1, dt.getDate());
+  const sec = look(secRd), heb = look(sameDayLastYear(TODAY)), wd = look(TODAY - 364);
+  const row = (label, sub, base) => {
+    const p = (base.has && base.amt > 0) ? Math.round((today.amt - base.amt) / base.amt * 100) : null;
+    const col = p == null ? 'var(--muted)' : (p >= 0 ? '#15803d' : 'var(--bad-text)');
+    return `<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--line)">
+      <div style="min-width:0"><div style="font-weight:600;font-size:14px">${label}</div><div class="sub" style="font-size:11.5px;margin:0">${sub}</div></div>
+      <div style="text-align:right;white-space:nowrap"><div style="font-weight:800">${base.has ? fm(base.amt) : 'no data'}</div>${p == null ? '' : `<div style="font-size:12px;font-weight:700;color:${col}">${p >= 0 ? '▲ ' : '▼ '}${Math.abs(p)}% vs today</div>`}</div>
+    </div>`;
+  };
+  return `<section class="card"><a href="#orders" data-go="orders" style="display:block;text-decoration:none;color:inherit">
+    <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;font-weight:700">Today vs last year</div>
+    <div style="display:flex;justify-content:space-between;align-items:baseline;margin-top:4px">
+      <div style="min-width:0"><div style="font-size:15px;font-weight:800">${fmtShort(TODAY)}</div><div class="sub" style="font-size:12px;margin:0">${hebStr(TODAY, false)} · ${WD[dow(TODAY)]}</div></div>
+      <div style="text-align:right"><div style="font-size:24px;font-weight:800;line-height:1">${fm(today.amt)}</div><div class="sub" style="font-size:11.5px">${today.n} invoice${today.n === 1 ? '' : 's'} today</div></div>
+    </div>
+    ${row('Same date last year', fmtLong(secRd), sec)}
+    ${row('Same Hebrew date', hebStr(heb.rd, false) + ' · ' + fmtLong(heb.rd), heb)}
+    ${row('Same ' + WD[dow(TODAY)] + ' last year', fmtLong(TODAY - 364), wd)}
+    ${isoOf(TODAY) > REAL.orders.to ? `<p class="sub" style="font-size:11px;margin:8px 0 0">Today fills in as invoices sync (latest: ${fmtShort(isoRd(REAL.orders.to))}).</p>` : ''}
+  </a></section>`;
+}
 function renderHomeReal() {
   const D = REAL;
   const CY = +D.asOf.slice(0, 4), PY = CY - 1, PPY = CY - 2, CM = +D.asOf.slice(5, 7) - 1, MN = MON[CM];
@@ -4078,6 +4114,8 @@ function renderHomeReal() {
   </div>
 
   <!--@printer-->${printerDashCard()}
+
+  <!--@salesvs-->${salesVsCard()}
 
   <!--@charts--><div class="split">
     <figure class="card" style="margin:0">
