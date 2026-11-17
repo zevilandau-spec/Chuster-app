@@ -23,6 +23,7 @@ jobs:
           days = sorted(k for k in mp if k.isdigit() and len(k)==8)
           for kid in days[-2:]:
               val = dec(mp[kid]['v']).get('val', {}); t = val.get('times', {}) or {}
+              print("::notice::server-write-age %ds" % (int(__import__('time').time()) - int(mp[kid].get('t', 0)) // 1000))
               print("::notice::day %s labels=%d order=%d times=%d manual=%s upd=%s" % (val.get('d'), len(val.get('labels',{}) or {}), len(val.get('order',[]) or []), len(t), json.dumps(val.get('manual')), val.get('upd')))
           seen = {}
           for kid in days:
