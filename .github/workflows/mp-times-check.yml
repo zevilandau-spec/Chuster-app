@@ -27,12 +27,11 @@ jobs:
                   val.get('d'), len(val.get('labels',{}) or {}), len(val.get('order',[]) or []), len(t), val.get('upd'), samp))
           if 'now' in mp:
               n = dec(mp['now']['v']).get('val', {}); print("::notice::now label=%s at=%s" % (n.get('label'), n.get('at')))
-          if 'map' in mp:
-              mv = dec(mp['map']['v']).get('val', {}) or {}
-              for lab, pk in sorted(mv.items()):
-                  if 'ugget' in lab or 'ugget' in str(pk): print("::notice::map %s => %s" % (lab, pk))
-          for k in sorted(mp):
-              if not (k.isdigit() and len(k)==8):
-                  try: print("::notice::key %s k=%s" % (k, dec(mp[k]['v']).get('k')))
-                  except Exception as e: print("::notice::key %s ?" % k)
+          for kid in mp:
+              try: o = dec(mp[kid]['v'])
+              except Exception: continue
+              if o.get('k') in ('map','packmap'):
+                  mv = o.get('val', {}) or {}
+                  for lab, pk in sorted(mv.items()):
+                      if 'ugget' in lab or 'ugget' in json.dumps(pk): print("::notice::%s %s => %s" % (o.get('k'), lab, json.dumps(pk)))
           PY
