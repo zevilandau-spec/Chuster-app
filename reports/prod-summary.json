@@ -1,7 +1,74 @@
 {
- "date": "2026-11-15",
+ "date": "2026-11-16",
  "on": false,
- "total": 0,
- "packs": 0,
- "items": []
+ "total": 875,
+ "packs": 27972,
+ "items": [
+  {
+   "label": "Land Orzo.00I",
+   "name": "Orzo",
+   "boxes": 25,
+   "packs": 0
+  },
+  {
+   "label": "Chu SD Pretzel Nugget 8x12.00I",
+   "name": "FP SD Pretzel",
+   "boxes": 117,
+   "packs": 11232
+  },
+  {
+   "label": "Chus Toas.00I",
+   "name": "Toast Barley",
+   "boxes": 91,
+   "packs": 0
+  },
+  {
+   "label": "Chu Stix 7x12.00I",
+   "name": "FP SD Mini Sticks",
+   "boxes": 65,
+   "packs": 5460
+  },
+  {
+   "label": "Chu SD Pretzel Nugget 1oz.00I",
+   "name": "Chu SD Pretzel Nugget 1oz.00I",
+   "boxes": 3,
+   "packs": 0
+  },
+  {
+   "label": "Land Toasted.00I",
+   "name": "Toast Barley",
+   "boxes": 142,
+   "packs": 0
+  },
+  {
+   "label": "Chus Orzo.00I",
+   "name": "Orzo",
+   "boxes": 93,
+   "packs": 0
+  },
+  {
+   "label": "Chu SD Pretzel Nugget 96.00I",
+   "name": "SD Pretzel",
+   "boxes": 50,
+   "packs": 0
+  },
+  {
+   "label": "Chus Barley.00I",
+   "name": "Barley",
+   "boxes": 67,
+   "packs": 0
+  },
+  {
+   "label": "Chu Mini Sticks 90.00I",
+   "name": "SD Pretzel Mini Sticks 90",
+   "boxes": 34,
+   "packs": 0
+  },
+  {
+   "label": "Chu Mini Sticks 60.00I",
+   "name": "SD Mini Sticks 60",
+   "boxes": 188,
+   "packs": 11280
+  }
+ ]
 }
