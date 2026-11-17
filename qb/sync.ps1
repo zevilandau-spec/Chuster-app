@@ -151,13 +151,19 @@ function PReport([string]$msg) {
     Invoke-RestMethod -Method Patch -Uri ($P.url + '/' + $P.space + '.json') -Body ([Text.Encoding]::UTF8.GetBytes($body)) -ContentType 'application/json; charset=utf-8' -TimeoutSec 60 | Out-Null
   } catch { PLog ('could not tell the app: ' + $_.Exception.Message) }
 }
+# The ONLY popups it presses OK on: QuickBooks telling you another user has something open. OK just closes them.
+$okRules = @(
+  @{ t = '*Feature in use*'; x = '(?i)memori[sz]ed transaction' },
+  @{ t = '*Bank Feeds In Use*'; x = '(?i)one user at a time.*bank feeds' }
+)
 $tries = @{}; $reported = ''
 while (-not $P.stop) {
   try {
     $pids = @(Get-Process -Name QBW32, QBW, QBW64 -ErrorAction SilentlyContinue | ForEach-Object { $_.Id })
     if ($pids.Count) {
       foreach ($w in [QbPop]::Dialogs([int[]]$pids)) {
-        if ($w.Title -like '*Feature in use*' -and ($w.Text -eq '' -or $w.Text -match '(?i)memori[sz]ed transaction')) {
+        $hit = @($okRules | Where-Object { $w.Title -like $_.t -and ($w.Text -eq '' -or $w.Text -match $_.x) }).Count -gt 0
+        if ($hit) {
           $k = [string]$w.H; $n = [int]$tries[$k]; $tries[$k] = $n + 1
           if ($n -le 3) { $how = [QbPop]::PressOk($w, $n); PLog ("pressed OK on '" + $w.Title + "' (" + $how + ")" + $(if ($w.Text) { ': ' + $w.Text } else { '' })) }
         }
