@@ -9,6 +9,7 @@ const unb64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
 const sha256hex = async t => { const d = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(t))); return Array.from(d).map(b => b.toString(16).padStart(2, '0')).join(''); };
 
 async function keyOf(raw) { return crypto.subtle.importKey('raw', unb64(raw), 'AES-GCM', false, ['encrypt', 'decrypt']); }
+async function dec(k, s) { const all = unb64(s); return JSON.parse(new TextDecoder().decode(await crypto.subtle.decrypt({ name: 'AES-GCM', iv: all.slice(0, 12) }, k, all.slice(12)))); }
 async function enc(k, obj) { const iv = crypto.getRandomValues(new Uint8Array(12)); const ct = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, k, new TextEncoder().encode(JSON.stringify(obj)))); const all = new Uint8Array(12 + ct.length); all.set(iv); all.set(ct, 12); return b64(all); }
 
 const clip = (s, n) => { s = String(s || '').replace(/\s+/g, ' ').trim(); return s.length > n ? s.slice(0, n - 1) + '…' : s; };
@@ -55,6 +56,32 @@ export default async (req) => {
     const w = await fetch(`${DB}/${space}/mp/${keyid}.json`, { method: 'PUT', body: JSON.stringify({ v, t: { '.sv': 'timestamp' } }) });
     if (!w.ok) throw new Error('db write failed ' + w.status);
   };
+
+  // The factory PC's pusher may be an older version that sends counts only (no order/times). Then work
+  // them out here from the count stream: a product's start = when it first shows up that day, its finish =
+  // the last time its count went up. Clock = the printer's own time of its last print (now.at) when that's
+  // for this day, else New York time. Products already on the day with no start are left without times.
+  if (day && Object.keys(labels).length && !Object.keys(times).length) {
+    try {
+      let prev = {};
+      const r = await fetch(`${DB}/${space}/mp/${day.replace(/-/g, '')}.json`);
+      const doc = r.ok ? await r.json() : null;
+      if (doc && doc.v) prev = ((await dec(key, doc.v)) || {}).val || {};
+      const pLab = prev.labels || {}, pTimes = prev.times || {}, pOrder = Array.isArray(prev.order) ? prev.order : [];
+      let clock = '';
+      const m = now && String(now.at).match(/^(\d{4}-\d{2}-\d{2})T(\d\d?):(\d\d)/);
+      if (m && m[1] === day) clock = m[2].padStart(2, '0') + ':' + m[3];
+      if (!clock) clock = new Intl.DateTimeFormat('en-GB', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date());
+      order.length = 0;
+      pOrder.forEach(k => { if (labels[k] != null && !order.includes(k)) order.push(k); });
+      Object.keys(labels).forEach(k => {
+        const before = +pLab[k] || 0, t = pTimes[k] ? { s: pTimes[k].s || '', e: pTimes[k].e || '' } : null;
+        if (!before) { times[k] = { s: clock, e: clock }; }             // first box of this product today
+        else if (t && t.s) { times[k] = labels[k] > before ? { s: t.s, e: clock } : t; }  // still running / done
+        if (!order.includes(k)) order.push(k);
+      });
+    } catch (e) { /* if anything goes wrong, still save the counts below */ }
+  }
 
   try {
     if (day) await put(day.replace(/-/g, ''), day, { d: day, labels, order, times, upd: (now && now.at) || new Date().toISOString().slice(0, 19) });
