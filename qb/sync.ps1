@@ -8,7 +8,7 @@
 param([switch]$Install, [switch]$Test, [switch]$Full, [switch]$Other, [switch]$History, [switch]$Watch)
 
 $ErrorActionPreference = 'Stop'
-$Ver = '4.0'
+$Ver = '4.1'
 $AppName = 'Chuster App Sync'
 $TaskName = 'Chuster QB Sync'
 $Here = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -65,13 +65,150 @@ function Sha([string]$s) {
 function SafeId([string]$s) { $s -replace '[^A-Za-z0-9_-]', '_' }
 function ToJson($o) { ConvertTo-Json -InputObject $o -Depth 10 -Compress }
 
+# ---------------- QuickBooks popup watcher ----------------
+# While QuickBooks shows a popup it answers no outside program, so the sync just waits. This watcher runs
+# beside the sync on its own thread. It clicks OK on ONE known, harmless popup - "Feature in use" saying the
+# automatic entry of memorized transactions is skipped because another user has them open - and if the sync
+# is stuck behind any other QuickBooks popup it tells the app ("QuickBooks is waiting on a popup...") so the
+# office sees it right away instead of the sync silently stopping. It never clicks anything else.
+$script:PopState = [hashtable]::Synchronized(@{ busy = $null; fails = 0; stop = $false })
+$QbPopSrc = @'
+using System; using System.Text; using System.Collections.Generic; using System.Runtime.InteropServices;
+public class QbWin { public IntPtr H; public string Title = ""; public string Cls = ""; public string Text = ""; public IntPtr Ok; }
+public static class QbPop {
+  public delegate bool EnumProc(IntPtr h, IntPtr l);
+  [DllImport("user32.dll")] static extern bool EnumWindows(EnumProc f, IntPtr l);
+  [DllImport("user32.dll")] static extern bool EnumChildWindows(IntPtr p, EnumProc f, IntPtr l);
+  [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
+  [DllImport("user32.dll")] static extern bool IsWindowVisible(IntPtr h);
+  [DllImport("user32.dll")] static extern bool IsWindow(IntPtr h);
+  [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int GetClassName(IntPtr h, StringBuilder s, int n);
+  [DllImport("user32.dll")] static extern IntPtr GetWindow(IntPtr h, uint cmd);
+  [DllImport("user32.dll")] static extern int GetDlgCtrlID(IntPtr h);
+  [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern IntPtr SendMessageTimeout(IntPtr h, uint msg, IntPtr w, StringBuilder l, uint flags, uint timeout, out IntPtr res);
+  [DllImport("user32.dll", EntryPoint = "SendMessageTimeout")] static extern IntPtr SendMessageTimeoutP(IntPtr h, uint msg, IntPtr w, IntPtr l, uint flags, uint timeout, out IntPtr res);
+  [DllImport("user32.dll")] static extern bool PostMessage(IntPtr h, uint msg, IntPtr w, IntPtr l);
+  const uint WM_GETTEXT = 0x000D, WM_GETTEXTLENGTH = 0x000E, WM_CLOSE = 0x0010, WM_COMMAND = 0x0111, BM_CLICK = 0x00F5, GW_OWNER = 4, SMTO_ABORTIFHUNG = 2;
+  static string Txt(IntPtr h) {
+    IntPtr n; SendMessageTimeoutP(h, WM_GETTEXTLENGTH, IntPtr.Zero, IntPtr.Zero, SMTO_ABORTIFHUNG, 500, out n);
+    int len = (int)n; if (len <= 0) return ""; if (len > 2000) len = 2000;
+    StringBuilder sb = new StringBuilder(len + 1); IntPtr r;
+    SendMessageTimeout(h, WM_GETTEXT, (IntPtr)(len + 1), sb, SMTO_ABORTIFHUNG, 500, out r);
+    return sb.ToString();
+  }
+  static string Cls(IntPtr h) { StringBuilder sb = new StringBuilder(256); GetClassName(h, sb, 256); return sb.ToString(); }
+  // Visible popups (owned windows or standard dialogs) that belong to the given QuickBooks processes.
+  // Reads captions and label texts only - never the contents of typing boxes.
+  public static List<QbWin> Dialogs(int[] pids) {
+    HashSet<uint> set = new HashSet<uint>(); foreach (int p in pids) set.Add((uint)p);
+    List<QbWin> list = new List<QbWin>();
+    EnumWindows(delegate (IntPtr h, IntPtr l) {
+      uint pid; GetWindowThreadProcessId(h, out pid);
+      if (!set.Contains(pid) || !IsWindowVisible(h)) return true;
+      string cls = Cls(h); bool owned = GetWindow(h, GW_OWNER) != IntPtr.Zero;
+      if (!(owned || cls == "#32770")) return true;
+      QbWin w = new QbWin(); w.H = h; w.Cls = cls; w.Title = Txt(h);
+      StringBuilder sb = new StringBuilder();
+      EnumChildWindows(h, delegate (IntPtr c, IntPtr l2) {
+        if (!IsWindowVisible(c)) return true;
+        string cc = Cls(c);
+        if (cc.IndexOf("Edit", StringComparison.OrdinalIgnoreCase) >= 0) return true;
+        string t = Txt(c).Trim();
+        if (cc.IndexOf("Button", StringComparison.OrdinalIgnoreCase) >= 0) {
+          if (string.Equals(t.Replace("&", ""), "OK", StringComparison.OrdinalIgnoreCase)) w.Ok = c;
+        } else if (t.Length > 0) { if (sb.Length > 0) sb.Append(' '); sb.Append(t); }
+        return true;
+      }, IntPtr.Zero);
+      w.Text = sb.ToString();
+      list.Add(w); return true;
+    }, IntPtr.Zero);
+    return list;
+  }
+  // Presses OK: first the way a click does (WM_COMMAND from the OK button), then BM_CLICK, then a close.
+  public static string PressOk(QbWin w, int attempt) {
+    if (attempt == 0 && w.Ok != IntPtr.Zero) { PostMessage(w.H, WM_COMMAND, (IntPtr)(GetDlgCtrlID(w.Ok) & 0xFFFF), w.Ok); return "ok-button"; }
+    if (attempt == 0) { PostMessage(w.H, WM_COMMAND, (IntPtr)1, IntPtr.Zero); return "ok-command"; }
+    if (attempt == 1 && w.Ok != IntPtr.Zero) { PostMessage(w.Ok, BM_CLICK, IntPtr.Zero, IntPtr.Zero); return "button-click"; }
+    PostMessage(w.H, WM_CLOSE, IntPtr.Zero, IntPtr.Zero); return "close";
+  }
+  public static bool Alive(IntPtr h) { return IsWindow(h) && IsWindowVisible(h); }
+}
+'@
+$PopWatchScript = @'
+function PLog([string]$m) { try { Add-Content -Path $P.log -Value ((Get-Date -Format 'yyyy-MM-dd HH:mm:ss') + '  Popup watcher: ' + $m) -Encoding UTF8 } catch { } }
+function PReport([string]$msg) {
+  try {
+    $st = [ordered]@{ at = (Get-Date).ToString('yyyy-MM-ddTHH:mm:ss'); ok = $false; err = $msg; ver = $P.ver; pc = $P.pc }
+    $json = ConvertTo-Json -InputObject ([ordered]@{ k = 'status'; val = $st; by = 'QuickBooks' }) -Depth 6 -Compress
+    $aes = [Security.Cryptography.Aes]::Create()
+    $aes.Mode = [Security.Cryptography.CipherMode]::CBC; $aes.Padding = [Security.Cryptography.PaddingMode]::PKCS7
+    $aes.Key = [byte[]]$P.enc; $aes.GenerateIV()
+    $pt = [Text.Encoding]::UTF8.GetBytes($json); $ct = $aes.CreateEncryptor().TransformFinalBlock($pt, 0, $pt.Length)
+    [byte[]]$ivct = [byte[]]$aes.IV + [byte[]]$ct
+    $mac = (New-Object Security.Cryptography.HMACSHA256 -ArgumentList (, [byte[]]$P.mac)).ComputeHash($ivct)
+    $v = 'c1.' + [Convert]::ToBase64String([byte[]]($ivct + $mac))
+    $body = ConvertTo-Json -InputObject ([ordered]@{ 'qh/status' = [ordered]@{ v = $v; t = @{ '.sv' = 'timestamp' } } }) -Depth 6 -Compress
+    Invoke-RestMethod -Method Patch -Uri ($P.url + '/' + $P.space + '.json') -Body ([Text.Encoding]::UTF8.GetBytes($body)) -ContentType 'application/json; charset=utf-8' -TimeoutSec 60 | Out-Null
+  } catch { PLog ('could not tell the app: ' + $_.Exception.Message) }
+}
+$tries = @{}; $reported = ''
+while (-not $P.stop) {
+  try {
+    $pids = @(Get-Process -Name QBW32, QBW, QBW64 -ErrorAction SilentlyContinue | ForEach-Object { $_.Id })
+    if ($pids.Count) {
+      foreach ($w in [QbPop]::Dialogs([int[]]$pids)) {
+        if ($w.Title -like '*Feature in use*' -and ($w.Text -eq '' -or $w.Text -match '(?i)memori[sz]ed transaction')) {
+          $k = [string]$w.H; $n = [int]$tries[$k]; $tries[$k] = $n + 1
+          if ($n -le 3) { $how = [QbPop]::PressOk($w, $n); PLog ("pressed OK on '" + $w.Title + "' (" + $how + ")" + $(if ($w.Text) { ': ' + $w.Text } else { '' })) }
+        }
+      }
+      $busy = $P.busy
+      $stuck = ($busy -and ((Get-Date) - [datetime]$busy).TotalSeconds -ge 120) -or ([int]$P.fails -ge 3)
+      if ($stuck) {
+        Start-Sleep -Seconds 3   # give a just-pressed OK a moment to close first
+        $left = @([QbPop]::Dialogs([int[]]$pids) | Where-Object { [QbPop]::Alive($_.H) -and ($_.Title -or $_.Text) })
+        $msg = ''
+        if ($left.Count) {
+          $d = $left[0]; $t = ([string]$d.Text).Trim().TrimEnd('.'); if ($t.Length -gt 160) { $t = $t.Substring(0, 157) + '...' }
+          $msg = 'QuickBooks is waiting on a popup on the office PC: "' + $d.Title + '"' + $(if ($t) { ' - ' + $t } else { '' }) + '. Click its button in QuickBooks and the sync continues by itself.'
+        } elseif ($busy -and ((Get-Date) - [datetime]$busy).TotalSeconds -ge 600) {
+          $msg = 'QuickBooks has not answered for 10+ minutes on the office PC. Check QuickBooks there for a popup or a frozen window.'
+        }
+        if ($msg -and $msg -ne $reported) { PReport $msg; PLog $msg; $reported = $msg }
+      } else { $reported = '' }
+    }
+  } catch { PLog $_.Exception.Message }
+  Start-Sleep -Seconds 10
+}
+'@
+function Start-PopupWatch {
+  if ($env:CHUSTER_QB_MOCK -or $script:PopRs) { return }
+  try { if (-not ('QbPop' -as [type])) { Add-Type -TypeDefinition $QbPopSrc -Language CSharp } }
+  catch { Log ('Popup watcher could not start: ' + $_.Exception.Message); return }
+  $PopState.url = (Url); $PopState.space = [string]$cfg.space; $PopState.enc = $EncKey; $PopState.mac = $MacKey
+  $PopState.ver = $Ver; $PopState.pc = $env:COMPUTERNAME; $PopState.log = $LogPath; $PopState.stop = $false
+  $rs = [runspacefactory]::CreateRunspace(); $rs.ApartmentState = 'STA'; $rs.Open()
+  $rs.SessionStateProxy.SetVariable('P', $PopState)
+  $ps = [powershell]::Create(); $ps.Runspace = $rs; [void]$ps.AddScript($PopWatchScript)
+  $script:PopPs = $ps; $script:PopRs = $rs; $script:PopH = $ps.BeginInvoke()
+}
+function Stop-PopupWatch {
+  $PopState.stop = $true
+  try { if ($script:PopPs) { $script:PopPs.Stop(); $script:PopPs.Dispose() } } catch { }
+  try { if ($script:PopRs) { $script:PopRs.Close(); $script:PopRs.Dispose() } } catch { }
+  $script:PopPs = $null; $script:PopRs = $null
+}
+
 # ---------------- QuickBooks ----------------
 $script:QB = $null; $script:Ticket = $null
 function QB-Open {
   if ($env:CHUSTER_QB_MOCK -or $script:Ticket) { return }
-  $script:QB = New-Object -ComObject QBXMLRP2.RequestProcessor
-  $script:QB.OpenConnection2('', $AppName, 1)
-  $script:Ticket = $script:QB.BeginSession([string]$cfg.company, 2)
+  $script:PopState.busy = Get-Date
+  try {
+    $script:QB = New-Object -ComObject QBXMLRP2.RequestProcessor
+    $script:QB.OpenConnection2('', $AppName, 1)
+    $script:Ticket = $script:QB.BeginSession([string]$cfg.company, 2)
+  } finally { $script:PopState.busy = $null }
 }
 function QB-Close {
   if ($env:CHUSTER_QB_MOCK) { return }
@@ -82,7 +219,9 @@ function QB-Close {
 }
 function QB-Company {
   if ($env:CHUSTER_QB_MOCK) { return 'C:\mock\Chuster.QBW' }
-  QB-Open; $script:QB.GetCurrentCompanyFileName($script:Ticket)
+  QB-Open
+  $script:PopState.busy = Get-Date
+  try { $script:QB.GetCurrentCompanyFileName($script:Ticket) } finally { $script:PopState.busy = $null }
 }
 $script:MockN = @{}
 function QB-Do([string]$name, [string]$body) {
@@ -98,7 +237,8 @@ function QB-Do([string]$name, [string]$body) {
     return [xml]$txt
   }
   QB-Open
-  [xml]$script:QB.ProcessRequest($script:Ticket, $xml)
+  $script:PopState.busy = Get-Date
+  try { [xml]$script:QB.ProcessRequest($script:Ticket, $xml) } finally { $script:PopState.busy = $null }
 }
 function Rs($x, [string]$rsName) { $x.SelectSingleNode("//" + $rsName) }
 function Check($rs, [string]$what) {
@@ -1163,9 +1303,9 @@ function Watch-Loop {
         try { Collect-History $true } catch { Log ('History: ' + $_.Exception.Message) }
         $script:HistNow = $false
       }
-      $fails = 0
+      $fails = 0; $script:PopState.fails = 0
     } catch {
-      $fails++; $msg = $_.Exception.Message
+      $fails++; $script:PopState.fails = $fails; $msg = $_.Exception.Message
       if ($fails -le 3 -or $fails % 30 -eq 0) { Log ('Always-on: ' + $msg) }
       try { QB-Close } catch { }
       if ($fails -eq 3) { try { Report-Error $msg } catch { } }
@@ -1222,6 +1362,7 @@ try {
     Write-Host 'Open the Chuster app: the dashboard shows "QuickBooks live".'
   } else {
     if (-not ((Url) -match '^https?://') -and -not $Test) { throw 'No database link yet. Run Install.cmd first.' }
+    if (-not $Test) { Start-PopupWatch }
     if ($History) { Collect-History (-not $Test) }
     elseif ($Watch -and -not $Test) {
       if (Test-Path $StopFlag) { exit 0 }
@@ -1247,5 +1388,6 @@ try {
   if ($Install) { Write-Host ''; Write-Host $msg -ForegroundColor Red }
   exit 1
 } finally {
+  try { Stop-PopupWatch } catch { }
   if (-not $Install) { Remove-Item $LockPath -ErrorAction SilentlyContinue }
 }
