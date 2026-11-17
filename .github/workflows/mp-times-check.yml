@@ -25,6 +25,10 @@ jobs:
               val = dec(mp[kid]['v']).get('val', {}); t = val.get('times', {}) or {}
               print("::notice::server-write-age %ds" % (int(__import__('time').time()) - int(mp[kid].get('t', 0)) // 1000))
               print("::notice::day %s labels=%d order=%d times=%d manual=%s upd=%s" % (val.get('d'), len(val.get('labels',{}) or {}), len(val.get('order',[]) or []), len(t), json.dumps(val.get('manual')), val.get('upd')))
+          v = dec(mp[days[-1]]['v']).get('val', {})  # TIMESDUMP
+          for lab in (v.get('order') or []):
+              t = (v.get('times') or {}).get(lab) or {}
+              print("::notice::run %s  %s boxes  %s-%s" % (lab, (v.get('labels') or {}).get(lab), t.get('s'), t.get('e')))
           seen = {}
           for kid in days:
               for lab, n in (dec(mp[kid]['v']).get('val', {}).get('labels', {}) or {}).items():
