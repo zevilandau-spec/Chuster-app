@@ -4,10 +4,11 @@ jobs:
   check:
     runs-on: ubuntu-latest
     steps:
-      - name: Dump recent mp day docs
+      - name: Dump mp docs
         env:
           CHUSTER_SECRETS: ${{ secrets.CHUSTER_SECRETS }}
           CHUSTER_DB_URL: ${{ secrets.CHUSTER_DB_URL }}
+          FIND: ${{ vars.FIND || 'enne' }}
         run: |
           pip install -q cryptography
           python3 - <<'PY'
@@ -15,23 +16,24 @@ jobs:
           from cryptography.hazmat.primitives.ciphers.aead import AESGCM
           S = json.loads(os.environ['CHUSTER_SECRETS'])['sync']
           url = os.environ['CHUSTER_DB_URL'].strip().rstrip('/'); sp = S['space']; key = base64.b64decode(S['key'])
-          g = AESGCM(key)
+          g = AESGCM(key); F = 'enne'
           def dec(v):
               raw = base64.b64decode(v); return json.loads(g.decrypt(raw[:12], raw[12:], None))
           mp = json.load(urllib.request.urlopen(f"{url}/{sp}/mp.json", timeout=120)) or {}
-          for kid in sorted(k for k in mp if k.isdigit() and len(k)==8)[-2:]:
-              o = dec(mp[kid]['v']); val = o.get('val', {})
-              t = val.get('times', {}) or {}; samp = ''
-              if t: fk = next(iter(t)); samp = "%s %s-%s" % (fk, t[fk].get('s'), t[fk].get('e'))
-              print("::notice::day %s labels=%d order=%d times=%d upd=%s [%s]" % (
-                  val.get('d'), len(val.get('labels',{}) or {}), len(val.get('order',[]) or []), len(t), val.get('upd'), samp))
-          if 'now' in mp:
-              n = dec(mp['now']['v']).get('val', {}); print("::notice::now label=%s at=%s" % (n.get('label'), n.get('at')))
+          days = sorted(k for k in mp if k.isdigit() and len(k)==8)
+          for kid in days[-2:]:
+              val = dec(mp[kid]['v']).get('val', {}); t = val.get('times', {}) or {}
+              print("::notice::day %s labels=%d order=%d times=%d manual=%s upd=%s" % (val.get('d'), len(val.get('labels',{}) or {}), len(val.get('order',[]) or []), len(t), json.dumps(val.get('manual')), val.get('upd')))
+          seen = {}
+          for kid in days:
+              for lab, n in (dec(mp[kid]['v']).get('val', {}).get('labels', {}) or {}).items():
+                  if F in lab.lower(): seen.setdefault(lab, []).append("%s:%s" % (kid, n))
+          for lab, v in seen.items(): print("::notice::label %s seen %s" % (lab, ' '.join(v[-5:])))
           for kid in mp:
               try: o = dec(mp[kid]['v'])
               except Exception: continue
-              if o.get('k') in ('map','packmap'):
-                  mv = o.get('val', {}) or {}
-                  for lab, pk in sorted(mv.items()):
-                      if 'ugget' in lab or 'ugget' in json.dumps(pk): print("::notice::%s %s => %s" % (o.get('k'), lab, json.dumps(pk)))
+              if o.get('k') == 'map':
+                  for lab, pk in sorted((o.get('val') or {}).items()):
+                      if F in lab.lower() or F in json.dumps(pk).lower(): print("::notice::map %s => %s" % (lab, json.dumps(pk)))
+                  print("::notice::map-size %d" % len(o.get('val') or {}))
           PY
