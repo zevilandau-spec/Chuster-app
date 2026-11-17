@@ -1,0 +1,30 @@
+name: MP times check
+on: workflow_dispatch
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dump recent mp day docs
+        env:
+          CHUSTER_SECRETS: ${{ secrets.CHUSTER_SECRETS }}
+          CHUSTER_DB_URL: ${{ secrets.CHUSTER_DB_URL }}
+        run: |
+          pip install -q cryptography
+          python3 - <<'PY'
+          import json, os, base64, urllib.request
+          from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+          S = json.loads(os.environ['CHUSTER_SECRETS'])['sync']
+          url = os.environ['CHUSTER_DB_URL'].strip().rstrip('/'); sp = S['space']; key = base64.b64decode(S['key'])
+          g = AESGCM(key)
+          def dec(v):
+              raw = base64.b64decode(v); return json.loads(g.decrypt(raw[:12], raw[12:], None))
+          mp = json.load(urllib.request.urlopen(f"{url}/{sp}/mp.json", timeout=120)) or {}
+          for kid in sorted(k for k in mp if k.isdigit() and len(k)==8)[-2:]:
+              o = dec(mp[kid]['v']); val = o.get('val', {})
+              t = val.get('times', {}) or {}; samp = ''
+              if t: fk = next(iter(t)); samp = "%s %s-%s" % (fk, t[fk].get('s'), t[fk].get('e'))
+              print("::notice::day %s labels=%d order=%d times=%d upd=%s [%s]" % (
+                  val.get('d'), len(val.get('labels',{}) or {}), len(val.get('order',[]) or []), len(t), val.get('upd'), samp))
+          if 'now' in mp:
+              n = dec(mp['now']['v']).get('val', {}); print("::notice::now label=%s at=%s" % (n.get('label'), n.get('at')))
+          PY
