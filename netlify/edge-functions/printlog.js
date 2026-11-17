@@ -61,12 +61,16 @@ export default async (req) => {
   // them out here from the count stream: a product's start = when it first shows up that day, its finish =
   // the last time its count went up. Clock = the printer's own time of its last print (now.at) when that's
   // for this day, else New York time. Products already on the day with no start are left without times.
-  if (day && Object.keys(labels).length && !Object.keys(times).length) {
+  let prev = {};
+  if (day) {
     try {
-      let prev = {};
       const r = await fetch(`${DB}/${space}/mp/${day.replace(/-/g, '')}.json`);
       const doc = r.ok ? await r.json() : null;
       if (doc && doc.v) prev = ((await dec(key, doc.v)) || {}).val || {};
+    } catch (e) { prev = {}; }
+  }
+  if (day && Object.keys(labels).length && !Object.keys(times).length) {
+    try {
       const pLab = prev.labels || {}, pTimes = prev.times || {}, pOrder = Array.isArray(prev.order) ? prev.order : [];
       let clock = '';
       const m = now && String(now.at).match(/^(\d{4}-\d{2}-\d{2})T(\d\d?):(\d\d)/);
@@ -83,8 +87,18 @@ export default async (req) => {
     } catch (e) { /* if anything goes wrong, still save the counts below */ }
   }
 
+  // Products added by hand for boxes the printer PC never saw (e.g. the network to the printer was down).
+  // Kept on the day and carried through every post; the printer's own count wins if it ever records that label.
+  const manual = (prev.manual && typeof prev.manual === 'object') ? prev.manual : null;
+  if (day && manual) Object.keys(manual).forEach(k => {
+    const m = manual[k] || {}; const n = Math.round(+m.n);
+    if (labels[k] != null || !(n > 0)) return;
+    labels[k] = n; if (!order.includes(k)) order.push(k);
+    const s = hm(m.s), e = hm(m.e); if (s || e) times[k] = { s, e };
+  });
+
   try {
-    if (day) await put(day.replace(/-/g, ''), day, { d: day, labels, order, times, upd: (now && now.at) || new Date().toISOString().slice(0, 19) });
+    if (day) await put(day.replace(/-/g, ''), day, Object.assign({ d: day, labels, order, times, upd: (now && now.at) || new Date().toISOString().slice(0, 19) }, manual ? { manual } : {}));
     if (now) await put('now', 'now', now);
   } catch (e) { return json({ error: String(e.message || e) }, 502); }
 
