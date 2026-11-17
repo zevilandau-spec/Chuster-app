@@ -41,7 +41,8 @@
     $sum = ($labels.Values | Measure-Object -Sum).Sum
     Write-Host ""
     Write-Host "DONE - sent $day : $($labels.Count) products, $sum boxes, with times:" -ForegroundColor Green
-    foreach ($k in $order) { Write-Host ("   {0,-28} {1,5} boxes   {2} - {3}" -f $k, $labels[$k], $starts[$k], $ends[$k]) }
+    $to12 = { param($t) if (-not $t) { return '' }; $h, $m = ([string]$t) -split ':'; $h = [int]$h; $ap = if ($h -ge 12) { 'PM' } else { 'AM' }; $h12 = $h % 12; if ($h12 -eq 0) { $h12 = 12 }; '{0}:{1} {2}' -f $h12, $m, $ap }
+    foreach ($k in $order) { Write-Host ("   {0,-28} {1,5} boxes   {2,8} - {3}" -f $k, $labels[$k], (& $to12 $starts[$k]), (& $to12 $ends[$k])) }
   } catch {
     Write-Host ("Could not send: " + $_.Exception.Message) -ForegroundColor Red
   }
