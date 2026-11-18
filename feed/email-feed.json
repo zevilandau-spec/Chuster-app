@@ -1,88 +1,14 @@
-{
-  "updated": "2026-11-18T12:23:22Z",
-  "feed": {
-    "zevi": [
-      {
-        "cat": "shortage",
-        "who": "Bochner's Grocery",
-        "subj": "Items missing #156164",
-        "sum": "1 box short: Chuster Fine (1 of 22 boxes not delivered)",
-        "at": "2026-11-17T22:20:07",
-        "link": "https://outlook.office365.com/owa/?ItemID=AAMkAGFmNjRjZDVlLTlkMTctNGJlZS04MDkwLTdiZDJlZGI1Yzk4MQBGAAAAAAAtR1pTZy7eSLs3LAUrVBv3BwDkzKQ6q1lhTJbNMK%2BHUFF5AAAAAAEMAADkzKQ6q1lhTJbNMK%2BHUFF5AAXkbfGkAAA%3D&exvsurl=1&viewmodel=ReadMessageItem"
-      },
-      {
-        "cat": "shortage",
-        "who": "Einhorns Grocery",
-        "subj": "Items missing #156162",
-        "sum": "1 box short: Chuster Kugel (1 of 31 boxes not delivered)",
-        "at": "2026-11-17T22:10:33",
-        "link": "https://outlook.office365.com/owa/?ItemID=AAMkAGFmNjRjZDVlLTlkMTctNGJlZS04MDkwLTdiZDJlZGI1Yzk4MQBGAAAAAAAtR1pTZy7eSLs3LAUrVBv3BwDkzKQ6q1lhTJbNMK%2BHUFF5AAAAAAEMAADkzKQ6q1lhTJbNMK%2BHUFF5AAXkbfGjAAA%3D&exvsurl=1&viewmodel=ReadMessageItem"
-      },
-      {
-        "cat": "shortage",
-        "who": "Super 13",
-        "subj": "Items missing #156150",
-        "sum": "1 box short: Chuster Sourdough Pretzel Mini Stix (1 of 67 boxes not delivered)",
-        "at": "2026-11-17T20:38:04",
-        "link": "https://outlook.office365.com/owa/?ItemID=AAMkAGFmNjRjZDVlLTlkMTctNGJlZS04MDkwLTdiZDJlZGI1Yzk4MQBGAAAAAAAtR1pTZy7eSLs3LAUrVBv3BwDkzKQ6q1lhTJbNMK%2BHUFF5AAAAAAEMAADkzKQ6q1lhTJbNMK%2BHUFF5AAXkbfGiAAA%3D&exvsurl=1&viewmodel=ReadMessageItem"
-      },
-      {
-        "cat": "shortage",
-        "who": "Center Fresh Supermarket",
-        "subj": "Items missing #156147",
-        "sum": "1 box short: Chuster Sourdough Pretzel Mini Stix (1 of 21 boxes not delivered)",
-        "at": "2026-11-17T20:22:58",
-        "link": "https://outlook.office365.com/owa/?ItemID=AAMkAGFmNjRjZDVlLTlkMTctNGJlZS04MDkwLTdiZDJlZGI1Yzk4MQBGAAAAAAAtR1pTZy7eSLs3LAUrVBv3BwDkzKQ6q1lhTJbNMK%2BHUFF5AAAAAAEMAADkzKQ6q1lhTJbNMK%2BHUFF5AAXkbfGhAAA%3D&exvsurl=1&viewmodel=ReadMessageItem"
-      },
-      {
-        "cat": "shortage",
-        "who": "Kosher Food Depot",
-        "subj": "Items missing #156143",
-        "sum": "1 box short: Landaus Kugel (1 of 51 boxes not delivered)",
-        "at": "2026-11-17T20:13:56",
-        "link": "https://outlook.office365.com/owa/?ItemID=AAMkAGFmNjRjZDVlLTlkMTctNGJlZS04MDkwLTdiZDJlZGI1Yzk4MQBGAAAAAAAtR1pTZy7eSLs3LAUrVBv3BwDkzKQ6q1lhTJbNMK%2BHUFF5AAAAAAEMAADkzKQ6q1lhTJbNMK%2BHUFF5AAXkbfGgAAA%3D&exvsurl=1&viewmodel=ReadMessageItem"
-      },
-      {
-        "cat": "bill",
-        "who": "Wonton Food (Cindy Chen)",
-        "subj": "RE: PO 65543",
-        "sum": "Will reach out to the Rabbi for production appointment",
-        "at": "2026-11-17T15:53:17",
-        "link": "https://outlook.office365.com/owa/?ItemID=AAMkAGFmNjRjZDVlLTlkMTctNGJlZS04MDkwLTdiZDJlZGI1Yzk4MQBGAAAAAAAtR1pTZy7eSLs3LAUrVBv3BwDkzKQ6q1lhTJbNMK%2BHUFF5AAAAAAEMAADkzKQ6q1lhTJbNMK%2BHUFF5AAXkbfGcAAA%3D&exvsurl=1&viewmodel=ReadMessageItem"
-      },
-      {
-        "cat": "bill",
-        "who": "Bickel's (Deb Sager)",
-        "subj": "Re: PO 65507",
-        "sum": "Order will be ready tomorrow; note they're closed 11/26 & 11/27",
-        "at": "2026-11-17T15:52:58",
-        "flag": "pickup",
-        "link": "https://outlook.office365.com/owa/?ItemID=AAMkAGFmNjRjZDVlLTlkMTctNGJlZS04MDkwLTdiZDJlZGI1Yzk4MQBGAAAAAAAtR1pTZy7eSLs3LAUrVBv3BwDkzKQ6q1lhTJbNMK%2BHUFF5AAAAAAEMAADkzKQ6q1lhTJbNMK%2BHUFF5AAXkbfGbAAA%3D&exvsurl=1&viewmodel=ReadMessageItem"
-      },
-      {
-        "cat": "bill",
-        "who": "Winland (Leonard Bottcher)",
-        "subj": "Order Acknowledgment PO 65546",
-        "sum": "PO 65546 acknowledged — done",
-        "at": "2026-11-17T15:21:13",
-        "link": "https://outlook.office365.com/owa/?ItemID=AAMkAGFmNjRjZDVlLTlkMTctNGJlZS04MDkwLTdiZDJlZGI1Yzk4MQBGAAAAAAAtR1pTZy7eSLs3LAUrVBv3BwDkzKQ6q1lhTJbNMK%2BHUFF5AAAAAAEMAADkzKQ6q1lhTJbNMK%2BHUFF5AAXkbfGaAAA%3D&exvsurl=1&viewmodel=ReadMessageItem"
-      },
-      {
-        "cat": "bill",
-        "who": "Winland (Leonard Bottcher)",
-        "subj": "Order Acknowledgment PO 65545",
-        "sum": "PO 65545 acknowledged — done",
-        "at": "2026-11-17T15:16:25",
-        "link": "https://outlook.office365.com/owa/?ItemID=AAMkAGFmNjRjZDVlLTlkMTctNGJlZS04MDkwLTdiZDJlZGI1Yzk4MQBGAAAAAAAtR1pTZy7eSLs3LAUrVBv3BwDkzKQ6q1lhTJbNMK%2BHUFF5AAAAAAEMAADkzKQ6q1lhTJbNMK%2BHUFF5AAXkbfGYAAA%3D&exvsurl=1&viewmodel=ReadMessageItem"
-      },
-      {
-        "cat": "bill",
-        "who": "Winland (Leonard Bottcher)",
-        "subj": "Order Acknowledgment PO 65544",
-        "sum": "PO 65544 acknowledged — done",
-        "at": "2026-11-17T15:16:16",
-        "link": "https://outlook.office365.com/owa/?ItemID=AAMkAGFmNjRjZDVlLTlkMTctNGJlZS04MDkwLTdiZDJlZGI1Yzk4MQBGAAAAAAAtR1pTZy7eSLs3LAUrVBv3BwDkzKQ6q1lhTJbNMK%2BHUFF5AAAAAAEMAADkzKQ6q1lhTJbNMK%2BHUFF5AAXkbfGXAAA%3D&exvsurl=1&viewmodel=ReadMessageItem"
-      }
-    ]
-  }
-}
+{"updated": "2026-11-18T13:25:12Z", "feed": {"zevi": [
+{"cat": "order", "who": "London Cooks (via Moses)", "subj": "New Order — London Cooks #34739", "sum": "29 cases whole-wheat pasta (elbow, rotini, spiral, penne) to 110 Taylor St, Brooklyn; deliver 11/16; $1,402 — confirm or cancel.", "at": "2026-11-18T12:38:54", "link": "https://outlook.office365.com/owa/?ItemID=AAMkAGFmNjRjZDVlLTlkMTctNGJlZS04MDkwLTdiZDJlZGI1Yzk4MQBGAAAAAAAtR1pTZy7eSLs3LAUrVBv3BwDkzKQ6q1lhTJbNMK%2BHUFF5AAAAAAEMAADkzKQ6q1lhTJbNMK%2BHUFF5AAXkbfGuAAA%3D&exvsurl=1&viewmodel=ReadMessageItem", "flag": "confirm"},
+{"cat": "shortage", "who": "Bochner's Grocery", "subj": "Items missing #156164", "sum": "1 of 22 boxes short — 1 box Chuster Fine (18 x 11oz).", "at": "2026-11-17T22:20:07", "link": "https://outlook.office365.com/owa/?ItemID=AAMkAGFmNjRjZDVlLTlkMTctNGJlZS04MDkwLTdiZDJlZGI1Yzk4MQBGAAAAAAAtR1pTZy7eSLs3LAUrVBv3BwDkzKQ6q1lhTJbNMK%2BHUFF5AAAAAAEMAADkzKQ6q1lhTJbNMK%2BHUFF5AAXkbfGkAAA%3D&exvsurl=1&viewmodel=ReadMessageItem"},
+{"cat": "shortage", "who": "Einhorns Grocery", "subj": "Items missing #156162", "sum": "1 of 31 boxes short — 1 box Chuster Kugel 40 (18 x 11oz).", "at": "2026-11-17T22:10:33", "link": "https://outlook.office365.com/owa/?ItemID=AAMkAGFmNjRjZDVlLTlkMTctNGJlZS04MDkwLTdiZDJlZGI1Yzk4MQBGAAAAAAAtR1pTZy7eSLs3LAUrVBv3BwDkzKQ6q1lhTJbNMK%2BHUFF5AAAAAAEMAADkzKQ6q1lhTJbNMK%2BHUFF5AAXkbfGjAAA%3D&exvsurl=1&viewmodel=ReadMessageItem"},
+{"cat": "shortage", "who": "Super 13", "subj": "Items missing #156150", "sum": "1 of 67 boxes short — 1 box Chuster Sourdough Pretzel Mini Stix 80.", "at": "2026-11-17T20:38:04", "link": "https://outlook.office365.com/owa/?ItemID=AAMkAGFmNjRjZDVlLTlkMTctNGJlZS04MDkwLTdiZDJlZGI1Yzk4MQBGAAAAAAAtR1pTZy7eSLs3LAUrVBv3BwDkzKQ6q1lhTJbNMK%2BHUFF5AAAAAAEMAADkzKQ6q1lhTJbNMK%2BHUFF5AAXkbfGiAAA%3D&exvsurl=1&viewmodel=ReadMessageItem"},
+{"cat": "shortage", "who": "Center Fresh Supermarket", "subj": "Items missing #156147", "sum": "1 of 21 boxes short — 1 box Chuster Sourdough Pretzel Mini Stix.", "at": "2026-11-17T20:22:58", "link": "https://outlook.office365.com/owa/?ItemID=AAMkAGFmNjRjZDVlLTlkMTctNGJlZS04MDkwLTdiZDJlZGI1Yzk4MQBGAAAAAAAtR1pTZy7eSLs3LAUrVBv3BwDkzKQ6q1lhTJbNMK%2BHUFF5AAAAAAEMAADkzKQ6q1lhTJbNMK%2BHUFF5AAXkbfGhAAA%3D&exvsurl=1&viewmodel=ReadMessageItem"},
+{"cat": "shortage", "who": "Kosher Food Depot", "subj": "Items missing #156143", "sum": "1 of 51 boxes short — 1 box Landaus Kugel 6 (18 x 11oz).", "at": "2026-11-17T20:13:56", "link": "https://outlook.office365.com/owa/?ItemID=AAMkAGFmNjRjZDVlLTlkMTctNGJlZS04MDkwLTdiZDJlZGI1Yzk4MQBGAAAAAAAtR1pTZy7eSLs3LAUrVBv3BwDkzKQ6q1lhTJbNMK%2BHUFF5AAAAAAEMAADkzKQ6q1lhTJbNMK%2BHUFF5AAXkbfGgAAA%3D&exvsurl=1&viewmodel=ReadMessageItem"},
+{"cat": "bill", "who": "Wonton Food (Cindy Chen)", "subj": "RE: Purchase Order 65543", "sum": "Wonton will contact the Rabbi to set a kosher production appointment for PO 65543.", "at": "2026-11-17T15:53:17", "link": "https://outlook.office365.com/owa/?ItemID=AAMkAGFmNjRjZDVlLTlkMTctNGJlZS04MDkwLTdiZDJlZGI1Yzk4MQBGAAAAAAAtR1pTZy7eSLs3LAUrVBv3BwDkzKQ6q1lhTJbNMK%2BHUFF5AAAAAAEMAADkzKQ6q1lhTJbNMK%2BHUFF5AAXkbfGcAAA%3D&exvsurl=1&viewmodel=ReadMessageItem"},
+{"cat": "bill", "who": "Bickel's / Hanover (Deb Sager)", "subj": "Re: PO 65507", "sum": "Order will be ready tomorrow (Nov 18) to pick up; Bickel's closed 11/26 & 11/27.", "at": "2026-11-17T15:52:58", "link": "https://outlook.office365.com/owa/?ItemID=AAMkAGFmNjRjZDVlLTlkMTctNGJlZS04MDkwLTdiZDJlZGI1Yzk4MQBGAAAAAAAtR1pTZy7eSLs3LAUrVBv3BwDkzKQ6q1lhTJbNMK%2BHUFF5AAAAAAEMAADkzKQ6q1lhTJbNMK%2BHUFF5AAXkbfGbAAA%3D&exvsurl=1&viewmodel=ReadMessageItem", "flag": "pickup"},
+{"cat": "bill", "who": "Winland (Leonard Bottcher)", "subj": "Order Acknowledgment PO 65546", "sum": "Winland confirmed PO 65546 — all done.", "at": "2026-11-17T15:21:13", "link": "https://outlook.office365.com/owa/?ItemID=AAMkAGFmNjRjZDVlLTlkMTctNGJlZS04MDkwLTdiZDJlZGI1Yzk4MQBGAAAAAAAtR1pTZy7eSLs3LAUrVBv3BwDkzKQ6q1lhTJbNMK%2BHUFF5AAAAAAEMAADkzKQ6q1lhTJbNMK%2BHUFF5AAXkbfGaAAA%3D&exvsurl=1&viewmodel=ReadMessageItem"},
+{"cat": "bill", "who": "Winland (Leonard Bottcher)", "subj": "Order Acknowledgment PO 65545", "sum": "Winland confirmed PO 65545 — all done.", "at": "2026-11-17T15:16:25", "link": "https://outlook.office365.com/owa/?ItemID=AAMkAGFmNjRjZDVlLTlkMTctNGJlZS04MDkwLTdiZDJlZGI1Yzk4MQBGAAAAAAAtR1pTZy7eSLs3LAUrVBv3BwDkzKQ6q1lhTJbNMK%2BHUFF5AAAAAAEMAADkzKQ6q1lhTJbNMK%2BHUFF5AAXkbfGYAAA%3D&exvsurl=1&viewmodel=ReadMessageItem"},
+{"cat": "bill", "who": "Winland (Leonard Bottcher)", "subj": "Order Acknowledgment PO 65544", "sum": "Winland confirmed PO 65544 — all done.", "at": "2026-11-17T15:16:16", "link": "https://outlook.office365.com/owa/?ItemID=AAMkAGFmNjRjZDVlLTlkMTctNGJlZS04MDkwLTdiZDJlZGI1Yzk4MQBGAAAAAAAtR1pTZy7eSLs3LAUrVBv3BwDkzKQ6q1lhTJbNMK%2BHUFF5AAAAAAEMAADkzKQ6q1lhTJbNMK%2BHUFF5AAXkbfGXAAA%3D&exvsurl=1&viewmodel=ReadMessageItem"},
+{"cat": "bill", "who": "Winland (Leonard Bottcher)", "subj": "RE: PO 65526", "sum": "Winland has only 17 cases available for PO 65526 — cannot fill the full quantity.", "at": "2026-11-17T14:57:40", "link": "https://outlook.office365.com/owa/?ItemID=AAMkAGFmNjRjZDVlLTlkMTctNGJlZS04MDkwLTdiZDJlZGI1Yzk4MQBGAAAAAAAtR1pTZy7eSLs3LAUrVBv3BwDkzKQ6q1lhTJbNMK%2BHUFF5AAAAAAEMAADkzKQ6q1lhTJbNMK%2BHUFF5AAXkbfGUAAA%3D&exvsurl=1&viewmodel=ReadMessageItem", "flag": "reply"}
+]}}
