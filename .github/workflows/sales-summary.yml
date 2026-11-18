@@ -1,0 +1,101 @@
+name: Daily sales summary
+on:
+  workflow_dispatch:
+    inputs:
+      date:
+        description: "Invoice date YYYY-MM-DD (blank = today, America/Chicago)"
+        required: false
+        default: ""
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install cryptography==43.0.3
+      - name: Build the sales summary
+        env:
+          CHUSTER_SECRETS: ${{ secrets.CHUSTER_SECRETS }}
+          CHUSTER_DB_URL: ${{ secrets.CHUSTER_DB_URL }}
+          IN_DATE: ${{ github.event.inputs.date }}
+        run: |
+          set -e
+          python3 - <<'PY'
+          import os, json, base64, datetime, zoneinfo, subprocess, glob
+
+          S = json.loads(os.environ['CHUSTER_SECRETS'])['sync']
+          db = (os.environ.get('CHUSTER_DB_URL') or S.get('url') or '').strip().rstrip('/')
+
+          # ---- target invoice date (America/Chicago) ----
+          target = (os.environ.get('IN_DATE') or '').strip()
+          if not target:
+              target = datetime.datetime.now(zoneinfo.ZoneInfo('America/Chicago')).date().isoformat()
+          print(f"::notice::Sales summary for {target}")
+
+          # ---- pull QB invoices + customers (same source as the delivery summary) ----
+          json.dump(S, open('sync.json', 'w'))
+          subprocess.run(['python3', 'build-src/tools/fetch_history.py', db, 'sync.json', 'raw'], check=True)
+          def raw_sets(prefix):
+              out = []
+              for p in sorted(glob.glob(f"raw/{prefix}_*.json")):
+                  try: out.extend(json.load(open(p, encoding='utf-8')))
+                  except Exception: pass
+              return out
+          def raw_one(name):
+              p = f"raw/{name}.json"
+              if not os.path.exists(p): return []
+              d = json.load(open(p, encoding='utf-8'))
+              if isinstance(d, dict):
+                  for v in d.values():
+                      if isinstance(v, list): return v
+                  return []
+              return d
+          invs = raw_sets('inv'); custs = raw_one('customers')
+          print(f"::notice::loaded {len(invs)} invoices, {len(custs)} customers")
+          cust = {}
+          for c in custs:
+              area = (c.get('type') or '').replace('Retail:', '').replace('Cataring', 'Catering') or 'Other'
+              cust[c.get('n', '')] = {'area': area}
+
+          # ---- sum invoices whose invoice date == target ----
+          net = tax = 0.0; cnt = 0
+          by_area = {}; by_cust = {}
+          for o in invs:
+              if not isinstance(o, dict) or not o.get('n'): continue
+              if (o.get('d') or '')[:10] != target: continue
+              sub = float(o.get('sub', 0) or 0); tx = float(o.get('tax', 0) or 0)
+              if sub + tx == 0: continue
+              net += sub; tax += tx; cnt += 1
+              area = cust.get(o.get('c', ''), {}).get('area', 'Other')
+              by_area[area] = by_area.get(area, 0.0) + sub
+              by_cust[o.get('c', '')] = by_cust.get(o.get('c', ''), 0.0) + sub
+
+          areas = sorted(({'area': a, 'net': round(v, 2)} for a, v in by_area.items()), key=lambda x: -x['net'])
+          top = sorted(({'name': c, 'net': round(v, 2)} for c, v in by_cust.items() if c), key=lambda x: -x['net'])[:6]
+          result = {
+              'date': target,
+              'generatedAt': datetime.datetime.utcnow().isoformat() + 'Z',
+              'invoices': cnt,
+              'net': round(net, 2),
+              'tax': round(tax, 2),
+              'total': round(net + tax, 2),
+              'byArea': areas,
+              'topCustomers': top,
+          }
+          print(f"::notice::{cnt} invoices | net ${net:,.2f} | tax ${tax:,.2f} | total ${net+tax:,.2f}")
+          for a in areas: print(f"::notice::   {a['area']}: ${a['net']:,.2f}")
+          os.makedirs('reports', exist_ok=True)
+          json.dump(result, open('reports/sales-summary.json', 'w'), indent=1)
+          print("wrote reports/sales-summary.json")
+          PY
+      - name: Commit the summary
+        run: |
+          git config user.name "Chuster sales"
+          git config user.email "noreply@anthropic.com"
+          git add reports/sales-summary.json
+          if git diff --cached --quiet; then echo "no change"; exit 0; fi
+          git commit -q -m "Sales summary"
+          for i in 1 2 3; do git push -q origin HEAD:main && break; git pull -q --rebase origin main; done
