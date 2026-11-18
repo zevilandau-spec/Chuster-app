@@ -2639,7 +2639,7 @@ function renderPrinter() {
     <p class="sub" style="margin:0 0 10px">Files ${dayWord} production into QuickBooks as a <b>$0 bill</b> — quantities only, so it brings the boxes into your stock and never touches money. You review it and tap Send before anything posts.</p>
     ${billExists
       ? `<div style="padding:10px 12px;border:1px solid #16a34a55;background:#16a34a14;border-radius:10px;margin-bottom:10px">The production bill for ${esc(fmtShort(isoRd(day)))} is already waiting in <b>To QuickBooks</b>.</div><a class="btn ghost" href="#toqb" data-go="toqb">Open To QuickBooks</a>`
-      : `<button class="btn primary" data-act="mp-tobill" style="width:100%">Send ${billLines.length} product${billLines.length > 1 ? 's' : ''} · ${fn(billBoxes)} boxes to QuickBooks</button>${billUnmapped ? `<p class="sub" style="margin:8px 0 0">${fn(billUnmapped)} box${billUnmapped > 1 ? 'es are' : ' is'} on labels not matched yet — match them below to include them.</p>` : ''}`}
+      : `<button class="btn primary" data-act="mp-tobill" style="width:100%">Send ${new Set(billLines.map(l => l[0])).size} product${new Set(billLines.map(l => l[0])).size > 1 ? 's' : ''} · ${fn(billBoxes)} boxes to QuickBooks</button>${billUnmapped ? `<p class="sub" style="margin:8px 0 0">${fn(billUnmapped)} box${billUnmapped > 1 ? 'es are' : ' is'} on labels not matched yet — match them below to include them.</p>` : ''}`}
   </section>`;
 
   const tile = (k, v, d) => `<div style="border:1px solid var(--line);border-radius:14px;padding:12px 14px"><div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px">${k}</div><div style="font-size:22px;font-weight:800;margin-top:3px;line-height:1">${v}</div><div class="sub" style="margin:3px 0 0;font-size:11.5px">${d}</div></div>`;
@@ -9049,14 +9049,22 @@ function qwFromOrder(loc) {
 const MP_VENDOR = 'Chuster Packaging Retail';
 const MP_SITE = '01 Chuster';
 function mpBillLines(day) {
-  const data = printAll().data, labels = (data[day] || {}).labels || {}, agg = {};
-  Object.keys(labels).forEach(lab => {
+  // One line per printer run, in the order it was packed (start time, then the printer's own order).
+  // Back-to-back runs of the same product become one line; a product packed again later gets its own line in its place.
+  const D = printAll().data[day] || {}, labels = D.labels || {}, times = D.times || {}, order = D.order || [];
+  const pos = lab => { const i = order.indexOf(lab); return i < 0 ? 1e6 : i; };
+  const runs = [];
+  Object.keys(labels).forEach((lab, k) => {
     if (isHand(lab)) return; // packed by hand — not billed from the printer
-    const k = printProd(lab), n = labels[lab] || 0; if (!k || !n) return;
-    const ci = prodByKey(k); const full = ci ? (ci.full || ci.name) : k; if (!full) return;
-    agg[full] = (agg[full] || 0) + n;
+    const p = printProd(lab), n = labels[lab] || 0; if (!p || !n) return;
+    const ci = prodByKey(p); const full = ci ? (ci.full || ci.name) : p; if (!full) return;
+    const s = /^\d{1,2}:\d{2}/.test((times[lab] || {}).s || '') ? times[lab].s.padStart(5, '0') : '99:99';
+    runs.push({ full, n, s, o: pos(lab), k });
   });
-  return Object.keys(agg).map(full => [full, agg[full], 0]);
+  runs.sort((a, b) => a.s < b.s ? -1 : a.s > b.s ? 1 : (a.o - b.o) || (a.k - b.k));
+  const lines = [];
+  runs.forEach(r => { const last = lines[lines.length - 1]; if (last && last[0] === r.full) last[1] += r.n; else lines.push([r.full, r.n, 0]); });
+  return lines;
 }
 function mpBillExists(day) { return Object.values(S.qw || {}).some(r => r && r.kind === 'bill' && r.d === day && r.st !== 'cancel'); }
 // Is this day's production already inside the QuickBooks stock the app shows?
