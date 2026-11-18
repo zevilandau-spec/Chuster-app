@@ -618,6 +618,43 @@ body:has(#ai-fab:not([hidden])) #view { padding-bottom: 72px; }
   .mx-pill.opt { display: none; }
   .mx-bars-d { display: none; } .mx-bars-p { display: block; }
 }
+/* menu v2, to match the new dashboard: page-colored menu, round pill on the screen you're on, quiet counts and stars */
+.side { background: var(--bg); color: var(--fg); box-shadow: none; border-right: 1px solid rgba(127, 127, 140, 0.16); }
+.side .nav h3 { color: var(--muted); }
+.nav a { color: var(--fg); }
+.nav a .count { background: none; color: var(--bad-text); font-size: 13px; padding: 0 2px; }
+.nav a .soon { color: var(--muted); border-color: var(--line-strong); }
+.nav a .nav-star { color: var(--line-strong); }
+.nav a .nav-star.on { color: var(--gold); }
+.side-foot { background: var(--surface); color: var(--muted); border-radius: 20px; padding: 14px; }
+.side-foot b, .side-foot label { color: var(--fg) !important; }
+.side-foot .btn { color: var(--brand-text) !important; border-color: var(--line-strong) !important; background: transparent !important; border-radius: 999px; }
+.side .menu-close { color: var(--fg); }
+.topbar { background: var(--bg); color: var(--fg); border-bottom: 1px solid var(--line); box-shadow: none; }
+.topbar .t small { color: var(--muted); }
+body::before { background: var(--bg); }
+.tabs { background: var(--bg); }
+.tabs svg { box-sizing: content-box; padding: 4px 18px; border-radius: 999px; }
+.tabs [aria-current="page"] { color: var(--fg); }
+.tabs [aria-current="page"] svg { background: var(--brand-soft); color: var(--brand-text); }
+@media (min-width: 960px) {
+  .app { grid-template-columns: 272px minmax(0, 1fr); }
+  .side { gap: 10px; }
+  .nav { gap: 3px; }
+  .nav a { min-height: 46px; padding: 0 10px 0 16px; border-radius: 999px; font-size: 15px; font-weight: 500; gap: 12px; }
+  .nav a svg { width: 21px; height: 21px; }
+  .nav a:hover { background: rgba(127, 127, 140, 0.10); }
+  .nav a[aria-current="page"] { background: var(--brand-soft); color: var(--brand-text); font-weight: 700; }
+  .nav a .nav-star, .nav a .nav-star.on { font-size: 13px; color: var(--muted); opacity: .4; margin-left: 2px; padding: 2px 4px; }
+  .nav a:hover .nav-star { opacity: 1; } .nav a:hover .nav-star.on { color: var(--gold); }
+  @media (hover: hover) { .nav a .nav-star, .nav a .nav-star.on { display: none; } .nav a:hover .nav-star, .nav a .nav-star:focus-visible { display: inline-block; } }
+}
+@media (max-width: 959px) {
+  .nav a { background: var(--surface); border: 1px solid transparent; border-radius: 20px; }
+  .nav a svg { color: var(--brand-text); }
+  .nav a[aria-current="page"] { background: var(--brand-soft); color: var(--brand-text); border-color: transparent; }
+  .nav a[aria-current="page"] svg { color: var(--brand-text); }
+}
 
 /* dashboard v3: gold top box like the logo, light colored number boxes */
 :root { --ct-blue-bg: #E7EDFC; --ct-blue: #21409A; --ct-green-bg: #E2F3E8; --ct-green: #17663B; --ct-red-bg: #FDEBE9; --ct-red: #A3241A; --ct-gold-bg: #F6ECE3; --ct-gold: #753A27; }
@@ -3138,7 +3175,7 @@ function renderHomeMix() {
   return `<div class="mx">
   <div class="mx-head">
     <div><h1>${greet},<br>${esc(who)}</h1><div class="s">${bits.join(' ')}</div></div>
-    <div class="mx-acts">${qbTag()}${SYNC.has() ? '<button class="mx-pill" data-act="sync-now" title="Pull everything from QuickBooks now">⟳ Sync now</button>' : ''}<button class="mx-pill opt" data-act="sum-open">Morning summary</button><button class="mx-pill opt" data-act="wk-open">Weekly digest</button><a class="mx-pill opt" href="#payments" data-go="payments">Payments</a><a class="mx-pill pri" href="#order" data-go="order">New order</a></div>
+    <div class="mx-acts"><a class="mx-pill pri" href="#order" data-go="order">New order</a><a class="mx-pill opt" href="#payments" data-go="payments">Payments</a>${SYNC.has() ? '<button class="mx-pill" data-act="sync-now" title="Pull everything from QuickBooks now">⟳ Sync now</button>' : ''}<button class="mx-pill opt" data-act="sum-open">Morning summary</button><button class="mx-pill opt" data-act="wk-open">Weekly digest</button>${qbTag()}</div>
   </div>
   ${(() => { const d0 = new Date(isoOf(TODAY) + 'T12:00:00').getDay(); return d0 === 5 && !S.wkOpen ? `<div class="attn blue" style="cursor:pointer;margin-bottom:14px" data-act="wk-open"><span style="font-size:20px">📊</span><span class="main"><strong>Your weekly digest is ready</strong><small>Sales, top movers, who's growing, cash — send it to yourself for Shabbos</small></span><strong>Open →</strong></div>` : ''; })()}
   ${S.wkOpen ? `<div style="margin-bottom:14px">${weeklyCard()}</div>` : ''}${S.sumOpen ? `<div style="margin-bottom:14px">${summaryCard()}</div>` : ''}
