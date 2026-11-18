@@ -580,7 +580,7 @@ body:has(#ai-fab:not([hidden])) #view { padding-bottom: 72px; }
 .mx-li .nm { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .mx-li .c { margin-left: auto; font-weight: 700; font-variant-numeric: tabular-nums; }
 .mx-li .a { font: 700 13px/1.2 inherit; font-family: inherit; border-radius: 999px; padding: 7px 12px; background: var(--brand-soft); color: var(--brand-text); min-width: 58px; text-align: center; flex: none; }
-.mx-need .mx-li { gap: 10px; } .mx-need .mx-li .a { margin-left: auto; } .mx-num { font-size: 13px; font-weight: 800; font-variant-numeric: tabular-nums; min-width: 32px; width: auto; padding: 0 6px; border-radius: 16px; }
+.mx-need .mx-li { gap: 10px; font-size: 14.5px; } .mx-need .mx-li .a { margin-left: auto; } .mx-num { font-size: 13px; font-weight: 800; font-variant-numeric: tabular-nums; min-width: 32px; width: auto; padding: 0 6px; border-radius: 16px; }
 .mx-ch .go { margin-left: auto; font-size: 22px; font-weight: 400; color: var(--muted); opacity: .6; }
 .mx-bars-p { display: none; }
 .mx-li .rk { width: 24px; height: 24px; border-radius: 50%; background: var(--g5s); color: var(--mx-purple); font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex: none; }
@@ -598,6 +598,26 @@ body:has(#ai-fab:not([hidden])) #view { padding-bottom: 72px; }
 .mx-pr { display: flex; justify-content: space-between; gap: 10px; font-size: 15px; padding: 4px 0; } .mx-pr span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mx-wk { display: flex; align-items: flex-end; gap: 8px; height: 54px; margin-top: 12px; } .mx-wk i { flex: 1; background: var(--mx-green); border-radius: 6px 6px 3px 3px; opacity: .85; min-height: 3px; } .mx-wk i.t { opacity: .45; } .mx-wk i.z { opacity: .15; }
 .mx-wkd { display: flex; gap: 8px; margin-top: 6px; color: var(--muted); font-size: 12.5px; } .mx-wkd span { flex: 1; text-align: center; }
+.mx-hmwrap { overflow-x: auto; margin: 0 -4px; padding: 0 4px; }
+.mx-hm { display: grid; grid-template-columns: 40px repeat(12, minmax(0, 1fr)) 82px; gap: 5px; margin-top: 12px; align-items: center; }
+.mx-hm .h { font-size: 12px; color: var(--muted); text-align: center; font-weight: 600; } .mx-hm .h.r { text-align: right; }
+.mx-hm .y { font-size: 13.5px; }
+.mx-hm i { font-style: normal; height: 34px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 12.5px; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; color: var(--fg); }
+.mx-hm i.fut, .mx-key i.fut { border: 1.5px dashed var(--line-strong); }
+.mx-hm i.nil { background: var(--surface-2); }
+.mx-hm i.best, .mx-key i.best { box-shadow: inset 0 0 0 2px var(--fg); }
+.mx-hm i.cur, .mx-key i.cur { background-image: repeating-linear-gradient(135deg, transparent 0 5px, rgba(255, 255, 255, .5) 5px 9px); }
+.mx-hm .t { text-align: right; font-size: 12px; line-height: 1.25; } .mx-hm .t b { display: block; font-size: 13.5px; font-variant-numeric: tabular-nums; }
+.mx-hm .p { display: none; }
+.mx-key { display: flex; gap: 6px 18px; flex-wrap: wrap; color: var(--muted); font-size: 12.5px; margin-top: 10px; align-items: center; }
+.mx-key span { display: inline-flex; align-items: center; gap: 6px; } .mx-key i { width: 18px; height: 14px; border-radius: 4px; display: inline-block; background-color: rgba(245, 164, 0, .45); }
+.mx-key i.fut { background: none; } .mx-key .sw { display: none; }
+.mx-stats.wrap { flex-wrap: wrap; row-gap: 12px; } .mx-stats.wrap span { font-size: 12.5px; }
+.mx-yr { display: grid; grid-template-columns: 38px minmax(0, 1fr) auto; gap: 10px; align-items: center; margin-top: 10px; font-size: 14px; }
+.mx-yr .tr { position: relative; height: 14px; }
+.mx-yr .tr i { position: absolute; top: 0; bottom: 0; left: 0; border-radius: 7px; }
+.mx-yr .tr i.ghost { border: 1.5px dashed var(--mx-gold); border-radius: 7px; background: none; margin-left: -7px; padding-left: 7px; box-sizing: content-box; }
+.mx-yr > span { text-align: right; font-weight: 700; font-variant-numeric: tabular-nums; min-width: 54px; } .mx-yr small { font-weight: 500; color: var(--muted); font-size: 11.5px; }
 .mx-foot { display: flex; justify-content: center; gap: 18px; flex-wrap: wrap; margin: 22px 0 4px; }
 .mx-foot button { border: none; background: none; color: var(--brand-text); font: 700 15px/1.2 inherit; font-family: inherit; cursor: pointer; padding: 6px; }
 .mx-note { color: var(--muted); font-size: 12.5px; text-align: center; margin: 4px 0 0; }
@@ -616,6 +636,11 @@ body:has(#ai-fab:not([hidden])) #view { padding-bottom: 72px; }
   .mx-ch { flex-wrap: wrap; } .mx-ch .rt { flex-basis: 100%; margin-left: 42px; text-align: left; }
   .mx-li .chg { width: 74px; }
   .mx-pill.opt { display: none; }
+  .mx-hm { min-width: 600px; grid-template-columns: 36px repeat(12, minmax(0, 1fr)) 58px; gap: 4px; }
+  .mx-hm i { height: 30px; border-radius: 8px; font-size: 11px; } .mx-hm .d { display: none; } .mx-hm .p { display: inline; }
+  .mx-hm .y { position: sticky; left: 0; background: var(--surface); align-self: stretch; display: flex; align-items: center; z-index: 1; }
+  .mx-key .sw { display: inline; }
+  .mx-stats.wrap > div { flex: 0 0 50%; } .mx-stats.wrap > div:nth-child(odd) { border-left: 0; padding-left: 0; }
   .mx-bars-d { display: none; } .mx-bars-p { display: block; }
 }
 /* menu v2, to match the new dashboard: page-colored menu, round pill on the screen you're on, quiet counts and stars */
@@ -3142,10 +3167,6 @@ function renderHomeMix() {
   const mvs = pct(D.oct.now, D.oct.prevSame);
   // sales by month bars
   const mon = Object.fromEntries(D.monthly), key = (y, i) => `${y}-${String(i + 1).padStart(2, '0')}`;
-  const sP = MONS.map((_, i) => mon[key(PY, i)] || 0), sC = MONS.map((_, i) => i <= CM ? (mon[key(CY, i)] || 0) : null);
-  const top = Math.max(1, ...sP, ...sC.filter(v => v != null));
-  const barsOf = (BW, BH, bw, fs) => { const gap = BW / 12; return MONS.map((l, i) => { const x = i * gap + gap / 2, hP = sP[i] / top * (BH - 22), hC = (sC[i] || 0) / top * (BH - 22);
-    return `<rect x="${(x - bw - 1).toFixed(1)}" y="${(BH - 20 - hP).toFixed(1)}" width="${bw}" height="${hP.toFixed(1)}" rx="6" fill="var(--bar-muted)"/>${sC[i] != null ? `<rect x="${(x + 1).toFixed(1)}" y="${(BH - 20 - hC).toFixed(1)}" width="${bw}" height="${hC.toFixed(1)}" rx="6" fill="var(--mx-gold)"${i === CM ? ' fill-opacity=".45"' : ''}><title>${l} ${CY}: ${fm(sC[i])}</title></rect>` : ''}<text x="${x.toFixed(1)}" y="${BH - 3}" text-anchor="middle" font-size="${fs}" fill="var(--muted)">${l[0]}</text>`; }).join(''); };
   // sparkline: last 12 months, this year line vs a year earlier
   const ms = []; for (let k = 11; k >= 0; k--) { let mm = CM - k, yy = CY; while (mm < 0) { mm += 12; yy--; } ms.push([mon[key(yy, mm)] || 0, mon[key(yy - 1, mm)] || 0]); }
   const smax = Math.max(1, ...ms.map(x => Math.max(x[0], x[1])));
@@ -3170,8 +3191,39 @@ function renderHomeMix() {
     ticks = `<div class="mx-ticks"><span>${mxClock(w0)}</span><span>noon</span><span>${mxClock(w1)}</span></div>`;
   }
   const trk = T && T.rows.length ? T.rows.map(r => `<div class="mx-truck"><div class="top"><span>${esc(r.name)}</span><span>${r.done} / ${r.n}</span></div><div class="mx-bar"><i style="width:${(r.done / r.n * 100).toFixed(0)}%"></i></div>${r.left.length && r.done < r.n && r.done > 0 ? `<div class="mx-left">Still to go: ${r.left.slice(0, 4).map(esc).join(', ')}${r.left.length > 4 ? ` and ${r.left.length - 4} more` : ''}</div>` : ''}</div>`).join('') : '<div class="mx-mut" style="margin-top:10px">No deliveries on the trucks today.</div>';
-  const vly = V && V.heb.has && V.heb.amt > 0 ? pct(V.today.amt, V.heb.amt) : null;
+  const vly = V && V.heb.has && V.heb.amt > 0 && V.today.amt > 0 ? pct(V.today.amt, V.heb.amt) : null;
   const cashBars = C.week != null ? (() => { const mx = Math.max(1, ...C.days.map(x => x.v)); return `<div class="mx-wk" role="img" aria-label="Payments received each day this week">${C.days.map(x => `<i class="${x.future ? 'z' : x.r === TODAY ? 't' : ''}" style="height:${x.future ? 6 : Math.max(6, x.v / mx * 100).toFixed(0)}%" title="${WD[dow(x.r)]}: ${fm(x.v)}"></i>`).join('')}</div><div class="mx-wkd">${C.days.map(x => `<span>${x.r === TODAY ? 'Today' : WD[dow(x.r)].slice(0, 3)}</span>`).join('')}</div>`; })() : '';
+  // every month, every year (heatmap) + per year
+  const byY = {}; D.monthly.forEach(([ym, v]) => { const y = +ym.slice(0, 4), m = +ym.slice(5, 7) - 1; (byY[y] || (byY[y] = Array(12).fill(null)))[m] = v; });
+  const yrs = Object.keys(byY).map(Number).sort((a, b) => b - a);
+  const vmax = Math.max(1, ...D.monthly.map(x => x[1] || 0));
+  const bestM = D.monthly.reduce((b, x) => (!b || x[1] > b[1] ? x : b), null);
+  const ytot = y => (byY[y] || []).reduce((t, v) => t + (v || 0), 0);
+  const sK = v => v >= 1e6 ? (v / 1e6).toFixed(1) + 'M' : Math.round(v / 1e3) + 'K', mK = v => v >= 1e6 ? (v / 1e6).toFixed(2) + 'M' : Math.round(v / 1e3) + 'K';
+  const two = (a, b) => `<span class="d">${a}</span><span class="p">${b}</span>`;
+  const hmHead = `<span></span>${MONS.map(m => `<span class="h">${m}</span>`).join('')}<span class="h r">Year</span>`;
+  const hmRows = yrs.map(y => {
+    const cells = MONS.map((_, m) => { const v = byY[y][m];
+      if (y === CY && m > CM) return '<i class="fut" aria-label="still to come"></i>';
+      if (v == null) return '<i class="nil"></i>';
+      const a = 0.07 + 0.88 * Math.pow(Math.max(0, v) / vmax, 1.6), isBest = bestM && bestM[0] === key(y, m), cur = y === CY && m === CM;
+      return `<i class="${isBest ? 'best' : ''}${cur ? ' cur' : ''}" style="background-color:rgba(245,164,0,${a.toFixed(2)})${a > 0.45 ? ';color:#2B1D00' : ''}" title="${MON[m]} ${y}: ${fm(v)}${cur ? ' so far' : ''}${isBest ? ', best month ever' : ''}">${two(mK(v), sK(v))}</i>`; }).join('');
+    const t = ytot(y), ch = y === CY ? (D.ytdPrev ? pct(D.ytd, D.ytdPrev) : null) : (byY[y - 1] ? pct(t, ytot(y - 1)) : null);
+    return `<b class="y">${y}</b>${cells}<span class="t"><b>${two(fm(t), sK(t))}</b>${ch != null ? mxDiff(ch) : ''}</span>`; }).join('');
+  const fullThis = (byY[CY] || []).slice(0, CM).filter(v => v != null), fullLast = (byY[PY] || []).filter(v => v != null);
+  const avgThis = fullThis.length ? fullThis.reduce((a, b) => a + b, 0) / fullThis.length : 0, avgLast = fullLast.length ? fullLast.reduce((a, b) => a + b, 0) / fullLast.length : 0;
+  let invThis = 0, invLast = 0;
+  if (REP) REP.months.forEach((ym, i) => { const n = REP.list.reduce((tt, r) => tt + (r.inv[i] || 0), 0); if (+ym.slice(0, 4) === CY) invThis += n; else if (+ym.slice(0, 4) === PY && +ym.slice(5, 7) - 1 <= CM) invLast += n; });
+  const avgInv = invThis ? D.ytd / invThis : 0, avgInvLast = invLast && D.ytdPrev ? D.ytdPrev / invLast : 0;
+  const hmStats = [bestM ? `<div><b>${fm(bestM[1])}</b><span>best month ever, ${MON[+bestM[0].slice(5, 7) - 1]} ${bestM[0].slice(0, 4)}</span></div>` : '',
+    avgThis ? `<div><b>${fm(avgThis)}</b><span>average month ${CY}${avgLast ? ', ' + mxDiff(pct(avgThis, avgLast)) : ''}</span></div>` : '',
+    invThis ? `<div><b>${fn(invThis)}</b><span>invoices ${CY}${invLast ? ', ' + mxDiff(pct(invThis, invLast)) : ''}</span></div>` : '',
+    avgInv ? `<div><b>${money(avgInv)}</b><span>average invoice${avgInvLast ? ', ' + mxDiff(pct(avgInv, avgInvLast)) : ''}</span></div>` : ''].join('');
+  const ysUp = yrs.slice().sort((a, b) => a - b), ymax = Math.max(1, ...ysUp.map(ytot)), tCY = ytot(CY), tPY = ytot(PY);
+  const yrRows = ysUp.map(y => { const t = ytot(y), w = t / ymax * 100;
+    return `<div class="mx-yr"><b>${y}</b><div class="tr"><i style="width:${w.toFixed(1)}%;background:${y === CY ? 'var(--mx-gold)' : y === PY ? 'var(--mx-blue)' : 'var(--bar-muted)'}"></i>${y === CY && tPY > t ? `<i class="ghost" style="left:${w.toFixed(1)}%;width:${((tPY - t) / ymax * 100).toFixed(1)}%"></i>` : ''}</div><span>${fm(t)}${y === CY ? '<small> so far</small>' : ''}</span></div>`; }).join('');
+  const firstY = ysUp[0], grow = ytot(firstY) ? ytot(PY) / ytot(firstY) : 0;
+  const yrNote = (tPY ? (tCY < tPY ? `<b style="color:var(--fg)">${fm(tPY - tCY)} more</b> to beat all of ${PY}.` : `<span class="up">Already ${fm(tCY - tPY)} past all of ${PY}.</span>`) : '') + (grow > 1.2 && firstY < PY ? ` ${PY} was ${grow.toFixed(1)}× ${firstY}.` : '');
   return `<div class="mx">
   <div class="mx-head">
     <div><h1>${greet},<br>${esc(who)}</h1><div class="s">${bits.join(' ')}</div></div>
@@ -3202,7 +3254,7 @@ function renderHomeMix() {
     </a>
     <div class="mx-w sm">
       <div class="mx-ch">${mxIco('cal', 'var(--mx-purple)')}vs last year</div>
-      <div class="mx-big">${V ? fm(V.today.amt) : '—'}</div><div class="mx-mut">today so far${vly != null ? `, ${mxDiff(vly)} vs ${hebStr(V.heb.rd, false)} last year` : ''}</div>
+      <div class="mx-big">${V ? fm(V.today.amt) : '—'}</div><div class="mx-mut">${V && !V.today.amt ? `no invoices yet today${V.heb.has && V.heb.amt ? `; ${hebStr(V.heb.rd, false)} last year was ${fm(V.heb.amt)}` : ''}` : 'today so far'}${vly != null ? `, ${mxDiff(vly)} vs ${hebStr(V.heb.rd, false)} last year` : ''}</div>
       <div class="mx-sp"></div><a class="mx-act" href="#orders" data-go="orders">Compare</a>
     </div>
     <div class="mx-w sm">
@@ -3210,11 +3262,13 @@ function renderHomeMix() {
       <div class="mx-big">${fm(D.ar.total)}</div><div class="mx-mut"><span class="dn">${fm(past)}</span> past due</div>
       <div class="mx-sp"></div><a class="mx-act" href="#collect" data-go="collect">Collections</a>
     </div>
-    <div class="mx-w s3">
-      <div class="mx-ch">${mxIco('bars', 'var(--mx-gold)')}Sales by month<span class="rt"><span style="color:var(--mx-gold)">●</span> ${CY} &nbsp; <span style="color:var(--bar-muted)">●</span> ${PY}</span></div>
-      <svg class="mx-bars-d" viewBox="0 0 760 150" width="100%" style="margin-top:12px" role="img" aria-label="Sales by month, ${CY} against ${PY}">${barsOf(760, 150, 20, 12)}</svg><svg class="mx-bars-p" viewBox="0 0 340 150" width="100%" style="margin-top:12px" role="img" aria-label="Sales by month, ${CY} against ${PY}">${barsOf(340, 150, 11, 11)}</svg>
+    <div class="mx-w s3 pfull">
+      <div class="mx-ch">${mxIco('bars', 'var(--mx-gold)')}Every month, every year<span class="rt">in dollars · deeper gold = bigger month</span></div>
+      <div class="mx-hmwrap"><div class="mx-hm" role="table" aria-label="Sales by month for every year">${hmHead}${hmRows}</div></div>
+      <div class="mx-key"><span><i class="k best"></i>Best month ever</span><span><i class="k cur"></i>This month so far</span><span><i class="k fut"></i>Still to come</span><span class="sw">Swipe to see every month</span></div>
+      <div class="mx-stats wrap">${hmStats}</div>
     </div>
-    <div class="mx-w r2 wide pfull">
+    <div class="mx-w wide pfull">
       <div class="mx-ch">Needs you</div>
       <div class="mx-need" style="margin-top:4px">${need || '<div class="mx-mut" style="margin-top:10px">All clear. Nothing waiting on you.</div>'}</div>
     </div>
@@ -3231,6 +3285,11 @@ function renderHomeMix() {
       ${trk}
       <div class="mx-sp"></div><a class="mx-act" href="#route" data-go="route">Deliveries</a>
     </div>
+    <div class="mx-w pfull">
+      <div class="mx-ch">${mxIco('trend', 'var(--mx-blue)')}Per year</div>
+      ${yrRows}
+      <div class="mx-mut" style="margin-top:12px">${yrNote}</div>
+    </div>
     <div class="mx-w s2 pfull">
       <div class="mx-ch">${mxIco('store', 'var(--mx-purple)')}${ST.title}<span class="rt">${ST.sub}</span></div>
       <div style="margin-top:6px">${ST.rows.map((r, k) => `<button class="mx-li" style="width:100%;background:none;border-left:0;border-right:0;border-bottom:0;font:inherit;cursor:pointer;text-align:left" data-act="cust-sel-go" data-n="${esc(r.name)}"><span class="rk">${k + 1}</span><span class="nm">${esc(r.name)}</span><span class="c">${fm(r.cur)}</span><span class="chg">${ST.hasPrev === false ? '' : r.prev ? mxDiff(r.cur - r.prev, true) : '<span class="up">new</span>'}</span></button>`).join('')}</div>
@@ -3241,7 +3300,7 @@ function renderHomeMix() {
       ${MV ? `${MV.hot.length ? `<div class="mx-hs">Selling more</div>${MV.hot.map(x => `<div class="mx-pr"><span>${esc(x.name)}</span><b class="up">+${x.p}%</b></div>`).join('')}` : ''}${MV.slow.length ? `<div class="mx-hs">Slowing down</div>${MV.slow.map(x => `<div class="mx-pr"><span>${esc(x.name)}</span><b class="dn">−${Math.abs(x.p)}%</b></div>`).join('')}` : ''}${!MV.hot.length && !MV.slow.length ? '<div class="mx-mut" style="margin-top:10px">Every product is selling about as usual.</div>' : ''}<div class="mx-mut" style="font-size:12px;margin-top:8px">Last 7 days vs the 4 weeks before</div>` : '<div class="mx-mut" style="margin-top:10px">Not enough recent orders yet.</div>'}
       <div class="mx-sp"></div><a class="mx-act" href="#items" data-go="items">Products</a>
     </div>
-    <div class="mx-w sm wide pfull">
+    <div class="mx-w sm pfull cash">
       <div class="mx-ch" style="flex-direction:row;align-items:center">${mxIco('cash', 'var(--mx-green)')}Cash in</div>
       ${C.week != null ? `<div class="mx-big">${fm(C.week)}</div><div class="mx-mut">this week, ${mxDiff(C.week - C.prev, true)} vs same days last week</div>${cashBars}` : `<div class="mx-big">${fm(C.last7)}</div><div class="mx-mut">paid in the last 7 days</div>`}
       <div class="mx-sp"></div><a class="mx-act" href="#payments" data-go="payments">Payments</a>
