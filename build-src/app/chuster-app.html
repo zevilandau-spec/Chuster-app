@@ -2480,8 +2480,11 @@ function renderPrinter() {
 
   const showStock = !weekMode;
   const withLbl = isToday ? 'With today' : 'With day';
+  // once this day's production bill is in QuickBooks and stock was read after it, "In stock" already includes the day
+  const billSt = weekMode ? null : mpBillInStock(day);
+  const withCol = showStock && billSt !== 'in';
   const th = t => `<th style="text-align:right;padding:0 0 7px 10px;font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.3px;white-space:nowrap">${t}</th>`;
-  const listHead = `<tr style="border-bottom:1px solid var(--line)"><th style="text-align:left;padding:0 0 7px;font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.3px">Product${showStock && rows.length > 1 ? ' · in the order packed' : ''}</th>${th('Packed')}${showStock ? th('In stock') + th(withLbl) : ''}</tr>`;
+  const listHead = `<tr style="border-bottom:1px solid var(--line)"><th style="text-align:left;padding:0 0 7px;font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.3px">Product${showStock && rows.length > 1 ? ' · in the order packed' : ''}</th>${th('Packed')}${showStock ? th('In stock') + (withCol ? th(withLbl) : '') : ''}</tr>`;
   const listBody = rows.map(r => {
     const after = r.stock + r.n;
     const meta = [r.lab.indexOf('Manual · ') === 0 ? '' : esc(r.lab), timeRange(r.times) ? '🕑 ' + esc(timeRange(r.times)) : ''].filter(Boolean).join(' · ');
@@ -2490,7 +2493,7 @@ function renderPrinter() {
     return `<tr style="border-top:1px solid var(--line)">
       <td style="padding:11px 8px 11px 0;vertical-align:top"><div style="display:flex;gap:8px"><span class="${gcls(r.grp)}" style="width:9px;height:9px;border-radius:50%;background:var(--gt);flex:none;margin-top:5px"></span><div style="min-width:0"><div style="font-weight:700;font-size:14.5px;line-height:1.2">${esc(r.prod)}</div><div class="sub" style="font-size:11px;margin:2px 0 0">${meta}</div>${r.per ? `<div class="sub" style="font-size:11px;margin:1px 0 0;font-weight:700">${fn(r.n * r.per)} packs</div>` : ''}${handTag}</div></div></td>
       <td style="text-align:right;vertical-align:top;padding:11px 0 0 10px;font-weight:800;font-size:16px">${fn(r.n)}</td>
-      ${showStock ? `<td style="text-align:right;vertical-align:top;padding:13px 0 0 10px;color:${r.stock < 0 ? 'var(--bad-text)' : 'var(--muted)'}">${r.stock != null ? fn(r.stock) : '—'}</td><td style="text-align:right;vertical-align:top;padding:13px 0 0 10px;font-weight:700;color:${after < 0 ? 'var(--bad-text)' : '#15803d'}">${r.stock != null ? fn(after) : '—'}</td>` : ''}
+      ${showStock ? `<td style="text-align:right;vertical-align:top;padding:13px 0 0 10px;color:${r.stock < 0 ? 'var(--bad-text)' : 'var(--muted)'}">${r.stock != null ? fn(r.stock) : '—'}</td>${withCol ? `<td style="text-align:right;vertical-align:top;padding:13px 0 0 10px;font-weight:700;color:${after < 0 ? 'var(--bad-text)' : '#15803d'}">${r.stock != null ? fn(after) : '—'}</td>` : ''}` : ''}
     </tr>`;
   }).join('');
   const listRows = `<table style="width:100%;border-collapse:collapse">${listHead}${listBody}</table>`;
@@ -2603,7 +2606,7 @@ function renderPrinter() {
     ${weekMode ? `<p class="sub" style="margin:-4px 0 10px;font-size:12px">${esc(fmtShort(isoRd(weekStartIso)))} – ${esc(fmtShort(isoRd(weekEndIso)))} · all ${rows.length} product${rows.length === 1 ? '' : 's'} made this week</p>` : ''}
     ${lotOn && !weekMode && total > 0 ? `<div style="margin:-2px 0 10px"><span style="display:inline-block;font-size:11px;font-weight:800;letter-spacing:.5px;padding:3px 10px;border-radius:8px;background:#eef1fb;color:#1e3a8a">LOT ${lotCode}</span></div>` : ''}
     ${rows.length ? listRows : emptyRow}
-    ${!weekMode && rows.some(r => r.stock != null) ? `<p class="sub" style="margin:12px 0 0;font-size:12px"><b>In stock</b> is your QuickBooks number. <b>With ${isToday ? 'today' : 'day'}</b> adds that day's boxes (not yet in QuickBooks) so you see what you really have — <span style="color:var(--bad-text);font-weight:700">red</span> if still short.</p>` : ''}
+    ${!weekMode && rows.some(r => r.stock != null) ? `<p class="sub" style="margin:12px 0 0;font-size:12px">${billSt === 'in' ? `<b>✓ This day's boxes are already in QuickBooks</b>, so <b>In stock</b> includes them.` : `<b>In stock</b> is your QuickBooks number. <b>With ${isToday ? 'today' : 'day'}</b> adds that day's boxes${billSt === 'posted' || billSt === 'sending' ? ' (sent to QuickBooks — In stock catches up within a few minutes)' : ' (not yet in QuickBooks)'} so you see what you really have — <span style="color:var(--bad-text);font-weight:700">red</span> if still short.`}</p>` : ''}
     ${addBlock}
     ${unmappedBlock}
   </section>
@@ -8154,8 +8157,23 @@ function qbApply() {
     const code = new Map(); sq.forEach((q, f) => code.set(f.split(' ')[0], q));
     REAL.catalog.forEach(c => { if (sq.has(c.full)) c.stock = sq.get(c.full); });
     const byCode = x => code.get(x.group + ':' + x.code) ?? code.get('Packs ' + x.group + ':' + x.code);
-    [REAL.belowZero, REAL.low].forEach(L => L.forEach(x => { const q = byCode(x); if (q != null) x.stock = q; }));
+    // match the short lists to QuickBooks by the item's full QuickBooks name (name + code -> full name)
+    const fullBy = new Map(); REAL.catalog.forEach(c => { if (c.full) fullBy.set(c.name + '|' + String(c.code), c.full); });
+    const liveOf = x => { const f = fullBy.get(x.name + '|' + String(x.code)); return f && sq.has(f) ? sq.get(f) : byCode(x); };
+    [REAL.belowZero, REAL.low].forEach(L => L.forEach(x => { const q = liveOf(x); if (q != null) x.stock = q; }));
     REAL.counts.belowZero = [...sq.values()].filter(q => q < 0).length;
+    // the screens work from copies made when the app opened (product list, inventory list) — give them the live numbers too
+    (S.catalog || []).forEach(p => { if (p.full && sq.has(p.full)) p.stock = sq.get(p.full); });
+    if (Array.isArray(S.inv)) {
+      S.inv.forEach(r => { const q = liveOf({ name: r.name, code: r.code, group: r.brand }); if (q != null) r.onHand = q; });
+      // products that went below zero since the app was built join the list
+      const inactive = new Set(Object.values(QB.stock || {}).filter(s => s && s.f && s.on === false).map(s => s.f));
+      REAL.catalog.forEach(c => {
+        if (!c.full || !sq.has(c.full) || inactive.has(c.full) || OFF_NAMES.has(c.name) || sq.get(c.full) >= 0) return;
+        if (S.inv.some(r => r.name === c.name && String(r.code) === String(c.code))) return;
+        S.inv.push({ name: c.name, code: c.code, brand: c.group, onHand: sq.get(c.full), reorderAt: c.reorderAt || 0, why: '' });
+      });
+    }
   }
 }
 function qbAfterPull() { if (qbDirty) { qbSave(); qbApply(); } }
@@ -8751,6 +8769,16 @@ function mpBillLines(day) {
   return Object.keys(agg).map(full => [full, agg[full], 0]);
 }
 function mpBillExists(day) { return Object.values(S.qw || {}).some(r => r && r.kind === 'bill' && r.d === day && r.st !== 'cancel'); }
+// Is this day's production already inside the QuickBooks stock the app shows?
+// 'in' = bill posted AND stock read after it · 'posted' = posted, stock not re-read yet · 'sending' · null = not sent
+function mpBillInStock(day) {
+  const rec = Object.values(S.qw || {}).find(r => r && r.kind === 'bill' && r.d === day && r.st !== 'cancel' && !r.test);
+  if (!rec) return null;
+  const res = (S.qr || {})[rec.id];
+  if (res && res.st === 'done') { const read = (QB.status && QB.status.stock) || ''; return read && res.at && String(read) >= String(res.at) ? 'in' : 'posted'; }
+  if (rec.st === 'wait' || (res && res.st === 'error')) return null;   // waiting for OK, or QuickBooks said no: not in QuickBooks
+  return 'sending';
+}
 function qwFromProduction(day) {
   if (!REAL) { toast('This works with your real numbers only.'); return false; }
   if (!SYNC.ready()) { toast('Set up the shared database first (Tools).'); return false; }

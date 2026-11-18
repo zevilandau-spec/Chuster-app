@@ -8,7 +8,7 @@
 param([switch]$Install, [switch]$Test, [switch]$Full, [switch]$Other, [switch]$History, [switch]$Watch)
 
 $ErrorActionPreference = 'Stop'
-$Ver = '4.1'
+$Ver = '4.2'
 $AppName = 'Chuster App Sync'
 $TaskName = 'Chuster QB Sync'
 $Here = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -570,11 +570,11 @@ function Process-Queue($st, [bool]$upload) {
 
 # ---------------- state ----------------
 function Load-State {
-  $s = @{ last = ''; full = ''; qwT = 0; pruned = ''; sent = @{}; dates = @{}; parts = @{}; pending = @{}; done = @{}; sending = @{}; failed = @{} }
+  $s = @{ last = ''; full = ''; stock = ''; qwT = 0; pruned = ''; sent = @{}; dates = @{}; parts = @{}; pending = @{}; done = @{}; sending = @{}; failed = @{} }
   if ((Test-Path $StatePath) -and -not $Full) {
     try {
       $j = Get-Content $StatePath -Raw -Encoding UTF8 | ConvertFrom-Json
-      $s.last = [string]$j.last; $s.full = [string]$j.full; $s.qwT = [double]$j.qwT; $s.pruned = [string]$j.pruned
+      $s.last = [string]$j.last; $s.full = [string]$j.full; $s.stock = [string]$j.stock; $s.qwT = [double]$j.qwT; $s.pruned = [string]$j.pruned
       foreach ($k in 'sent', 'dates', 'parts', 'pending', 'done', 'sending', 'failed') { if ($j.$k) { foreach ($p in $j.$k.PSObject.Properties) { $s[$k][$p.Name] = $p.Value } } }
     } catch { Log "Starting fresh (could not read state.json)" }
   }
@@ -602,8 +602,9 @@ function Sync-Once([bool]$upload) {
     $mins = if ($st.full) { ($started - [datetime]::Parse($st.full, $Inv)).TotalMinutes } else { 999 }
     # a full refresh of customers, balances, items and stock holds QuickBooks the longest, so do it only now and then (every 30 min), not on every order
     $heavy = $first -or $Full -or ($mins -ge 30)
+    $stockRead = $false
     if (-not $first -and -not $Full -and -not $script:ForceRead -and $made -eq 0 -and -not $heavy) {
-      if ($upload) { $status = [ordered]@{ at = $started.ToString('yyyy-MM-ddTHH:mm:ss'); full = $st.full; ok = $true; ver = $Ver; from = $from; pc = $env:COMPUTERNAME; counts = $count; mail = (Mail-Probe) }
+      if ($upload) { $status = [ordered]@{ at = $started.ToString('yyyy-MM-ddTHH:mm:ss'); full = $st.full; stock = $st.stock; ok = $true; ver = $Ver; from = $from; pc = $env:COMPUTERNAME; counts = $count; mail = (Mail-Probe) }
         Db-Patch ([ordered]@{ 'qh/status' = [ordered]@{ v = (Protect (ToJson ([ordered]@{ k = 'status'; val = $status; by = 'QuickBooks' }))); t = @{ '.sv' = 'timestamp' } } }) }
       Log ('Checked the To QuickBooks list: nothing new. Next full QuickBooks read in ' + [Math]::Ceiling(30 - $mins) + ' min.')
       return
@@ -672,8 +673,12 @@ function Sync-Once([bool]$upload) {
       }
       if ($all.Count) { $st.parts[$c] = $parts } else { $st.parts.Remove($c) }
     }
-    # stock on hand
-    $itemInner = '<ActiveStatus>All</ActiveStatus><IncludeRetElement>ListID</IncludeRetElement><IncludeRetElement>FullName</IncludeRetElement><IncludeRetElement>IsActive</IncludeRetElement><IncludeRetElement>QuantityOnHand</IncludeRetElement><IncludeRetElement>QuantityOnOrder</IncludeRetElement><IncludeRetElement>QuantityOnSalesOrder</IncludeRetElement><IncludeRetElement>SalesDesc</IncludeRetElement><IncludeRetElement>PurchaseDesc</IncludeRetElement><IncludeRetElement>UnitOfMeasureSetRef</IncludeRetElement><IncludeRetElement>DataExtRet</IncludeRetElement><OwnerID>0</OwnerID>'
+    } # end customers & balances part of the full refresh
+    # stock on hand: on every full refresh, AND right after the app's orders or production bills went into
+    # QuickBooks - they change stock, so the app should see it now, not up to 30 minutes later
+    if ($heavy -or $script:ForceRead -or $made -gt 0) {
+    $stockRead = $true; $stockAt = (NowS)   # stamped now - after anything this run just put into QuickBooks
+    $itemInner ='<ActiveStatus>All</ActiveStatus><IncludeRetElement>ListID</IncludeRetElement><IncludeRetElement>FullName</IncludeRetElement><IncludeRetElement>IsActive</IncludeRetElement><IncludeRetElement>QuantityOnHand</IncludeRetElement><IncludeRetElement>QuantityOnOrder</IncludeRetElement><IncludeRetElement>QuantityOnSalesOrder</IncludeRetElement><IncludeRetElement>SalesDesc</IncludeRetElement><IncludeRetElement>PurchaseDesc</IncludeRetElement><IncludeRetElement>UnitOfMeasureSetRef</IncludeRetElement><IncludeRetElement>DataExtRet</IncludeRetElement><OwnerID>0</OwnerID>'
     foreach ($pair in @(@('ItemInventoryQueryRq', 'ItemInventoryRet'), @('ItemInventoryAssemblyQueryRq', 'ItemInventoryAssemblyRet'))) {
       foreach ($r in (QB-All $pair[0] $itemInner $pair[1])) {
         $name = T $r 'FullName'; $id = 's' + (SafeId (T $r 'ListID'))
@@ -687,7 +692,7 @@ function Sync-Once([bool]$upload) {
         $recs[$id] = @('qs', $name, $val); $count.items++
       }
     }
-    } # end heavy refresh
+    } # end stock on hand
   } finally { QB-Close }
 
   # drop old invoices and payments from the shared database
@@ -717,9 +722,11 @@ function Sync-Once([bool]$upload) {
   foreach ($id in $sentNow.Keys) { if ($null -eq $recs[$id][2]) { $st.sent.Remove($id) } else { $st.sent[$id] = $sentNow[$id] } }
   foreach ($id in $prune) { $st.sent.Remove($id); $st.dates.Remove($id) }
   foreach ($id in @($st.dates.Keys)) { if ($recs.ContainsKey($id) -and $null -eq $recs[$id][2]) { $st.dates.Remove($id) } }
-  $st.last = $started.ToString('yyyy-MM-ddTHH:mm:ss'); $st.full = $st.last
+  $st.last = $started.ToString('yyyy-MM-ddTHH:mm:ss')
+  if ($heavy -or $script:ForceRead) { $st.full = $st.last }   # only a real full read restarts the 30-minute clock
+  if ($stockRead) { $st.stock = $stockAt }                    # when the app's stock numbers were last read
   Save-State $st
-  $status = [ordered]@{ at = $started.ToString('yyyy-MM-ddTHH:mm:ss'); full = $started.ToString('yyyy-MM-ddTHH:mm:ss'); ok = $true; ver = $Ver; from = $from; pc = $env:COMPUTERNAME; counts = $count; mail = (Mail-Probe) }
+  $status = [ordered]@{ at = $started.ToString('yyyy-MM-ddTHH:mm:ss'); full = $st.full; stock = $st.stock; ok = $true; ver = $Ver; from = $from; pc = $env:COMPUTERNAME; counts = $count; mail = (Mail-Probe) }
   Db-Patch ([ordered]@{ 'qh/status' = [ordered]@{ v = (Protect (ToJson ([ordered]@{ k = 'status'; val = $status; by = 'QuickBooks' }))); t = @{ '.sv' = 'timestamp' } } })
   Log ('Sent ' + $sentNow.Count + ' changes to the app.')
 }
