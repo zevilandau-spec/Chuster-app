@@ -1,74 +1,68 @@
 {
- "date": "2026-11-16",
- "on": false,
- "total": 875,
- "packs": 27972,
+ "date": "2026-11-17",
+ "on": true,
+ "total": 876,
+ "packs": 19902,
  "items": [
   {
-   "label": "Land Orzo.00I",
-   "name": "Orzo",
-   "boxes": 25,
+   "label": "Chus WG Penne.00I",
+   "name": "WG Penne",
+   "boxes": 11,
    "packs": 0
   },
   {
-   "label": "Chu SD Pretzel Nugget 8x12.00I",
-   "name": "FP SD Pretzel",
-   "boxes": 117,
-   "packs": 11232
-  },
-  {
-   "label": "Chus Toas.00I",
-   "name": "Toast Barley",
-   "boxes": 91,
+   "label": "Land Kugel.00I",
+   "name": "Kugel",
+   "boxes": 121,
    "packs": 0
   },
   {
-   "label": "Chu Stix 7x12.00I",
-   "name": "FP SD Mini Sticks",
-   "boxes": 65,
-   "packs": 5460
-  },
-  {
-   "label": "Chu SD Pretzel Nugget 1oz.00I",
-   "name": "Chu SD Pretzel Nugget 1oz.00I",
-   "boxes": 3,
+   "label": "Chus Kugel.00I",
+   "name": "Kugel",
+   "boxes": 124,
    "packs": 0
   },
   {
-   "label": "Land Toasted.00I",
-   "name": "Toast Barley",
-   "boxes": 142,
+   "label": "Chus Fine.00I",
+   "name": "Fine",
+   "boxes": 53,
    "packs": 0
   },
   {
-   "label": "Chus Orzo.00I",
-   "name": "Orzo",
-   "boxes": 93,
+   "label": "Land Fine.00I",
+   "name": "Fine",
+   "boxes": 30,
    "packs": 0
   },
   {
-   "label": "Chu SD Pretzel Nugget 96.00I",
-   "name": "SD Pretzel",
-   "boxes": 50,
-   "packs": 0
-  },
-  {
-   "label": "Chus Barley.00I",
+   "label": "Chus Barley18.00I",
    "name": "Barley",
-   "boxes": 67,
+   "boxes": 3,
+   "packs": 18
+  },
+  {
+   "label": "Chus Egg Barley 18 Yoshon.00I",
+   "name": "Barley",
+   "boxes": 46,
+   "packs": 276
+  },
+  {
+   "label": "Chus Toasted 6x3 Yoshon.00I",
+   "name": "Toast Barley",
+   "boxes": 58,
+   "packs": 348
+  },
+  {
+   "label": "CHU Flats 72.00I",
+   "name": "Pretzel Flats 72",
+   "boxes": 109,
    "packs": 0
   },
   {
-   "label": "Chu Mini Sticks 90.00I",
-   "name": "SD Pretzel Mini Sticks 90",
-   "boxes": 34,
-   "packs": 0
-  },
-  {
-   "label": "Chu Mini Sticks 60.00I",
-   "name": "SD Mini Sticks 60",
-   "boxes": 188,
-   "packs": 11280
+   "label": "CHU Flats FP.00I",
+   "name": "FP Flat Pretzel 5 Pcks",
+   "boxes": 321,
+   "packs": 19260
   }
  ]
 }
