@@ -2392,7 +2392,7 @@ const MP_RESEND = 'irm https://chuster.netlify.app/mp/backfill.ps1 | iex';
 function mpHealth() {
   const A = printAll(); if (!A.live) return { silent: null, late: null };
   const t = Math.max(S.mpNowT || 0, S.mpDiagT || 0, (S.mpDayT || {})[isoOf(TODAY)] || 0), d = new Date(), wd = d.getDay(), mins = d.getHours() * 60 + d.getMinutes();
-  const work = wd !== 6 && mins >= 6 * 60 + 30 && mins <= (wd === 5 ? 13 * 60 : 18 * 60);
+  const work = wd !== 6 && mins >= 6 * 60 + 30 && mins <= (wd === 5 ? 13 * 60 : 21 * 60);
   const silent = t && work && Date.now() - t > 20 * 60000 ? t : null;
   const day = A.data[isoOf(TODAY)] || {}, T = day.times || {}, L = day.labels || {}, cnt = {};
   Object.keys(L).forEach(l => { if (isHand(l) || (day.manual && day.manual[l]) || !(+L[l] > 0)) return; const st = (T[l] || {}).s; if (st) cnt[st] = (cnt[st] || 0) + 1; });
