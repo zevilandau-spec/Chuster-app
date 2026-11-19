@@ -2307,7 +2307,7 @@ function printManualRaw() {
 const MP_RESEND = 'irm https://chuster.netlify.app/mp/backfill.ps1 | iex';
 function mpHealth() {
   const A = printAll(); if (!A.live) return { silent: null, late: null };
-  const t = S.mpNowT || 0, d = new Date(), wd = d.getDay(), mins = d.getHours() * 60 + d.getMinutes();
+  const t = Math.max(S.mpNowT || 0, S.mpDiagT || 0, (S.mpDayT || {})[isoOf(TODAY)] || 0), d = new Date(), wd = d.getDay(), mins = d.getHours() * 60 + d.getMinutes();
   const work = wd !== 6 && mins >= 6 * 60 + 30 && mins <= (wd === 5 ? 13 * 60 : 18 * 60);
   const silent = t && work && Date.now() - t > 20 * 60000 ? t : null;
   const day = A.data[isoOf(TODAY)] || {}, T = day.times || {}, L = day.labels || {}, cnt = {};
@@ -2321,7 +2321,7 @@ function mpHealthHtml(compact) {
   const cmd = `<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px"><code style="font-size:12.5px;background:var(--surface);color:var(--fg);padding:6px 10px;border-radius:8px;user-select:all">${MP_RESEND}</code><button class="btn ghost" style="padding:5px 12px;min-height:0" data-act="mp-copy-resend">Copy</button></div>`;
   const out = [];
   if (H.silent) out.push(`<div class="attn red" style="display:block;margin-top:${compact ? 10 : 12}px"><strong>Box printer PC not sending since ${when(H.silent)}</strong><small style="display:block;margin-top:2px">The printer still records every box on that PC, but the app isn't getting them. Check that the printer PC is on, signed in and online.${compact ? '' : ' When it sends again, run the re-send there so the times come out right.'}</small></div>`);
-  if (H.late && !H.silent) out.push(`<div class="attn red" style="display:block;margin-top:${compact ? 10 : 12}px"><strong>${H.late.n} products all show the same start, ${fmtClock(H.late.s)}</strong><small style="display:block;margin-top:2px">The printer PC sent them late, in one go, so their times and order aren't real yet. On the printer PC, open PowerShell and paste this to send the real times:</small>${cmd}</div>`);
+  if (H.late && !H.silent) out.push(`<div class="attn red" style="display:block;margin-top:${compact ? 10 : 12}px"><strong>${H.late.n} products all show the same start, ${fmtClock(H.late.s)}</strong><small style="display:block;margin-top:2px">The printer PC sent them late, in one go, so their times and order aren't real yet. The helper on the printer PC puts the real times back by itself within 5 minutes. If this is still here after that, paste this on the printer PC:</small>${cmd}</div>`);
   return out.join('');
 }
 function printAll() {
@@ -8641,7 +8641,7 @@ SYNC.on('ec', (k, val) => { S.emailConn = S.emailConn || {}; if (val == null) de
 S.emailLive = {};
 SYNC.on('ei', (k, val) => { S.emailLive = S.emailLive || {}; if (val == null) delete S.emailLive[k]; else S.emailLive[k] = val; });
 S.mpLive = {};
-SYNC.on('mp', (k, val, o, t) => { if (k === 'now' && t) S.mpNowT = t; S.mpLive = S.mpLive || {}; if (val == null) delete S.mpLive[k]; else S.mpLive[k] = val; if (k === 'map') S.mpMap = null; if (k === 'packmap') S.mpPack = null; if (k === 'autoset') S.mpAuto = null; if (k === 'handset') S.mpHand = null; if (k === 'notline') S.mpNotLine = null; if (k === 'manual') S.mpManual = null; try { if (S.view === 'printer') render(); } catch (e) { } });
+SYNC.on('mp', (k, val, o, t) => { if (t) { if (k === 'now') S.mpNowT = t; else if (k === 'diag') S.mpDiagT = t; else if (/^\d{4}-\d{2}-\d{2}$/.test(k)) (S.mpDayT || (S.mpDayT = {}))[k] = t; } S.mpLive = S.mpLive || {}; if (val == null) delete S.mpLive[k]; else S.mpLive[k] = val; if (k === 'map') S.mpMap = null; if (k === 'packmap') S.mpPack = null; if (k === 'autoset') S.mpAuto = null; if (k === 'handset') S.mpHand = null; if (k === 'notline') S.mpNotLine = null; if (k === 'manual') S.mpManual = null; try { if (S.view === 'printer') render(); } catch (e) { } });
 // BM contents = sum of received moves into BM minus runs out of BM (only 'done' moves count)
 function bmByFull() { const m = {}; Object.values(S.moves || {}).forEach(mv => { if (!mv || mv.st !== 'done') return; const sign = mv.to === 'BM' ? 1 : mv.from === 'BM' ? -1 : 0; if (!sign) return; (mv.lines || []).forEach(l => { const full = l[0], q = +l[1] || 0; if (!full || !q) return; m[full] = (m[full] || 0) + sign * q; }); }); return m; }
 let avSeen = {}; // throttle screen logging this session
