@@ -7,7 +7,10 @@ jobs:
     steps:
       - run: pip install cryptography==43.0.3
       - name: Helper files online
-        run: echo "::notice::helper-online: $(curl -s https://chuster.netlify.app/mp/helper.ps1 | grep -m1 -o 'HelperVer = .*') setup: $(curl -s https://chuster.netlify.app/mp/helper-setup.ps1 | grep -c 'ONE-TIME setup')"
+        run: |
+          V=$(curl -s https://chuster.netlify.app/mp/helper.ps1 | grep -m1 -o 'HelperVer = .*')
+          N=$(curl -s https://chuster.netlify.app/mp/helper-setup.ps1 | grep -c 'ONE-TIME setup')
+          echo "::notice::helper-online ver=[$V] setup=$N"
       - name: Read and decrypt the live 'mp' collection
         env:
           CHUSTER_SECRETS: ${{ secrets.CHUSTER_SECRETS }}
