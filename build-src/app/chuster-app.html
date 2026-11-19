@@ -2624,7 +2624,7 @@ function renderPrinter() {
       <div style="flex:1;min-width:160px"><div class="sub" style="margin:0;font-size:11px;text-transform:uppercase;letter-spacing:.5px">Running now</div>
         <div style="font-size:17px;font-weight:800;margin-top:2px">${pk ? prodSwatchKey(pk) : ''}${esc(pk ? prodName(pk) : now.label)}</div>
         <div class="sub" style="margin:2px 0 0">Label: ${esc(now.label)}${st ? ' · <span style="color:' + stColor + ';font-weight:700">' + st + '</span>' : ''}</div></div>
-      <div style="text-align:right"><div style="font-size:30px;font-weight:800;line-height:1">${fn(now.counter || 0)}</div><div class="sub" style="margin:0;font-size:11px">on this label</div></div>
+      ${(() => { const tdy = +((((printAll().data[isoOf(TODAY)] || {}).labels) || {})[now.label]) || 0; return `<div style="text-align:right"><div style="font-size:30px;font-weight:800;line-height:1">${fn(tdy || now.counter || 0)}</div><div class="sub" style="margin:0;font-size:11px">${tdy ? 'boxes today' : 'on this label'}</div>${tdy && now.counter != null && +now.counter !== tdy ? `<div class="sub" style="margin:2px 0 0;font-size:10.5px">printer's counter ${fn(now.counter)}</div>` : ''}</div>`; })()}
     </div>`;
   }
 
