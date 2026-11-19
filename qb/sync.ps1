@@ -8,7 +8,7 @@
 param([switch]$Install, [switch]$Test, [switch]$Full, [switch]$Other, [switch]$History, [switch]$Watch)
 
 $ErrorActionPreference = 'Stop'
-$Ver = '4.2'
+$Ver = '4.3'
 $AppName = 'Chuster App Sync'
 $TaskName = 'Chuster QB Sync'
 $Here = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -693,6 +693,24 @@ function Sync-Once([bool]$upload) {
       }
     }
     } # end stock on hand
+    # open purchase orders for the app's Order Tracker: a new PO shows up there within about 30 minutes
+    if ($heavy -or $script:ForceRead) {
+      try {
+        $poFrom = $started.AddDays(-400).ToString('yyyy-MM-dd')
+        $PL = New-Object System.Collections.Generic.List[object]
+        foreach ($r in (QB-All 'PurchaseOrderQueryRq' "<TxnDateRangeFilter><FromTxnDate>$poFrom</FromTxnDate></TxnDateRangeFilter><IncludeLineItems>true</IncludeLineItems>" 'PurchaseOrderRet')) {
+          if ((T $r 'IsFullyReceived') -eq 'true' -or (T $r 'IsManuallyClosed') -eq 'true') { continue }
+          $lines = New-Object System.Collections.Generic.List[object]
+          foreach ($n in $r.SelectNodes('PurchaseOrderLineRet')) {
+            if ((T $n 'IsManuallyClosed') -eq 'true') { continue }
+            $it = T $n 'ItemRef/FullName'; if (-not $it) { continue }
+            $lines.Add([object[]]@($it, (T $n 'Desc'), (N $n 'Quantity'), (N $n 'ReceivedQuantity')))
+          }
+          if ($lines.Count) { $PL.Add([ordered]@{ d = (T $r 'TxnDate'); n = (T $r 'RefNumber'); v = (T $r 'VendorRef/FullName'); deliv = (T $r 'ExpectedDate'); l = $lines }) }
+        }
+        $recs['xopenpo'] = @('qx', 'openpo', [ordered]@{ at = (NowS); l = $PL }); $count['po'] = $PL.Count
+      } catch { Log ('Open POs for the Order Tracker: ' + $_.Exception.Message) }
+    }
   } finally { QB-Close }
 
   # drop old invoices and payments from the shared database
