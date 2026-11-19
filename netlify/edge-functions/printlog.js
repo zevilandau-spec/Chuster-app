@@ -99,8 +99,10 @@ export default async (req) => {
     const s = hm(m.s), e = hm(m.e); if (s || e) times[k] = { s, e };
   });
 
+  // a re-send (no live 'now') keeps the day's real last-box time instead of the moment it was re-sent
+  const lastAt = () => { const ends = Object.values(times).map(t => (t && t.e) || '').filter(Boolean).sort(); return day && ends.length ? `${day}T${ends.pop()}:00` : ''; };
   try {
-    if (day) await put(day.replace(/-/g, ''), day, Object.assign({ d: day, labels, order, times, upd: (now && now.at) || new Date().toISOString().slice(0, 19) }, manual ? { manual } : {}));
+    if (day) await put(day.replace(/-/g, ''), day, Object.assign({ d: day, labels, order, times, upd: (now && now.at) || lastAt() || prev.upd || new Date().toISOString().slice(0, 19) }, manual ? { manual } : {}));
     if (now) await put('now', 'now', now);
     if (diag) await put('diag', 'diag', { at: new Date().toISOString(), text: diag });
   } catch (e) { return json({ error: String(e.message || e) }, 502); }
