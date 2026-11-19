@@ -831,6 +831,33 @@ body::before { background: var(--bg); }
 .lx-h1 { margin: 2px 0 0; font-size: 22px; line-height: 1.2; text-wrap: balance; }
 .lx-stopacts { display: flex; flex-wrap: wrap; gap: 8px; }
 .lx-stopacts .btn { flex: 1 1 160px; }
+.lxt-sum { border: 1px solid var(--line); border-radius: 16px; background: var(--surface); padding: 14px; margin: 10px 0; }
+.lxt-big { display: flex; align-items: baseline; gap: 8px; } .lxt-big b { font-size: 34px; line-height: 1; color: var(--bad-text); } .lxt-big span { font-size: 12px; font-weight: 800; letter-spacing: .4px; text-transform: uppercase; color: var(--bad-text); }
+.lxt-big.ok { align-items: center; } .lxt-big.ok span { color: var(--good-text); } .lxt-big.ok .ck { font-size: 22px; }
+.lxt-facts { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 8px; font-size: 13.5px; color: var(--muted); } .lxt-facts b { color: var(--fg); }
+.lxt-stock { font-size: 12.5px; color: var(--muted); margin: 6px 0 10px; }
+.lxt-acts { display: flex; gap: 8px; margin: 0 0 10px; } .lxt-acts .btn { flex: 1; }
+.lxt-head, .lxt-row { display: grid; grid-template-columns: minmax(0, 1fr) 46px 52px 44px 128px; gap: 6px; align-items: center; }
+.lxt-head { font-size: 10.5px; font-weight: 800; letter-spacing: .4px; text-transform: uppercase; color: var(--muted); padding: 6px 2px; border-bottom: 1px solid var(--line); } .lxt-head span:not(:first-child) { text-align: center; }
+.lxt-row { padding: 10px 2px; border-bottom: 1px solid var(--line); }
+.lxt-cust { min-width: 0; } .lxt-cust b { display: block; font-size: 14.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .lxt-cust span { font-size: 11.5px; color: var(--muted); }
+.lxt-type { font-size: 9.5px; font-weight: 800; padding: 1px 6px; border-radius: 5px; background: var(--surface-2); } .lxt-sent { color: var(--bad-text); font-weight: 700; }
+.lxt-num { text-align: center; font-weight: 800; font-variant-numeric: tabular-nums; } .lxt-num.mut { color: var(--muted); font-weight: 600; } .lxt-num.bad, .lxt-step b.bad { color: var(--bad-text); }
+.lxt-ctl { display: flex; align-items: center; gap: 6px; justify-content: flex-end; }
+.lxt-step { display: flex; align-items: center; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); }
+.lxt-step button { border: none; background: none; width: 30px; height: 32px; font-size: 18px; color: var(--fg); cursor: pointer; } .lxt-step button:disabled { opacity: .3; cursor: default; }
+.lxt-step b { min-width: 18px; text-align: center; font-variant-numeric: tabular-nums; }
+.lxt-all { border: none; border-radius: 999px; min-width: 40px; height: 32px; font: inherit; font-size: 12.5px; font-weight: 700; background: var(--surface-2); color: var(--fg); cursor: pointer; } .lxt-all.on { background: #B42318; color: #FFFFFF; }
+.lxt-foot { position: fixed; left: 0; right: 0; bottom: 0; z-index: 30; padding: 10px 16px calc(12px + env(safe-area-inset-bottom)); background: var(--bg); border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 8px; }
+@media (min-width: 960px) { .lxt-foot { left: 272px; } }
+.lxt-note { display: flex; align-items: center; gap: 6px; font-size: 13.5px; color: var(--muted); min-height: 32px; } .lxt-note b { color: var(--fg); }
+.lxt-go { width: 100%; min-height: 48px; border-radius: 999px; font-size: 16px; }
+.lxt-modal { position: fixed; inset: 0; z-index: 60; background: rgba(10, 14, 30, .45); display: flex; align-items: center; justify-content: center; padding: 16px; }
+.lxt-card { width: 100%; max-width: 380px; background: var(--surface); border-radius: 22px; padding: 20px; box-shadow: 0 20px 60px rgba(0, 0, 0, .25); } .lxt-card h2 { margin: 0; font-size: 19px; }
+.lxt-coming { display: flex; gap: 12px; align-items: center; padding: 12px; border-radius: 14px; background: var(--brand-soft); } .lxt-coming small { display: block; font-size: 10.5px; font-weight: 800; letter-spacing: .4px; text-transform: uppercase; color: var(--brand-text); } .lxt-coming b { font-size: 17px; }
+.lxt-ico { width: 34px; height: 34px; border-radius: 10px; background: var(--surface); display: flex; align-items: center; justify-content: center; color: var(--brand-text); }
+.lxt-mbtns { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; } .lxt-red { background: #B42318; color: #FFFFFF; border-color: #B42318; }
+@media (max-width: 420px) { .lxt-head, .lxt-row { grid-template-columns: minmax(0, 1fr) 36px 40px 36px 112px; } .lxt-step button { width: 26px; } }
 .lx-selbar { position: fixed; left: 0; right: 0; bottom: calc(64px + env(safe-area-inset-bottom, 0px)); z-index: 30; background: var(--surface); border-top: 1px solid var(--line); box-shadow: 0 -6px 20px rgba(22, 32, 74, .12); padding: 8px max(12px, env(safe-area-inset-right, 0px)) 10px max(12px, env(safe-area-inset-left, 0px)); display: flex; flex-direction: column; gap: 6px; }
 @media (min-width: 960px) { .lx-selbar { left: 252px; bottom: 0; } }
 .lx-selhead { display: flex; align-items: center; gap: 8px; font-weight: 700; }
@@ -9083,13 +9110,13 @@ function lxDays() {
   return [...s].sort().reverse();
 }
 function lxStops(date) {
-  const byT = dayStops(date); const idx = lxIndex(); const out = [];
+  const byT = dayStops(date); const idx = lxIndex(); const out = []; const pend = lxPend();
   Object.keys(byT).forEach(t => byT[t].forEach((x, pos) => {
     const tt = +t; const ls = S.lship[x.k];
     // default: loose on the truck ("Cases"); PU stores pick up; otherwise whatever was set
     const type = (ls && ls !== 'truck') ? ls : ((x.c.rep === 'PU') ? 'pickup' : 'cases');
     const lines = [];
-    x.o.nums.forEach(n => { const o = idx.get(n); if (!o) return; o.l.forEach(([ref, q0], i) => { if (!(q0 > 0)) return; const c = typeof ref === 'number' ? REAL.catalog[ref] : null; if (!c && /total|subtotal/i.test(String(ref))) return; const key = `${date}|${n}|${i}`; const cut = Math.min(q0, +S.lxCut[key] || 0); lines.push({ key, ref, c, q: q0 - cut, q0, cut, bulk: c ? !!bulkOf(c.full) : false, n, name: c ? c.name : String(ref), stopName: x.o.c }); }); });
+    x.o.nums.forEach(n => { const o = idx.get(n); if (!o) return; o.l.forEach(([ref, q0], i) => { if (!(q0 > 0)) return; const c = typeof ref === 'number' ? REAL.catalog[ref] : null; if (!c && /total|subtotal/i.test(String(ref))) return; const key = `${date}|${n}|${i}`; const tg = pend[key], off = tg != null && tg < q0 ? q0 - tg : 0; const cut = off ? 0 : Math.min(q0, +S.lxCut[key] || 0); if (q0 - off - cut <= 0 && off) return; lines.push({ key, ref, c, q: q0 - off - cut, q0, cut, off, bulk: c ? !!bulkOf(c.full) : false, n, name: c ? c.name : String(ref), stopName: x.o.c }); }); });
     const got = l => Math.min(l.q, +S.lq[l.key] || 0);
     const need = lines.reduce((s, l) => s + (l.bulk ? 0 : l.q), 0), have = lines.reduce((s, l) => s + (l.bulk ? 0 : got(l)), 0);
     const ready = stopReady(date, x);
@@ -9152,7 +9179,7 @@ function lxItemRow(it, can, mode) {
   const short = left > 0 && stock != null && stock < 0;
   const open = mode === 'items' && S.lxOpenItem === it.id;
   const nameEl = mode === 'items'
-    ? `<button class="lx-iname lx-inamebtn" data-act="lx-openitem" data-id="${esc(it.id)}">${esc(it.name)}${c && c.pack ? ` <span class="lx-pack">${esc(c.pack)}</span>` : ''} <span class="lx-cv">${open ? '▲ close' : '▾ take down'}</span></button>`
+    ? `<button class="lx-iname lx-inamebtn" data-act="lx-t-open" data-id="${esc(it.id)}">${esc(it.name)}${c && c.pack ? ` <span class="lx-pack">${esc(c.pack)}</span>` : ''} <span class="lx-cv">orders ›</span></button>`
     : `<div class="lx-iname">${esc(it.name)}${c && c.pack ? ` <span class="lx-pack">${esc(c.pack)}</span>` : ''}</div>`;
   const expand = open ? `<div class="lx-cutwrap">${it.lines.slice().sort((a, b) => b.q0 - a.q0).map(l => `<div class="lx-cutrow"><span class="lx-cutn">${esc(l.stopName || '')}</span><span class="lx-cutq">${l.cut ? `<s style="color:var(--muted)">${fn(l.q0)}</s> <b>${fn(l.q)}</b> <span class="tag red">−${fn(l.cut)}</span>` : `<b>${fn(l.q0)}</b>`}</span><span class="lx-step"><button class="lx-sb" data-act="lx-cut" data-k="${esc(l.key)}" data-d="1"${can && l.q > 0 ? '' : ' disabled'} aria-label="Take one down from ${esc(l.stopName)}">−</button><button class="lx-sb" data-act="lx-cut" data-k="${esc(l.key)}" data-d="-1"${can && l.cut ? '' : ' disabled'} aria-label="Give one back to ${esc(l.stopName)}">+</button></span>${(() => { if (!l.cut) return ''; const cc = custByName(l.stopName); return cc && cc.phone ? `<a class="lx-wa" href="${esc(waHref(waNum(cc.phone), `Hi, it's Chuster. We're a little short on ${it.name} today — sending ${fn(l.q)} instead of ${fn(l.q0)}. Sorry about that!`))}" target="_blank" rel="noopener" aria-label="Tell ${esc(l.stopName)} on WhatsApp" onclick="event.stopPropagation()">💬</a>` : ''; })()}</div>`).join('')}<p class="sub" style="margin:4px 2px 0;font-size:11px">Tap − to take boxes down from a store. The office is told, the invoice is lined up to change, and 💬 texts the store.</p></div>` : '';
   return `<div class="lx-item${it.have >= it.need ? ' done' : ''}">
@@ -9179,6 +9206,7 @@ function renderLoad() {
   const date = S.lxDate; const can = lxCan(date);
   const all = lxSort(lxStops(date));
   if (S.lxStop) { const st = all.find(s => s.k === S.lxStop); if (st) return lxStopView(date, st, can, all); S.lxStop = null; }
+  if (S.lxT) { const it = lxItems(all).find(i => i.id === S.lxT.id); if (it) return lxTakeView(date, it, all); S.lxT = null; }
   // old-app style: always show all six tabs (All · Truck · Cases · Pallets · Motty's · Not set)
   const types = LX_TYPES();
   const inTab = s => lxInTab(s.type, S.lxTab);
@@ -9241,6 +9269,55 @@ function renderLoad() {
   const actRow = S.lxMode === 'returns' ? '' : `<div class="lx-actrow">${S.lxMode === 'stops' ? selBtn : ''}${stillBtn}</div>`;
   const ctrlRow = `<div class="lx-ctrls">${viewToggle}</div>${actRow}`;
   return `<div class="lx"><h1 class="lx-dh">Loading</h1>${top}${tabs}${tiles}${ctrlRow}${banner}${doneBar}${body}<div style="height:${sel ? 130 : 10}px"></div></div>${selBar}${lxSheetHtml(date, all, tabStops, items)}`;
+}
+/* ---- take short boxes off the orders (like the loading app): changes the invoices in QuickBooks ---- */
+// take-offs already sent: line key → the new quantity, until QuickBooks shows it (or the change is cancelled)
+function lxPend() { const m = {}; Object.values(S.qw || {}).forEach(j => { if (j && j.kind === 'invmod' && j.lx && j.st !== 'cancel' && j.st !== 'error') j.lx.forEach(x => { if (x && x.key) m[x.key] = Math.min(m[x.key] != null ? m[x.key] : Infinity, +x.q || 0); }); }); return m; }
+function lxShortOf(it) {
+  const c = it.c; if (!c || typeof c.stock !== 'number') return { short: 0, avail: null };
+  const today = isoOf(TODAY); let packed = 0;
+  if (mpBillInStock(today) !== 'in') { const L = ((printAll().data[today] || {}).labels) || {}; Object.keys(L).forEach(l => { if (!isHand(l) && printProd(l) === c.full) packed += +L[l] || 0; }); }
+  // boxes already taken off but not in QuickBooks' stock yet come back to stock
+  let back = 0; Object.values(S.qw || {}).forEach(j => { if (j && j.kind === 'invmod' && j.lx && !['cancel', 'error', 'done'].includes(j.st)) j.lx.forEach(x => { if (x && x.full === c.full) back += +x.off || 0; }); });
+  const avail = c.stock + packed + back, left = Math.max(0, it.need - it.have);
+  return { short: Math.min(left, Math.max(0, -avail)), avail, packed: packed + back };
+}
+function lxTakeView(date, it, all) {
+  const T = S.lxT, offs = T.offs || {}; const c = it.c;
+  const stopOfLine = l => all.find(s => s.lines.includes(l));
+  const lines = it.lines.slice().sort((a, b) => { const sa = stopOfLine(a), sb = stopOfLine(b); return all.indexOf(sa) - all.indexOf(sb); });
+  const got = l => Math.min(l.q, +S.lq[l.key] || 0);
+  const ordered = lines.reduce((t, l) => t + l.q, 0), loaded = lines.reduce((t, l) => t + got(l), 0);
+  const off = lines.reduce((t, l) => t + (+offs[l.key] || 0), 0), orders = new Set(lines.filter(l => +offs[l.key] > 0).map(l => l.n)).size;
+  const SH = lxShortOf(it), still = Math.max(0, SH.short - off);
+  const past = date < isoOf(TODAY);
+  const head = still > 0 ? `<div class="lxt-big bad"><b class="num">${fn(still)}</b><span>boxes short</span></div>` : `<div class="lxt-big ok"><span class="ck">✓</span><span>${SH.short ? 'covered after this' : 'all covered'}</span></div>`;
+  const rows = lines.map(l => { const st = stopOfLine(l), o = +offs[l.key] || 0, g = got(l);
+    return `<div class="lxt-row">
+      <div class="lxt-cust"><b>${esc(l.stopName || '')}</b><span>#${esc(l.n)}${st ? ` <span class="lxt-type">${esc(LX_TYPE_NAME(st.type).toUpperCase())}</span>` : ''}${l.off ? ` <span class="lxt-sent">−${fn(l.off)} sent</span>` : ''}</span></div>
+      <span class="lxt-num">${fn(l.q)}</span><span class="lxt-num mut">${fn(g)}</span><span class="lxt-num ${o ? 'bad' : ''}">${fn(l.q - o)}</span>
+      <div class="lxt-ctl"><div class="lxt-step"><button data-act="lx-t-step" data-k="${esc(l.key)}" data-d="-1" aria-label="Take one less off ${esc(l.stopName || '')}"${o ? '' : ' disabled'}>−</button><b class="${o ? 'bad' : ''}">${fn(o)}</b><button data-act="lx-t-step" data-k="${esc(l.key)}" data-d="1" aria-label="Take one more off ${esc(l.stopName || '')}"${o < l.q ? '' : ' disabled'}>+</button></div>
+        <button class="lxt-all${o >= l.q ? ' on' : ''}" data-act="lx-t-all" data-k="${esc(l.key)}">All</button></div>
+    </div>`; }).join('');
+  const sheet = T.ask ? `<div class="lxt-modal" role="dialog" aria-modal="true" aria-labelledby="lxt-q"><div class="lxt-card">
+      <h2 id="lxt-q">Take ${fn(off)} box${off === 1 ? '' : 'es'} off ${orders} order${orders === 1 ? '' : 's'}?</h2><p class="sub" style="margin:2px 0 12px">${esc(it.name)}${c && c.pack ? ' ' + esc(c.pack) : ''}</p>
+      <div class="lxt-coming"><span class="lxt-ico">▣</span><div><small>Coming off</small><b>${fn(off)} box${off === 1 ? '' : 'es'}</b></div></div>
+      <p class="sub" style="margin:10px 2px 0">Still <b style="color:${still ? 'var(--bad-text)' : 'var(--good-text)'}">${fn(still)}</b> boxes short after this. The invoices change in QuickBooks${['Owner', 'Office', 'Warehouse'].includes(S.role) ? '' : ' once the office approves it'}.</p>
+      <div class="lxt-mbtns"><button class="btn ghost" data-act="lx-t-cancel">Cancel</button><button class="btn lxt-red" data-act="lx-t-send">Take off ${fn(off)}</button></div>
+    </div></div>` : '';
+  return `<div class="lx lxt">
+    <div class="lx-shead"><button class="icon-btn" data-act="lx-t-back" aria-label="Back to loading"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button><div style="min-width:0;flex:1"><h1 class="lx-h1">${esc(it.name)}${c && c.pack ? ` <span class="lx-pack">${esc(c.pack)}</span>` : ''}</h1><p class="sub" style="margin:0">${fmtShort(isoRd(date))}</p></div></div>
+    <div class="lxt-sum">${head}<div class="lxt-facts"><span><b>${fn(ordered)}</b> ordered</span><span><b>${fn(loaded)}</b> on the truck</span><span><b>${it.stops.size}</b> order${it.stops.size === 1 ? '' : 's'}</span></div>
+      <div class="lxt-stock">${SH.avail == null ? 'No QuickBooks stock for this item.' : `QuickBooks stock ${fn(SH.avail - (SH.packed || 0))}${SH.packed ? ` + ${fn(SH.packed)} packed or taken off` : ''}`}</div>
+      <div class="lx-prog" aria-hidden="true"><i style="width:${ordered ? Math.round(loaded / ordered * 100) : 0}%"></i></div></div>
+    <div class="lxt-acts"><button class="btn ${SH.short ? 'primary' : 'ghost'} sm" data-act="lx-t-fill"${SH.short && !past ? '' : ' disabled'}>Take off ${fn(SH.short)}</button><button class="btn ghost sm" data-act="lx-t-clear"${off ? '' : ' disabled'}>Clear</button></div>
+    <div class="lxt-head"><span>Customer</span><span>Order</span><span>Loaded</span><span>Gets</span><span>Take off</span></div>
+    ${rows}
+    ${past ? '<p class="sub" style="margin:12px 2px">This day is over, so nothing can be taken off here.</p>' : ''}
+    <div style="height:110px"></div>
+    <div class="lxt-foot"><div class="lxt-note">${off ? `<button class="icon-btn" data-act="lx-t-clear" aria-label="Clear"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button><span><b>${fn(off)}</b> box${off === 1 ? '' : 'es'} off ${orders} order${orders === 1 ? '' : 's'} · <b style="color:${still ? 'var(--bad-text)' : 'inherit'}">${fn(still)}</b> still short</span>` : '<span>Use − + or All to choose what comes off.</span>'}</div>
+      <button class="btn primary lxt-go" data-act="lx-t-ask"${off && !past ? '' : ' disabled'}>Take off ${fn(off)} box${off === 1 ? '' : 'es'}</button></div>
+  </div>${sheet}`;
 }
 function lxStopView(date, st, can, all) {
   const c = st.x.c; const items = st.lines.map(l => ({ id: l.key, c: l.c, name: l.name, group: l.c ? l.c.group : 'Other', bulk: l.bulk, lines: [l], need: l.q, have: Math.min(l.q, +S.lq[l.key] || 0), stops: new Set([st.k]), done: 0 })).sort((a, b) => grank(a.group) - grank(b.group) || String(a.c ? a.c.code : 'zz').localeCompare(String(b.c ? b.c.code : 'zz'), 'en', { numeric: true }));
@@ -9334,6 +9411,44 @@ function lxAction(a, d, el) {
     case 'lx-pick-all': { const u = [...document.querySelectorAll('.lx-stop .lx-cb')].map(x => x.dataset.k); S.lxSel = S.lxSel && S.lxSel.length === u.length ? [] : u; break; }
     case 'lx-open': S.lxStop = d.k; S.lxSheet = null; window.scrollTo(0, 0); break;
     case 'lx-back': S.lxStop = null; break;
+    case 'lx-t-open': S.lxT = { id: d.id, offs: {}, ask: false }; S.lxSheet = null; window.scrollTo(0, 0); break;
+    case 'lx-t-back': S.lxT = null; break;
+    case 'lx-t-cancel': if (S.lxT) S.lxT.ask = false; break;
+    case 'lx-t-clear': if (S.lxT) { S.lxT.offs = {}; S.lxT.ask = false; } break;
+    case 'lx-t-step': case 'lx-t-all': case 'lx-t-fill': case 'lx-t-ask': case 'lx-t-send': {
+      const T = S.lxT; if (!T) break; const stops = all(); const it = lxItems(stops).find(i => i.id === T.id); if (!it) { S.lxT = null; break; }
+      const lineOf = k => it.lines.find(l => l.key === k);
+      if (a === 'lx-t-step') { const l = lineOf(d.k); if (l) { const v = Math.max(0, Math.min(l.q, (+T.offs[d.k] || 0) + (+d.d || 0))); if (v) T.offs[d.k] = v; else delete T.offs[d.k]; } break; }
+      if (a === 'lx-t-all') { const l = lineOf(d.k); if (l) { if ((+T.offs[d.k] || 0) >= l.q) delete T.offs[d.k]; else T.offs[d.k] = l.q; } break; }
+      if (a === 'lx-t-fill') {
+        // fill the shortage from the last stops first, boxes not loaded yet before loaded ones
+        let need = lxShortOf(it).short; T.offs = {};
+        const order = it.lines.slice().sort((x, y) => stops.findIndex(s => s.lines.includes(y)) - stops.findIndex(s => s.lines.includes(x)));
+        [true, false].forEach(unloadedOnly => order.forEach(l => { if (need <= 0) return; const g = Math.min(l.q, +S.lq[l.key] || 0); const room = (unloadedOnly ? l.q - g : l.q) - (+T.offs[l.key] || 0); const t = Math.min(room, need); if (t > 0) { T.offs[l.key] = (+T.offs[l.key] || 0) + t; need -= t; } }));
+        break;
+      }
+      if (a === 'lx-t-ask') { if (Object.keys(T.offs).length) T.ask = true; break; }
+      // send: one change per invoice; QuickBooks keeps a fully taken-off line at 0 so loading counts don't shift
+      const byInv = {}; Object.keys(T.offs).forEach(k => { const l = lineOf(k); if (l && T.offs[k] > 0) (byInv[l.n] = byInv[l.n] || []).push(l); });
+      const ok = ['Owner', 'Office', 'Warehouse'].includes(S.role); let boxes = 0, invs = 0; const skipped = [];
+      Object.keys(byInv).forEach(n => {
+        const o = (REAL.orders.list || []).find(x => x.n === n && x.t === 'inv'); if (!o) { skipped.push(n); return; }
+        const L = byInv[n]; const rows = rowsOf(o.l); const l = L[0]; const i = +l.key.split('|')[2]; const row = rows[i]; if (!row) { skipped.push(n); return; }
+        if (rows.filter(r => r[0] === row[0]).length > 1) { skipped.push(n); return; } // same item twice on one invoice: change it in QuickBooks
+        const take = +T.offs[l.key] || 0, newQ = Math.max(0, l.q - take), q0 = +row[1] || 0;
+        const cc = typeof row[0] === 'number' ? REAL.catalog[row[0]] : null, full = (cc && cc.full) || row[3] || String(row[0]);
+        const rate = q0 ? Math.round(Math.abs((+row[2] || 0) / q0) * 100000) / 100000 : (cc ? +cc.price || 0 : 0);
+        const rec = { id: qwId(), kind: 'invmod', n: o.n, st: ok ? 'ok' : 'wait', try: 0, c: o.c, d: o.d, lines: [[full, newQ, rate, it.name]], keep0: true,
+          total: Math.round(((+o.a || 0) - (q0 - newQ) * rate) * 100) / 100, memo: `Loading ${fmtShort(isoRd(date))}: ${take} ${it.name} taken off (short)`, by: byName(), at: nowIso(), lx: [{ key: l.key, q: newQ, off: take, full }] };
+        if (ok) { rec.okBy = byName(); rec.okAt = nowIso(); }
+        qwSave(rec); boxes += take; invs++;
+        if (S.lxCut[l.key]) { delete S.lxCut[l.key]; saveLS('chuster-lxcut-v1', S.lxCut); SYNC.put('cut', l.key, null); }
+      });
+      if (invs) lxLog(date, `${it.name}: took ${boxes} off ${invs} order${invs === 1 ? '' : 's'} (short)`);
+      T.offs = {}; T.ask = false;
+      toast(invs ? `${fn(boxes)} box${boxes === 1 ? '' : 'es'} taken off ${invs} order${invs === 1 ? '' : 's'} · ${ok ? 'syncing to QuickBooks' : 'sent to the office to approve'}${skipped.length ? `. Not changed: #${skipped.join(', #')} (change those in QuickBooks)` : ''}` : 'Nothing was changed. Change those invoices in QuickBooks.');
+      break;
+    }
     case 'lx-group': { const i = S.lxGroups.indexOf(d.g); if (i >= 0) S.lxGroups.splice(i, 1); else S.lxGroups.push(d.g); break; }
     case 'lx-sheet': S.lxSheetPrev = S.lxSheet; S.lxSheet = d.s; if (d.s === 'day') S.lxPick = date; break;
     case 'lx-close': S.lxSheet = null; break;
