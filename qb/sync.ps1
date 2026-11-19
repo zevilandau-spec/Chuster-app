@@ -8,7 +8,7 @@
 param([switch]$Install, [switch]$Test, [switch]$Full, [switch]$Other, [switch]$History, [switch]$Watch)
 
 $ErrorActionPreference = 'Stop'
-$Ver = '4.3'
+$Ver = '4.4'
 $AppName = 'Chuster App Sync'
 $TaskName = 'Chuster QB Sync'
 $Here = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -446,7 +446,7 @@ function Add-ToQB($o) {
       $isTotal = ($it -match '(?i)total') -or ($it -eq '')
       if ($isTotal -and -not $added) { $mods.Add($newLines); $added = $true }
       if (-not $isTotal -and $want.Contains($it)) {
-        if ($want[$it] -le 0) { continue }   # taken off the invoice
+        if ($want[$it] -le 0) { if ($o.keep0) { $mods.Add('<InvoiceLineMod><TxnLineID>' + $id + '</TxnLineID><Quantity>0</Quantity></InvoiceLineMod>') }; continue }   # taken off the invoice (keep0: the line stays at 0 so loading counts on the other lines don't shift)
         $mods.Add('<InvoiceLineMod><TxnLineID>' + $id + '</TxnLineID><Quantity>' + (Q $want[$it]) + '</Quantity></InvoiceLineMod>')
       } else { $mods.Add('<InvoiceLineMod><TxnLineID>' + $id + '</TxnLineID></InvoiceLineMod>') }
     }
