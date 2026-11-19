@@ -2303,6 +2303,27 @@ function printManualRaw() {
   const m = S.mpLive && S.mpLive.manual;
   S.mpManual = (m && typeof m === 'object') ? m : {}; return S.mpManual;
 }
+/* Is the box-printer PC sending? (a) silent: no post for 20+ min during work hours; (b) late: 3+ runs share one start minute = it caught up in one go, so those times aren't real. */
+const MP_RESEND = 'irm https://chuster.netlify.app/mp/backfill.ps1 | iex';
+function mpHealth() {
+  const A = printAll(); if (!A.live) return { silent: null, late: null };
+  const t = S.mpNowT || 0, d = new Date(), wd = d.getDay(), mins = d.getHours() * 60 + d.getMinutes();
+  const work = wd !== 6 && mins >= 6 * 60 + 30 && mins <= (wd === 5 ? 13 * 60 : 18 * 60);
+  const silent = t && work && Date.now() - t > 20 * 60000 ? t : null;
+  const day = A.data[isoOf(TODAY)] || {}, T = day.times || {}, L = day.labels || {}, cnt = {};
+  Object.keys(L).forEach(l => { if (isHand(l) || (day.manual && day.manual[l]) || !(+L[l] > 0)) return; const st = (T[l] || {}).s; if (st) cnt[st] = (cnt[st] || 0) + 1; });
+  let late = null; Object.keys(cnt).forEach(st => { if (cnt[st] >= 3 && (!late || cnt[st] > late.n)) late = { s: st, n: cnt[st] }; });
+  return { silent, late };
+}
+function mpHealthHtml(compact) {
+  const H = mpHealth(); if (!H.silent && !H.late) return '';
+  const when = t => { const d = new Date(t); return (d.toDateString() !== new Date().toDateString() ? 'yesterday ' : '') + d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }); };
+  const cmd = `<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px"><code style="font-size:12.5px;background:var(--surface);color:var(--fg);padding:6px 10px;border-radius:8px;user-select:all">${MP_RESEND}</code><button class="btn ghost" style="padding:5px 12px;min-height:0" data-act="mp-copy-resend">Copy</button></div>`;
+  const out = [];
+  if (H.silent) out.push(`<div class="attn red" style="display:block;margin-top:${compact ? 10 : 12}px"><strong>Box printer PC not sending since ${when(H.silent)}</strong><small style="display:block;margin-top:2px">The printer still records every box on that PC, but the app isn't getting them. Check that the printer PC is on, signed in and online.${compact ? '' : ' When it sends again, run the re-send there so the times come out right.'}</small></div>`);
+  if (H.late && !H.silent) out.push(`<div class="attn red" style="display:block;margin-top:${compact ? 10 : 12}px"><strong>${H.late.n} products all show the same start, ${fmtClock(H.late.s)}</strong><small style="display:block;margin-top:2px">The printer PC sent them late, in one go, so their times and order aren't real yet. On the printer PC, open PowerShell and paste this to send the real times:</small>${cmd}</div>`);
+  return out.join('');
+}
 function printAll() {
   const live = S.mpLive && Object.keys(S.mpLive).some(k => /^\d{4}-\d{2}-\d{2}$/.test(k) || k === 'now');
   const base = live ? S.mpLive : PRINT_SEED;
@@ -2724,6 +2745,7 @@ function renderPrinter() {
   <section class="card">
     <div class="card-head" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap"><h2 style="margin:0">Box printer</h2>${pill}<span class="sub" style="margin:0;flex:1;min-width:140px">${pillNote}</span></div>
     <p class="sub" style="margin:4px 0 0">Every box the Markoprint prints is counted here automatically, by product. No more counting boxes by hand.</p>
+    ${isToday ? mpHealthHtml(false) : ''}
     ${idleNudge}
     ${banner}
     ${runNow}
@@ -3274,6 +3296,7 @@ function renderHomeMix() {
     </div>
     <div class="mx-w s2 pfull">
       <a class="mx-ch" href="#printer" data-go="printer">${mxIco('box', 'var(--mx-blue)')}Box printer${P.running ? `<span class="rt"><span style="color:var(--mx-green)">●</span> ${esc(P.running)}</span>` : ''}</a>
+      ${mpHealthHtml(true)}
       <div class="mx-big">${fn(P.boxes)} <small>boxes${P.value ? ', ' + fm(P.value) : ''}</small></div>
       ${P.runs.length ? `<div class="mx-strip" role="img" aria-label="Today's runs">${strip}</div>${ticks}` : '<div class="mx-mut">Nothing printed yet today.</div>'}
       ${P.stop ? `<div class="mx-mut" style="margin-top:8px"><span class="dn">Stopped ${P.stop.min} min</span> at ${mxClock(P.stop.at)}, the longest today</div>` : ''}
@@ -8316,7 +8339,7 @@ const SYNC = (function () {
         for (const id of Object.keys(j)) {
           const r = j[id]; if (!r || !r.v) continue; if (r.t > max) max = r.t;
           const sid = c + '/' + id; if (st.out[sid] || st.seen[sid] === r.v) continue;
-          try { const o = await dec(r.v); st.seen[sid] = r.v; if (handlers[c]) { handlers[c](o.k, o.val, o); changed = true; } } catch (e) { /* written with another key */ }
+          try { const o = await dec(r.v); st.seen[sid] = r.v; if (handlers[c]) { handlers[c](o.k, o.val, o, r.t); changed = true; } } catch (e) { /* written with another key */ }
         }
         st.since[c] = full ? 0 : max;
       }
@@ -8618,7 +8641,7 @@ SYNC.on('ec', (k, val) => { S.emailConn = S.emailConn || {}; if (val == null) de
 S.emailLive = {};
 SYNC.on('ei', (k, val) => { S.emailLive = S.emailLive || {}; if (val == null) delete S.emailLive[k]; else S.emailLive[k] = val; });
 S.mpLive = {};
-SYNC.on('mp', (k, val) => { S.mpLive = S.mpLive || {}; if (val == null) delete S.mpLive[k]; else S.mpLive[k] = val; if (k === 'map') S.mpMap = null; if (k === 'packmap') S.mpPack = null; if (k === 'autoset') S.mpAuto = null; if (k === 'handset') S.mpHand = null; if (k === 'notline') S.mpNotLine = null; if (k === 'manual') S.mpManual = null; try { if (S.view === 'printer') render(); } catch (e) { } });
+SYNC.on('mp', (k, val, o, t) => { if (k === 'now' && t) S.mpNowT = t; S.mpLive = S.mpLive || {}; if (val == null) delete S.mpLive[k]; else S.mpLive[k] = val; if (k === 'map') S.mpMap = null; if (k === 'packmap') S.mpPack = null; if (k === 'autoset') S.mpAuto = null; if (k === 'handset') S.mpHand = null; if (k === 'notline') S.mpNotLine = null; if (k === 'manual') S.mpManual = null; try { if (S.view === 'printer') render(); } catch (e) { } });
 // BM contents = sum of received moves into BM minus runs out of BM (only 'done' moves count)
 function bmByFull() { const m = {}; Object.values(S.moves || {}).forEach(mv => { if (!mv || mv.st !== 'done') return; const sign = mv.to === 'BM' ? 1 : mv.from === 'BM' ? -1 : 0; if (!sign) return; (mv.lines || []).forEach(l => { const full = l[0], q = +l[1] || 0; if (!full || !q) return; m[full] = (m[full] || 0) + sign * q; }); }); return m; }
 let avSeen = {}; // throttle screen logging this session
@@ -10089,6 +10112,7 @@ document.addEventListener('click', e => {
     case 'll-print': printDoc(loadListDoc(), `Chuster loading list ${S.llDate}`); break;
     case 'sum-open': S.sumOpen = !S.sumOpen; keep(); break;
     case 'home-style': S.homeStyle = d.s === 'classic' ? 'classic' : 'mix'; try { localStorage.setItem('chuster-home-style', S.homeStyle); } catch (err) { } window.scrollTo(0, 0); keep(); break;
+    case 'mp-copy-resend': { try { navigator.clipboard.writeText(MP_RESEND).then(() => toast('Copied. Paste it in PowerShell on the printer PC.'), () => toast(MP_RESEND)); } catch (err) { toast(MP_RESEND); } break; }
     case 'mx-add-boxes': { const td = isoOf(TODAY); S.mpDay = td; S.mpAdd = { day: td, key: '', n: '', s: '', e: '' }; go('printer'); break; }
     case 'sum-copy': { const t = document.getElementById('sum-text'); try { navigator.clipboard.writeText(t.value).then(() => toast('Copied. Paste it anywhere.')); } catch (err) { t.select(); toast('Selected. Copy it now.'); } break; }
     case 'wk-open': S.wkOpen = !S.wkOpen; keep(); break;
