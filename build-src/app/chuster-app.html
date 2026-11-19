@@ -2082,6 +2082,7 @@ function renderSalesReport() {
 
 // What's new — a running list of what shipped, newest first. r: role that sees it (Owner-only if set).
 const CHANGELOG = [
+  { d: '2026-11-18', t: 'Order Tracker link', b: "New Order Tracker in the menu (under Deliveries) and on the Command center: opens your Excel-style tracker for POs, scheduled pickups, pallets and weight \u2014 the CNP Items Order Tracker sheet, now editable right in the browser." },
   { d: '2026-11-15', t: 'Menu: pinned favorites', b: "The side menu is shorter now — a ★ Favorites section at the top with your most-used screens, and the full list tucked behind 'All screens'. Tap the star on any screen to pin or unpin it; your picks are remembered on your device.", r: 'Owner' },
   { d: '2026-11-15', t: 'Dashboard: today vs last year', b: "New dashboard card comparing today's sales to last year three ways — same secular date, same Hebrew date (e.g. 2 Kislev, the apples-to-apples one for Yom Tov timing), and the same weekday a year ago. Each shows last year's total and whether today is up or down. Hide or reorder it in Tools → Dashboard.", r: 'Owner' },
   { d: '2026-11-15', t: 'Pack next: hand-packed out', b: "The Pack next list now shows only products your box printer actually runs (anything it has never printed a label for — the stuff you pack by hand — is left out). Each row also has an ✕ to drop any straggler you pack by hand; it stays off and syncs to everyone.", r: 'Owner' },
@@ -2226,6 +2227,7 @@ function renderCommand() {
     { k: 'Stores slipping', v: fn(late), s: 'overdue to order', go: 'atrisk', cls: 'ct-blue' }
   ];
   if (isZevi()) tiles.push({ k: 'Pickups', v: 'open', s: 'what to bring in', go: 'pickups', cls: 'ct-gold' });
+  if (isZevi()) tiles.push({ k: 'Order Tracker', v: 'open', s: 'POs, pickups & pallets', go: 'tracker', cls: 'ct-blue' });
   return `${head('Command center', 'What needs you today')}
   <div class="tiles">${tiles.map(t => `<div class="tile ct ${t.cls}" data-go="${t.go}" style="cursor:pointer"><div class="k">${t.k}</div><div class="v">${t.v}</div><div class="s">${t.s}</div></div>`).join('')}</div>
   <section class="card"><p class="sub" style="margin:0">Tap a tile to dig in. This is your owner home base — more lands here as I build it (who owes you, sales vs last year, pickups to schedule).</p></section>`;
@@ -2787,6 +2789,7 @@ const VIEWS = {
   tools: { title: 'Tools', r: renderTools },
   activity: { title: 'Activity', r: renderActivity },
   pickups: { title: 'Pickups', r: renderPickups },
+  tracker: { title: 'Order Tracker', r: renderTracker },
   whatsnew: { title: "What's new", r: renderWhatsNew },
   email: { title: 'Email inbox', r: renderEmailInbox },
   lostsales: { title: 'Lost sales', r: renderLostSales },
@@ -2851,7 +2854,7 @@ const NAV = [
   { h: 'CUSTOMERS', items: [['visits', "Today's visits", 'clock'], ['coverage', 'Coverage plan', 'clip'], ['pitch', 'New to pitch', 'chart'], ['customers', 'Customers', 'people', 'late'], ['payments', 'Payments', 'card', 'pay'], ['collect', 'Collections', 'card'], ['aging', 'Collections dashboard', 'chart'], ['stmts', 'Statements by email', 'mail'], ['custprofit', 'Profit by store', 'chart'], ['lost', 'Lost items', 'alert'], ['yomtov', 'Yom Tov list', 'cal'], ['ytplan', 'Yom Tov planner', 'chart']] },
   { h: 'SALES & MONEY', items: [['mysales', 'Salesman dashboard', 'chart'], ['storesales', 'Store sales', 'chart'], ['scorecard', 'Store scorecard', 'people'], ['movers', 'What changed', 'alert'], ['atrisk', 'At-risk board', 'alert'], ['crosssell', 'Cross-sell', 'chart'], ['newlost', 'New & lost stores', 'people'], ['habits', 'Order habits', 'clock'], ['seasonality', 'Seasonality', 'chart'], ['salesreport', 'Sales report', 'chart'], ['brandsales', 'Sales by brand', 'chart'], ['lostsales', 'Lost sales', 'alert'], ['repscore', 'Salesman scorecard', 'people'], ['reps', 'Sales by rep & commission', 'people'], ['returns', 'Returns & credits', 'card'], ['finance', 'Finance', 'chart']] },
   { h: 'PRODUCTS', items: [['catalog', 'Catalog', 'box'], ['prodsales', 'Product sales', 'chart'], ['winners', 'Winners & losers', 'chart'], ['items', 'Products & profit', 'chart'], ['margin', 'Margins', 'chart'], ['pricelist', 'Price list', 'order'], ['pricecheck', 'Price check', 'card'], ['pricespread', 'Price spread', 'chart']] },
-  { h: 'DELIVERIES', items: [['route', 'Deliveries', 'box'], ['addrcheck', 'Check address', 'pin'], ['stop', 'Driver', 'wheel'], ['pickups', 'Pickups', 'truck'], ['live', 'Live trucks', 'pin'], ['loading', 'Loading', 'truck'], ['dsched', 'Delivery days', 'cal'], ['delivstats', 'Delivery stats', 'chart'], ['routeprofit', 'Route profit', 'chart']] },
+  { h: 'DELIVERIES', items: [['route', 'Deliveries', 'box'], ['addrcheck', 'Check address', 'pin'], ['stop', 'Driver', 'wheel'], ['pickups', 'Pickups', 'truck'], ['tracker', 'Order Tracker', 'truck'], ['live', 'Live trucks', 'pin'], ['loading', 'Loading', 'truck'], ['dsched', 'Delivery days', 'cal'], ['delivstats', 'Delivery stats', 'chart'], ['routeprofit', 'Route profit', 'chart']] },
   { h: 'WAREHOUSE', items: [['packnext', 'What to pack', 'clip'], ['forecast', 'Week-ahead forecast', 'chart'], ['packing', 'Packing plan', 'clip'], ['stockcover', 'Stock cover', 'box'], ['packlog', 'Pack log', 'clip'], ['packrep', 'Packing report', 'chart'], ['printer', 'Box printer', 'box'], ['yield', 'Yield', 'chart']] },
   { h: 'STOCK & BUYING', items: [['inventory', 'Inventory', 'box', 'inv'], ['prodplan', 'Make today', 'box'], ['ordernow', 'Order now', 'alert'], ['toorder', 'To order (by vendor)', 'card'], ['reorder', 'Reorder alerts', 'alert'], ['plan', 'Plan a season', 'chart'], ['margin', 'Margin watch', 'chart'], ['buying', 'Buying & suppliers', 'card'], ['polist', 'All purchase orders', 'clip'], ['stockmoves', 'Stock moves', 'box']] },
   { h: 'BOOKS', items: [['expenses', 'Expenses', 'chart'], ['bank', 'Bank & deposits', 'card'], ['vendors', 'Vendors & bills', 'people'], ['salesorders', 'Sales orders & estimates', 'order'], ['journal', 'Journal entries', 'clip'], ['accounts', 'Chart of accounts', 'chart']] }
@@ -2881,14 +2884,14 @@ const salesLocked = () => isSales() && !!myRepCodes();
 const custMine = c => !salesLocked() || (!!c && myRepCodes().includes(c.rep || '—'));
 const custMineName = n => !salesLocked() || custMine(custByName(n));
 const allowed = v => {
-  if (v === 'activity' || v === 'pickups') return isZevi();
+  if (v === 'activity' || v === 'pickups' || v === 'tracker') return isZevi();
   if (v === 'email') return true;
   if (S.role === 'Owner') return true;
   if (S.role === 'Office') { const deny = officePlus() ? ['finance', 'expenses', 'bank', 'journal', 'accounts', 'command'] : ['tools', 'custprofit', 'finance', 'expenses', 'bank', 'journal', 'accounts', 'margin', 'repscore', 'lostsales', 'command', 'brandsales', 'movers']; return !deny.includes(v); }
   return (ROLE_VIEWS[S.role] || []).includes(v);
 };
 const roleHome = () => S.role === 'Warehouse' ? 'packnext' : S.role === 'Driver' ? 'route' : isSales() ? 'mysales' : 'home';
-const YI = { 'Dashboard': 'הויפט בלאט', 'Ask the portal': 'פרעג די אפּ', 'Ask AI': 'פרעג AI', 'Ask AI ✨': 'פרעג AI ✨', 'Ask': 'פרעג', 'Orders': 'ארדערס', 'New order': 'נייע ארדער', '+ New order': '+ נייע ארדער', 'Incoming orders': 'אריינקומענדיגע ארדערס', 'Payments': 'באצאלונגען',
+const YI = { 'Order Tracker': 'ארדער טראקער', 'Dashboard': 'הויפט בלאט', 'Ask the portal': 'פרעג די אפּ', 'Ask AI': 'פרעג AI', 'Ask AI ✨': 'פרעג AI ✨', 'Ask': 'פרעג', 'Orders': 'ארדערס', 'New order': 'נייע ארדער', '+ New order': '+ נייע ארדער', 'Incoming orders': 'אריינקומענדיגע ארדערס', 'Payments': 'באצאלונגען',
   'Customers': 'קאסטומערס', 'Collections': 'איינמאנען געלט', 'Products & profit': 'פראדוקטן און פראפיט', 'Sales by rep & commission': 'סעילס לויט רעפּ', 'Sales by rep': 'סעילס לויט רעפּ', 'Yom Tov list': 'יום טוב ליסטע', 'Chanuka': 'חנוכה', 'Purim': 'פורים', 'Pesach': 'פסח', 'After Pesach': 'נאך פסח', 'Shavuos': 'שבועות', 'Rosh Hashana': 'ראש השנה', 'Yom Tov reorder list': 'יום טוב ליסטע',
   'Lost items': 'פארלוירענע פראדוקטן', 'Profit by store': 'פראפיט לויט סטאר', 'Price check': 'פרייז קאנטראל', 'Deliveries': 'דעליווערס', 'Driver': 'דרייווער', 'Trucks & loading': 'טראקס און לאדנען', 'Loading list': 'לאדן ליסטע',
   'Inventory': 'אינווענטאר', 'Reorder alerts': 'ווארענונגען צו באשטעלן', 'What to pack': 'וואס צו פּאקן', 'Packing plan': 'פּאקן פּלאן', 'Pack log': 'פּאקן לאג', 'Packing report': 'פּאקן באריכט', 'Yield': 'יעלד',
@@ -2907,7 +2910,9 @@ function drawChrome() {
   if (!Array.isArray(S.navFav)) { let f = null; try { f = JSON.parse(localStorage.getItem('chuster-navfav')); } catch (e) { } S.navFav = (Array.isArray(f) && f.length) ? f : ['home', 'command', 'inbox', 'payments', 'printer', 'inventory'].filter(v => allItems.some(it => it[0] === v)); }
   const isFav = v => S.navFav.includes(v);
   const star = v => `<button type="button" class="nav-star${isFav(v) ? ' on' : ''}" data-navpin="${v}" aria-label="${isFav(v) ? 'Unpin from favorites' : 'Pin to favorites'}" title="${isFav(v) ? 'Unpin' : 'Pin to favorites'}">${isFav(v) ? '★' : '☆'}</button>`;
-  const link = ([v, label, icon, count]) => v
+  const link = ([v, label, icon, count]) => v === 'tracker'
+    ? `<a href="${TRACKER_URL}" target="_blank" rel="noopener">${ic(icon)}<span class="nlab">${tr(label)} ↗</span>${star(v)}</a>`
+    : v
     ? `<a href="#${v}" data-go="${v}"${S.view === v ? ' aria-current="page"' : ''}>${ic(icon)}<span class="nlab">${tr(label)}</span>${cnt(count) ? `<span class="count">${cnt(count)}</span>` : ''}${star(v)}</a>`
     : `<a href="#${S.view}" data-act="soon" data-name="${label}">${ic(icon)}<span class="nlab">${tr(label)}</span><span class="soon">SOON</span></a>`;
   const favItems = S.navFav.map(v => allItems.find(it => it[0] === v)).filter(Boolean);
@@ -7046,6 +7051,13 @@ const PKREF = (() => { const norm = s => String(s || '').toLowerCase().replace(/
   'chuster whole grain penny rigate': [56, 21], 'whole wheat cut spaghetti 20lb': [96, 21],
   'landaus barley loose': [1800, 1], 'landaus sm bow': [60, 21] }; const out = {}; Object.keys(raw).forEach(k => out[norm(k)] = raw[k]); return { norm, get: name => out[norm(name)] || null }; })();
 function palletsWeight(name, qty) { const r = PKREF.get(String(name).replace(/\d{5,}CHU?N?L?A?N?00|\d{10}/g, '')); if (!r || !(qty > 0)) return null; const pal = qty / r[0]; return { pallets: Math.round(pal * 10) / 10, weight: Math.round(qty * r[1]) }; }
+// Zevi's Order Tracker (Excel-style PO / pickup tracker, replaces the CNP Items Order Tracker sheet). Lives on claude.ai.
+const TRACKER_URL = 'https://claude.ai/artifact/2tgKy96AhdFvCQhCGYPqhb';
+function renderTracker() {
+  return `${head('Order Tracker', 'POs, scheduled pickups, pallets & weight')}
+  <section class="card stack"><p class="sub" style="margin:0">Your order tracker, set up like the CNP Items Order Tracker sheet: an Excel-style Orders grid, Scheduled Pickups with totals, and the Items list. It opens in Claude.</p>
+  <a class="btn gold big" href="${TRACKER_URL}" target="_blank" rel="noopener">${ic('truck')}Open Order Tracker ↗</a></section>`;
+}
 function renderPickups() {
   if (!isZevi()) return `${head('Pickups', '')}<section class="card"><p class="sub" style="margin:0">Only you see this page while you try it.</p></section>`;
   if (!REAL) return needData('Pickups');
