@@ -2328,7 +2328,18 @@ const PRINT_SEED = {
 const PRINT_STATE = { 0: 'Running', 1: 'Paused', 2: 'Stopped' };
 // Boxes added by hand for runs the printer PC never recorded (e.g. its connection to the printer dropped).
 // Own synced record { 'YYYY-MM-DD': { label: { n, s, e, by, at } } } — the printer PC's re-sends can't touch it.
-const MP_ADD = '__add_boxes__';
+const MP_ADD = '__add_boxes__', MP_FIX = '__fix_boxes__';
+// the printer label to file boxes under for a product: its usual printer label, else a 'Manual · ' label
+function mpLabelFor(key) {
+  const map = Object.assign({}, printMapRaw()); const data = printAll().data;
+  const seen = printDays(data).reduce((acc, dd) => acc.concat(Object.keys((data[dd] || {}).labels || {})), []);
+  let lab = Object.keys(map).find(l => map[l] === key && seen.indexOf(l) >= 0) || Object.keys(map).find(l => map[l] === key);
+  if (!lab) { lab = 'Manual · ' + prodName(key); map[lab] = key; S.mpMap = map; try { localStorage.setItem('chuster-mpmap-v1', JSON.stringify(map)); } catch (e) { } try { SYNC.put('mp', 'map', map); } catch (e) { } }
+  return lab;
+}
+// product name plus its size, so same-named products (e.g. Nuggets 96 vs 15x8) can be told apart
+function mpProdLong(key) { const ci = prodByKey(key); if (!ci) return prodName(key) || key || ''; return [ci.name, ci.code && ci.code !== '—' ? '#' + ci.code : '', ci.pack || ''].filter(Boolean).join(' '); }
+function mpSaveManual(man) { S.mpManual = man; if (S.mpLive) S.mpLive.manual = man; try { SYNC.put('mp', 'manual', man); } catch (e) { } }
 function printManualRaw() {
   if (S.mpManual) return S.mpManual;
   const m = S.mpLive && S.mpLive.manual;
@@ -2367,7 +2378,8 @@ function printAll() {
     const day = Object.assign({}, src, { labels: Object.assign({}, src.labels || {}), times: Object.assign({}, src.times || {}), manual: {} });
     if (Array.isArray(src.order)) day.order = src.order.slice();
     Object.keys(man[d]).forEach(lab => {
-      const m = man[d][lab] || {}; const n = Math.round(+m.n); if (!(n > 0)) return;
+      const m = man[d][lab] || {}; const n = Math.round(+m.n); if (!n) return;
+      if (n < 0) { if (day.labels[lab] == null) return; day.labels[lab] = Math.max(0, (+day.labels[lab] || 0) + n); day.manual[lab] = m; return; } // a fix: boxes taken off this label
       day.labels[lab] = (+day.labels[lab] || 0) + n;
       const pt = day.times[lab] || {}; const s = [pt.s, m.s].filter(Boolean).sort()[0] || '', e = [pt.e, m.e].filter(Boolean).sort().pop() || '';
       if (s || e) day.times[lab] = { s, e };
@@ -2487,7 +2499,7 @@ function mpCatList() {
 function mpPickRows(label) {
   const list = mpCatList(); // keep catalog order (Fine, Medium, Kugel…), same as the order screen — not alphabetical
   if (!list.length) return '<p class="sub" style="padding:8px 0;margin:0">No item matches.</p>';
-  const cur = label === MP_ADD ? ((S.mpAdd && S.mpAdd.key) || '') : printProd(label); let last = null;
+  const cur = label === MP_ADD ? ((S.mpAdd && S.mpAdd.key) || '') : label === MP_FIX ? ((S.mpFix && S.mpFix.to) || '') : printProd(label); let last = null;
   return list.map(p => {
     const g = p.brand || p.cat || '', k = prodKeyOf(p);
     const hdr = g !== last ? `<div class="ghead ${gcls(g)}" style="margin-top:${last === null ? 0 : 14}px"><span style="flex:1;text-align:center">${esc((GROUP_TITLE[g] || g).toUpperCase())}</span></div>` : '';
@@ -2509,7 +2521,7 @@ function mpPicker(label) {
   <section class="card">
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
       <button class="btn ghost" data-act="mp-pick-cancel" aria-label="Back">‹ Back</button>
-      <div style="min-width:0"><div class="sub" style="margin:0;font-size:11px;text-transform:uppercase;letter-spacing:.5px">${label === MP_ADD ? 'Add boxes · pick the product' : 'Match printer label'}</div><div style="font-weight:800;font-size:16px">${label === MP_ADD ? esc(fmtShort(isoRd((S.mpAdd && S.mpAdd.day) || isoOf(TODAY)))) : esc(label)}</div></div>
+      <div style="min-width:0"><div class="sub" style="margin:0;font-size:11px;text-transform:uppercase;letter-spacing:.5px">${label === MP_ADD ? 'Add boxes · pick the product' : label === MP_FIX ? 'Move boxes · to which product?' : 'Match printer label'}</div><div style="font-weight:800;font-size:16px">${label === MP_ADD ? esc(fmtShort(isoRd((S.mpAdd && S.mpAdd.day) || isoOf(TODAY)))) : label === MP_FIX ? esc(S.mpFix ? prodName(printProd(S.mpFix.lab)) || S.mpFix.lab : '') : esc(label)}</div></div>
     </div>
     <div class="field" style="margin-bottom:8px">${ic('search')}<label for="mpq" class="sr">Find a product</label><input id="mpq" value="${esc(S.mpQ || '')}" placeholder="Find by name, code or group" autocomplete="off"></div>
     <div class="chips" style="margin-bottom:10px"><button class="chip" data-act="mp-grp" data-g="All" aria-pressed="${!S.mpGroup || S.mpGroup === 'All'}">All items · ${(S.catalog || []).filter(p => p && p.name).length}</button>${Object.keys(GROUP_COLOR).map(g => `<button class="chip ${gcls(g)}" data-act="mp-grp" data-g="${esc(g)}" aria-pressed="${S.mpGroup === g}">${esc(GROUP_TITLE[g] || g)}</button>`).join('')}</div>
@@ -2518,6 +2530,22 @@ function mpPicker(label) {
 }
 function hm12(s) { const m = String(s || '').match(/^(\d\d?):(\d\d)$/); if (!m) return ''; let h = +m[1]; const ap = h < 12 ? 'AM' : 'PM'; h = h % 12; if (h === 0) h = 12; return h + ':' + m[2] + ' ' + ap; }
 function timeRange(t) { if (!t) return ''; const s = hm12(t.s), e = hm12(t.e); if (!s && !e) return ''; if (s && e && t.e !== t.s) return s + ' – ' + e; return s || e; }
+function mpFixPanel(r, day) {
+  const f = S.mpFix, lbl = 'display:flex;flex-direction:column;gap:4px;font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.3px';
+  const tab = (m, t) => `<button class="chip" data-act="mp-fix-mode" data-m="${m}" aria-pressed="${f.mode === m}">${t}</button>`;
+  const body = f.mode === 'set'
+    ? `<div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end"><label style="${lbl}">Right number of boxes<input id="mpfix-total" class="inp" type="number" min="0" inputmode="numeric" value="${esc(f.total || '')}" placeholder="${fn(r.n)}" style="width:120px"></label></div>`
+    : `<div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end"><label style="${lbl}">Boxes to move<input id="mpfix-n" class="inp" type="number" min="1" max="${r.n}" inputmode="numeric" value="${esc(f.n || '')}" style="width:100px"></label>
+       <label style="${lbl};flex:1;min-width:200px">To the product that was really packed<button class="btn ghost" data-act="mp-fix-pick" style="text-align:left;display:flex;align-items:center;text-transform:none;letter-spacing:0;font-size:14px">${f.to ? prodSwatchKey(f.to) + esc(mpProdLong(f.to)) : '<span class="sub" style="margin:0">Choose product ▸</span>'}</button></label></div>`;
+  return `<div style="padding:14px;border:1px solid var(--line);border-radius:16px;background:var(--surface-2)">
+    <div style="font-weight:800;font-size:15px">Fix ${esc(mpProdLong(r.key))} · ${fn(r.n)} boxes</div>
+    <p class="sub" style="margin:2px 0 10px;font-size:12px">For when the print mark wasn't changed, or the count is off. Fixes the totals, the week, stock and the QuickBooks production bill.</p>
+    <div class="chips" style="margin-bottom:12px">${tab('move', 'Move boxes to another product')}${tab('set', 'Change the number')}</div>
+    ${body}
+    ${mpBillExists(day) ? '<p class="sub" style="margin:10px 0 0;font-size:12px;color:var(--bad-text)">This day\'s production bill was already made. After fixing, cancel it in To QuickBooks and make it again.</p>' : ''}
+    <div style="display:flex;gap:8px;margin-top:14px"><button class="btn primary" data-act="mp-fix-save">${f.mode === 'set' ? 'Save the number' : 'Move the boxes'}</button><button class="btn ghost" data-act="mp-fix-cancel">Cancel</button></div>
+  </div>`;
+}
 function renderPrinter() {
   if (S.mpPickFor) return mpPicker(S.mpPickFor);
   const A = printAll(), data = A.data, live = A.live;
@@ -2678,14 +2706,15 @@ function renderPrinter() {
   const listHead = `<tr style="border-bottom:1px solid var(--line)"><th style="text-align:left;padding:0 0 7px;font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.3px">Product${showStock && rows.length > 1 ? ' · in the order packed' : ''}</th>${th('Packed')}${showStock ? th('In stock') + (withCol ? th(withLbl) : '') : ''}</tr>`;
   const listBody = rows.map(r => {
     const after = r.stock + r.n;
-    const meta = [r.lab.indexOf('Manual · ') === 0 ? '' : esc(r.lab), timeRange(r.times) ? '🕑 ' + esc(timeRange(r.times)) : ''].filter(Boolean).join(' · ');
-    const handN = r.hand ? Math.round(+((dayObj.manual || {})[r.lab] || {}).n) || 0 : 0;
-    const handTag = r.hand ? `<div style="display:flex;align-items:center;gap:6px;margin-top:4px"><span style="font-size:10.5px;font-weight:800;letter-spacing:.3px;padding:2px 8px;border-radius:999px;background:#eef1fb;color:#1e3a8a">✎ ${handN && handN < r.n ? fn(handN) + ' ' : ''}ADDED MANUALLY</span>${canBill ? `<button data-act="mp-add-del" data-day="${esc(day)}" data-lab="${esc(r.lab)}" aria-label="Remove the boxes added manually" style="border:none;background:none;color:var(--muted);font:inherit;font-size:11.5px;cursor:pointer;padding:2px 4px;text-decoration:underline">remove</button>` : ''}</div>` : '';
+    const meta = [r.lab.indexOf('Manual · ') === 0 ? esc(mpProdLong(r.key).slice((prodName(r.key) || '').length).trim()) : esc(r.lab), timeRange(r.times) ? '🕑 ' + esc(timeRange(r.times)) : ''].filter(Boolean).join(' · ');
+    const handM = r.hand ? ((dayObj.manual || {})[r.lab] || {}) : {}, handN = r.hand ? Math.round(+handM.n) || 0 : 0;
+    const handTxt = handN < 0 ? `${fn(-handN)} TAKEN OFF${handM.why ? ' · ' + esc(handM.why) : ''}` : `${handN && handN < r.n ? fn(handN) + ' ' : ''}ADDED MANUALLY${handM.why ? ' · ' + esc(handM.why) : ''}`;
+    const handTag = r.hand ? `<div style="display:flex;align-items:center;gap:6px;margin-top:4px;flex-wrap:wrap"><span style="font-size:10.5px;font-weight:800;letter-spacing:.3px;padding:2px 8px;border-radius:999px;background:var(--brand-soft);color:var(--brand-text)">✎ ${handTxt}</span>${canBill ? `<button data-act="mp-add-del" data-day="${esc(day)}" data-lab="${esc(r.lab)}" aria-label="Undo this change" style="border:none;background:none;color:var(--muted);font:inherit;font-size:11.5px;cursor:pointer;padding:2px 4px;text-decoration:underline">${handM.pair || handN < 0 ? 'undo' : 'remove'}</button>` : ''}</div>` : '';
     return `<tr style="border-top:1px solid var(--line)">
-      <td style="padding:11px 8px 11px 0;vertical-align:top"><div style="display:flex;gap:8px"><span class="${gcls(r.grp)}" style="width:9px;height:9px;border-radius:50%;background:var(--gt);flex:none;margin-top:5px"></span><div style="min-width:0"><div style="font-weight:700;font-size:14.5px;line-height:1.2">${esc(r.prod)}</div><div class="sub" style="font-size:11px;margin:2px 0 0">${meta}</div>${r.per ? `<div class="sub" style="font-size:11px;margin:1px 0 0;font-weight:700">${fn(r.n * r.per)} packs</div>` : ''}${handTag}</div></div></td>
+      <td style="padding:11px 8px 11px 0;vertical-align:top"><div style="display:flex;gap:8px"><span class="${gcls(r.grp)}" style="width:9px;height:9px;border-radius:50%;background:var(--gt);flex:none;margin-top:5px"></span><div style="min-width:0"><div style="font-weight:700;font-size:14.5px;line-height:1.2">${esc(r.prod)}</div><div class="sub" style="font-size:11px;margin:2px 0 0">${meta}</div>${r.per ? `<div class="sub" style="font-size:11px;margin:1px 0 0;font-weight:700">${fn(r.n * r.per)} packs</div>` : ''}${handTag}${canBill && !weekMode && !(S.mpFix && S.mpFix.lab === r.lab && S.mpFix.day === day) ? `<button data-act="mp-fix-open" data-day="${esc(day)}" data-lab="${esc(r.lab)}" style="border:none;background:none;color:var(--brand-text);font:inherit;font-size:12px;font-weight:700;cursor:pointer;padding:4px 0 0">✎ Fix count</button>` : ''}</div></div></td>
       <td style="text-align:right;vertical-align:top;padding:11px 0 0 10px;font-weight:800;font-size:16px">${fn(r.n)}</td>
       ${showStock ? `<td style="text-align:right;vertical-align:top;padding:13px 0 0 10px;color:${r.stock < 0 ? 'var(--bad-text)' : 'var(--muted)'}">${r.stock != null ? fn(r.stock) : '—'}</td>${withCol ? `<td style="text-align:right;vertical-align:top;padding:13px 0 0 10px;font-weight:700;color:${after < 0 ? 'var(--bad-text)' : '#15803d'}">${r.stock != null ? fn(after) : '—'}</td>` : ''}` : ''}
-    </tr>`;
+    </tr>${S.mpFix && S.mpFix.lab === r.lab && S.mpFix.day === day ? `<tr><td colspan="${showStock ? (withCol ? 4 : 3) : 2}" style="padding:0 0 12px">${mpFixPanel(r, day)}</td></tr>` : ''}`;
   }).join('');
   const listRows = `<table style="width:100%;border-collapse:collapse">${listHead}${listBody}</table>`;
   const emptyRow = total > 0
@@ -10138,6 +10167,37 @@ document.addEventListener('click', e => {
     case 'mp-pickopen': S.mpPickFor = d.lab; S.mpQ = ''; S.mpGroup = 'All'; render(); window.scrollTo(0, 0); break;
     case 'mp-pick-cancel': S.mpPickFor = null; S.mpQ = ''; render(); break;
     case 'mp-grp': S.mpGroup = d.g; render(); break;
+    case 'mp-fix-open': S.mpFix = { day: d.day, lab: d.lab, mode: 'move', n: '', to: '', total: '' }; S.mpAdd = null; render(); break;
+    case 'mp-fix-cancel': S.mpFix = null; render(); break;
+    case 'mp-fix-mode': if (S.mpFix) { S.mpFix.mode = d.m; render(); } break;
+    case 'mp-fix-pick': S.mpPickFor = MP_FIX; S.mpQ = ''; S.mpGroup = 'All'; render(); window.scrollTo(0, 0); break;
+    case 'mp-fix-save': {
+      const f = S.mpFix; if (!f) break;
+      const D = printAll().data[f.day] || {}, cur = +((D.labels || {})[f.lab]) || 0, from = mpProdLong(printProd(f.lab)) || f.lab;
+      const man = JSON.parse(JSON.stringify(printManualRaw())); man[f.day] = man[f.day] || {};
+      const stamp = { by: byName(), at: new Date().toISOString().slice(0, 19) };
+      const bump = (lab, delta, extra) => { const p0 = man[f.day][lab] || {}; const n = (+p0.n || 0) + delta; const e = Object.assign({}, p0, extra || {}, stamp, { n }); if (!n) delete man[f.day][lab]; else man[f.day][lab] = e; };
+      if (f.mode === 'set') {
+        const tot = parseInt(f.total, 10); if (!(tot >= 0)) { toast('Enter the right number of boxes.'); break; }
+        if (tot === cur) { S.mpFix = null; render(); break; }
+        bump(f.lab, tot - cur, { why: 'count fixed' });
+        if (!Object.keys(man[f.day]).length) delete man[f.day];
+        mpSaveManual(man); S.mpFix = null; render(); toast(`${from}: now ${fn(tot)} boxes.`);
+      } else {
+        const n = parseInt(f.n, 10);
+        if (!f.to) { toast('Choose the product that was really packed.'); break; }
+        if (!(n > 0)) { toast('Enter how many boxes to move.'); break; }
+        if (n > cur) { toast(`There are only ${fn(cur)} boxes on ${from}.`); break; }
+        const toLab = mpLabelFor(f.to); if (toLab === f.lab) { toast('That is the same product.'); break; }
+        const t = (D.times || {})[f.lab] || {};
+        bump(f.lab, -n, { why: 'moved to ' + mpProdLong(f.to), pair: toLab });
+        const p1 = man[f.day][toLab] || {};
+        bump(toLab, n, { why: 'moved from ' + from, pair: f.lab, s: [p1.s, t.s].filter(Boolean).sort()[0] || '', e: [p1.e, t.e].filter(Boolean).sort().pop() || '' });
+        if (!Object.keys(man[f.day]).length) delete man[f.day];
+        mpSaveManual(man); S.mpFix = null; render(); toast(`${fn(n)} boxes moved from ${from} to ${mpProdLong(f.to)}.`);
+      }
+      break;
+    }
     case 'mp-add-open': S.mpAdd = { day: d.day, key: '', n: '', s: '', e: '' }; render(); break;
     case 'mp-add-cancel': S.mpAdd = null; render(); break;
     case 'mp-add-pick': S.mpPickFor = MP_ADD; S.mpQ = ''; S.mpGroup = 'All'; render(); window.scrollTo(0, 0); break;
@@ -10162,13 +10222,13 @@ document.addEventListener('click', e => {
     }
     case 'mp-add-del': {
       const man = JSON.parse(JSON.stringify(printManualRaw()));
-      if (man[d.day]) { delete man[d.day][d.lab]; if (!Object.keys(man[d.day]).length) delete man[d.day]; }
+      if (man[d.day]) { const pr = (man[d.day][d.lab] || {}).pair; delete man[d.day][d.lab]; if (pr && man[d.day][pr] && man[d.day][pr].pair === d.lab) delete man[d.day][pr]; if (!Object.keys(man[d.day]).length) delete man[d.day]; }
       S.mpManual = man; if (S.mpLive) S.mpLive.manual = man;
       try { SYNC.put('mp', 'manual', man); } catch (e) { }
       render(); toast('Removed the boxes added manually.');
       break;
     }
-    case 'mp-pick': if (S.mpPickFor === MP_ADD && S.mpAdd) { S.mpAdd.key = d.key; S.mpPickFor = null; S.mpQ = ''; render(); break; } { const map = Object.assign({}, printMapRaw()); map[d.lab] = d.key; S.mpMap = map; try { localStorage.setItem('chuster-mpmap-v1', JSON.stringify(map)); } catch (e) { } try { SYNC.put('mp', 'map', map); } catch (e) { } S.mpPickFor = null; S.mpQ = ''; S.mpMapOpen = true; render(); toast('Matched to ' + prodName(d.key)); break; }
+    case 'mp-pick': if (S.mpPickFor === MP_FIX && S.mpFix) { S.mpFix.to = d.key; S.mpPickFor = null; S.mpQ = ''; render(); break; } if (S.mpPickFor === MP_ADD && S.mpAdd) { S.mpAdd.key = d.key; S.mpPickFor = null; S.mpQ = ''; render(); break; } { const map = Object.assign({}, printMapRaw()); map[d.lab] = d.key; S.mpMap = map; try { localStorage.setItem('chuster-mpmap-v1', JSON.stringify(map)); } catch (e) { } try { SYNC.put('mp', 'map', map); } catch (e) { } S.mpPickFor = null; S.mpQ = ''; S.mpMapOpen = true; render(); toast('Matched to ' + prodName(d.key)); break; }
     case 'em-undo': { S.emDone = S.emDone || {}; delete S.emDone[d.id]; try { localStorage.setItem('chuster-em-done-v1', JSON.stringify(S.emDone)); } catch (e) { } render(); break; }
     case 'email-connect': { const addr = String(S.ecDraft || '').trim(); if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(addr)) { toast('Enter a valid email address.'); break; } S.emailConn = S.emailConn || {}; const me = emMe(); const rec = { email: addr, by: byName(), at: nowIso() }; S.emailConn[me] = rec; saveEC(); try { SYNC.put('ec', me, rec); } catch (e) { } S.ecDraft = ''; toast('Email connected — pulling your mail in.'); keep(); break; }
     case 'count-toggle': S.countMode = !S.countMode; if (S.countMode) { S.invFilter = 'allprod'; S.invSel = null; S.invEdit = null; } keep(); break;
@@ -10578,6 +10638,7 @@ document.addEventListener('input', e => {
   if (e.target.id === 'cover-q') { S.coverQ = e.target.value; const pos = e.target.selectionStart; render(); const q = document.getElementById('cover-q'); if (q) { q.focus(); try { q.setSelectionRange(pos, pos); } catch (x) { /* ignore */ } } return; }
   if (e.target.id === 'store-q') { S.storeQ = e.target.value; const sl = document.getElementById('store-list'); if (sl) sl.innerHTML = storeRows(); return; }
   if (/^mpadd-[nse]$/.test(e.target.id || '') && S.mpAdd) { S.mpAdd[e.target.id.slice(6)] = e.target.value; return; }
+  if (/^mpfix-(n|total)$/.test(e.target.id || '') && S.mpFix) { S.mpFix[e.target.id.slice(6)] = e.target.value; return; }
   if (e.target.id === 'mpq') { S.mpQ = e.target.value; const box = document.getElementById('mp-pick-list'); if (box && S.mpPickFor) box.innerHTML = mpPickRows(S.mpPickFor); return; }
   if (e.target.id !== 'add') return;
   S.orderQ = e.target.value;
