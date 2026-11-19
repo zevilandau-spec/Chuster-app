@@ -6,6 +6,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - run: pip install cryptography==43.0.3
+      - name: Helper files online
+        run: echo "::notice::helper-online: $(curl -s https://chuster.netlify.app/mp/helper.ps1 | grep -m1 -o 'HelperVer = .*') setup: $(curl -s https://chuster.netlify.app/mp/helper-setup.ps1 | grep -c 'ONE-TIME setup')"
       - name: Read and decrypt the live 'mp' collection
         env:
           CHUSTER_SECRETS: ${{ secrets.CHUSTER_SECRETS }}
@@ -25,6 +27,9 @@ jobs:
               except Exception as e: print("::warning::could not decrypt", kid, e); continue
               k = d.get('k'); val = d.get('val'); t = rec.get('t')
               if k == 'now': now = val; now_t = t
+              elif k == 'diag':
+                  print(f"::notice::HELPER note at {(val or {}).get('at')}:")
+                  for ln in str((val or {}).get('text','')).splitlines()[:25]: print('::notice::  ' + ln)
               elif k == 'map': mapn = len(val or {})
               elif isinstance(k, str) and len(k) == 10 and k[4] == '-':
                   tot = sum((val or {}).get('labels', {}).values())
