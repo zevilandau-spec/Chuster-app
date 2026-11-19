@@ -2937,6 +2937,9 @@ function drawChrome() {
   const NAV2 = NAV.map(g => Object.assign({}, g, { items: g.items.filter(navOk) })).filter(g => g.items.length);
   const allItems = []; NAV2.forEach(g => g.items.forEach(it => { if (it[0]) allItems.push(it); }));
   if (!Array.isArray(S.navFav)) { let f = null; try { f = JSON.parse(localStorage.getItem('chuster-navfav')); } catch (e) { } S.navFav = (Array.isArray(f) && f.length) ? f : ['home', 'command', 'inbox', 'payments', 'printer', 'inventory'].filter(v => allItems.some(it => it[0] === v)); }
+  // one-time: pin the new Order Tracker to Zevi's favorites so it shows without opening All screens
+  if (isZevi() && !S.navFav.includes('tracker')) { let done = null; try { done = localStorage.getItem('chuster-ot-pinned'); } catch (e) { }
+    if (!done) { S.navFav.push('tracker'); try { localStorage.setItem('chuster-navfav', JSON.stringify(S.navFav)); localStorage.setItem('chuster-ot-pinned', '1'); } catch (e) { } } }
   const isFav = v => S.navFav.includes(v);
   const star = v => `<button type="button" class="nav-star${isFav(v) ? ' on' : ''}" data-navpin="${v}" aria-label="${isFav(v) ? 'Unpin from favorites' : 'Pin to favorites'}" title="${isFav(v) ? 'Unpin' : 'Pin to favorites'}">${isFav(v) ? '★' : '☆'}</button>`;
   const link = ([v, label, icon, count]) => v
