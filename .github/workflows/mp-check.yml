@@ -30,6 +30,17 @@ jobs:
                   tot = sum((val or {}).get('labels', {}).values())
                   days.append((k, tot, val.get('upd',''), t))
           days.sort()
+          full = {}
+          for kid, rec in data.items():
+              try: d = dec(rec)
+              except Exception: continue
+              if isinstance(d.get('k'), str) and d['k'] in [x[0] for x in days[-2:]]: full[d['k']] = d.get('val') or {}
+          for k in sorted(full):
+              v = full[k]; L = v.get('labels', {}); T = v.get('times', {}); O = v.get('order', [])
+              print(f"::notice::--- {k} detail: {len(L)} labels, order={len(O)}, times={len(T)}, upd={v.get('upd')}, manual={bool(v.get('manual'))}")
+              for lab in sorted(L, key=lambda l: ((T.get(l) or {}).get('s') or '99:99').zfill(5)):
+                  t = T.get(lab) or {}
+                  print(f"::notice::{k} | {(t.get('s') or '--'):>5}-{(t.get('e') or '--'):>5} | {L[lab]:>5} | pos {O.index(lab) if lab in O else '-'} | {lab}")
           print("::notice::=== Box-printer feed ===")
           for k, tot, upd, t in days[-5:]:
               print(f"::notice::{k}: {tot} boxes (last box at {upd})")
