@@ -48,7 +48,9 @@ export default async (req) => {
     at: String(nowIn.at || new Date().toISOString()).replace('Z', '').slice(0, 19)
   } : null;
 
-  if (!day && !now) return json({ error: 'Nothing to write (need day+labels or now).' }, 400);
+  // diag: a short health note from the helper on the printer PC (its sender's last log lines). Also proves the PC is online.
+  const diag = typeof body.diag === 'string' && body.diag.trim() ? body.diag.slice(-3500) : null;
+  if (!day && !now && !diag) return json({ error: 'Nothing to write (need day+labels or now).' }, 400);
 
   const key = await keyOf(rawKey);
   const put = async (keyid, k, val) => {
@@ -100,6 +102,7 @@ export default async (req) => {
   try {
     if (day) await put(day.replace(/-/g, ''), day, Object.assign({ d: day, labels, order, times, upd: (now && now.at) || new Date().toISOString().slice(0, 19) }, manual ? { manual } : {}));
     if (now) await put('now', 'now', now);
+    if (diag) await put('diag', 'diag', { at: new Date().toISOString(), text: diag });
   } catch (e) { return json({ error: String(e.message || e) }, 502); }
 
   await fetch(`${DB}/${space}/_t.json`, { method: 'PUT', body: JSON.stringify({ '.sv': 'timestamp' }) }).catch(() => {});
