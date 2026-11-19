@@ -1,68 +1,122 @@
 {
- "date": "2026-11-17",
+ "date": "2026-11-18",
  "on": true,
- "total": 876,
- "packs": 19902,
+ "total": 821,
+ "packs": 23544,
  "items": [
   {
-   "label": "Chus WG Penne.00I",
-   "name": "WG Penne",
-   "boxes": 11,
+   "label": "Chu SD Mix 92.00I",
+   "name": "Chu SD Mix 92.00I",
+   "boxes": 17,
    "packs": 0
   },
   {
-   "label": "Land Kugel.00I",
-   "name": "Kugel",
-   "boxes": 121,
-   "packs": 0
-  },
-  {
-   "label": "Chus Kugel.00I",
-   "name": "Kugel",
-   "boxes": 124,
-   "packs": 0
-  },
-  {
-   "label": "Chus Fine.00I",
-   "name": "Fine",
-   "boxes": 53,
-   "packs": 0
-  },
-  {
-   "label": "Land Fine.00I",
-   "name": "Fine",
+   "label": "Chu Mini Sticks 90 new.00I",
+   "name": "SD Pretzel Mini Sticks 90",
    "boxes": 30,
    "packs": 0
   },
   {
-   "label": "Chus Barley18.00I",
-   "name": "Barley",
-   "boxes": 3,
-   "packs": 18
+   "label": "Chu Mini Sticks 60.00I",
+   "name": "SD Mini Sticks 60",
+   "boxes": 21,
+   "packs": 1260
   },
   {
-   "label": "Chus Egg Barley 18 Yoshon.00I",
-   "name": "Barley",
-   "boxes": 46,
-   "packs": 276
-  },
-  {
-   "label": "Chus Toasted 6x3 Yoshon.00I",
+   "label": "Land Toasted.00I",
    "name": "Toast Barley",
-   "boxes": 58,
-   "packs": 348
+   "boxes": 145,
+   "packs": 0
   },
   {
-   "label": "CHU Flats 72.00I",
-   "name": "Pretzel Flats 72",
-   "boxes": 109,
+   "label": "Chus Toas.00I",
+   "name": "Toast Barley",
+   "boxes": 57,
    "packs": 0
+  },
+  {
+   "label": "Land Garlic Farfel.00I",
+   "name": "Land Garlic Farfel.00I",
+   "boxes": 112,
+   "packs": 0
+  },
+  {
+   "label": "Chu SD Pretzel Nugget 96.00I",
+   "name": "SD Pretzel",
+   "boxes": 27,
+   "packs": 0
+  },
+  {
+   "label": "Chu SD Pretzel Nugget 2x30.00I",
+   "name": "SD Nuggets 60",
+   "boxes": 30,
+   "packs": 0
+  },
+  {
+   "label": "Chu SD Pretzel Nugget 1oz.00I",
+   "name": "SD Pretzel",
+   "boxes": 2,
+   "packs": 0
+  },
+  {
+   "label": "Chu Pretzel Mix 30.00I",
+   "name": "SD Pretzel Mix 60",
+   "boxes": 1,
+   "packs": 60
+  },
+  {
+   "label": "Chu Stix 7x12.00I",
+   "name": "FP SD Mini Sticks",
+   "boxes": 63,
+   "packs": 5292
+  },
+  {
+   "label": "Chu Crunchies 84.00I",
+   "name": "SD Pretzel Crunc",
+   "boxes": 31,
+   "packs": 0
+  },
+  {
+   "label": "Chu Crunchies 6x12.00I",
+   "name": "FP Pretzel Crunc",
+   "boxes": 64,
+   "packs": 4608
   },
   {
    "label": "CHU Flats FP.00I",
    "name": "FP Flat Pretzel 5 Pcks",
-   "boxes": 321,
-   "packs": 19260
+   "boxes": 1,
+   "packs": 60
+  },
+  {
+   "label": "Chus Garlic 24.00I",
+   "name": "Chus Garlic 24.00I",
+   "boxes": 28,
+   "packs": 0
+  },
+  {
+   "label": "Chu Crunchies 60.00I",
+   "name": "SD Crunchies 60",
+   "boxes": 22,
+   "packs": 1320
+  },
+  {
+   "label": "Land Barley.00I",
+   "name": "Barley",
+   "boxes": 56,
+   "packs": 0
+  },
+  {
+   "label": "Chu SD Pretzel Nugget 8x12.00I",
+   "name": "FP SD Pretzel",
+   "boxes": 85,
+   "packs": 8160
+  },
+  {
+   "label": "Chu Pretzel Mix FP.00I",
+   "name": "SD Pretzel Mix 92",
+   "boxes": 29,
+   "packs": 2784
   }
  ]
 }
