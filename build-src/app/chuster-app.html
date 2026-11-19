@@ -906,31 +906,35 @@ body::before { background: var(--bg); }
 @media (prefers-reduced-motion: reduce) { .lx-prog i { transition: none; } }
 
 /* ---------- Order Tracker (ot): spreadsheet grid ---------- */
-.ot-sheet { background: #FFFFFF; border: 1px solid #C9CDD3; border-radius: 8px; overflow: auto; max-height: calc(100vh - 230px); min-height: 280px; }
-.ot-grid { border-collapse: separate; border-spacing: 0; font-size: 13px; width: max-content; min-width: 100%; color: #1F2328; }
-.ot-grid th { position: sticky; top: 0; z-index: 2; background: #F3F4F6; color: #374151; font-size: 12px; font-weight: 700; padding: 4px 6px 6px; border-right: 1px solid #D4D7DC; border-bottom: 1px solid #C9CDD3; text-align: left; vertical-align: bottom; }
+.ot-sheet { background: #FFFFFF; border: 1px solid #C9CDD3; border-radius: 6px; overflow: auto; max-height: calc(100vh - 170px); min-height: 280px; }
+.ot-grid { border-collapse: separate; border-spacing: 0; font-size: 12px; width: max-content; min-width: 100%; color: #1F2328; }
+.ot-grid th { position: sticky; top: 0; z-index: 2; background: #F3F4F6; color: #374151; font-size: 10.5px; font-weight: 700; padding: 2px 4px 3px; line-height: 1.15; border-right: 1px solid #D4D7DC; border-bottom: 1px solid #C9CDD3; text-align: left; vertical-align: bottom; }
 .ot-grid th:has(.ot-h) { padding: 0; }
 .ot-grid th.ot-calc { background: #ECEDEF; }
-.ot-h { all: unset; box-sizing: border-box; display: block; width: 100%; padding: 4px 6px 6px; cursor: pointer; line-height: 1.25; }
-.ot-col { display: block; font-size: 10.5px; font-weight: 600; color: #8A9099; text-align: center; border-bottom: 1px solid #E1E4E8; margin: -4px -6px 4px; padding: 2px 0; }
-.ot-grid td { padding: 0; border-right: 1px solid #E1E4E8; border-bottom: 1px solid #E1E4E8; height: 28px; vertical-align: middle; background: #FFFFFF; }
+.ot-h { all: unset; box-sizing: border-box; display: block; width: 100%; padding: 2px 4px 3px; cursor: pointer; line-height: 1.15; }
+.ot-col { display: block; font-size: 9px; font-weight: 600; color: #9AA0A8; text-align: center; border-bottom: 1px solid #E1E4E8; margin: -2px -4px 2px; padding: 1px 0; }
+.ot-grid td { padding: 0; border-right: 1px solid #E1E4E8; border-bottom: 1px solid #E1E4E8; height: 22px; vertical-align: middle; background: #FFFFFF; }
 .ot-grid .num { text-align: right; font-variant-numeric: tabular-nums; }
-.ot-grid td.ot-rn, .ot-grid th.ot-rn { position: sticky; left: 0; z-index: 1; background: #F3F4F6; color: #6B7280; font-size: 11px; text-align: center; min-width: 40px; width: 40px; border-right: 1px solid #C9CDD3; }
+.ot-grid td.ot-rn, .ot-grid th.ot-rn { position: sticky; left: 0; z-index: 1; background: #F3F4F6; color: #6B7280; font-size: 11px; text-align: center; min-width: 30px; width: 30px; border-right: 1px solid #C9CDD3; }
 .ot-grid th.ot-rn { z-index: 3; }
 .ot-grid tr td.ot-rn:last-child { position: static; }
-.ot-grid td.ot-calc { background: #F6F7F8; color: #4B5563; padding: 0 7px; white-space: nowrap; }
+.ot-grid td.ot-calc { background: #F6F7F8; color: #4B5563; padding: 0 4px; white-space: nowrap; }
 .ot-grid td.ot-ctr { text-align: center; }
 .ot-grid tr.ot-done td:not(.ot-rn) { background: #F1F8F3; color: #6B7280; }
 .ot-grid td.ot-ok { box-shadow: inset 0 0 0 2px #1E7A45; }
-.ot-in { all: unset; box-sizing: border-box; width: 100%; height: 28px; padding: 0 7px; font: 13px var(--font); color: #1F2328; cursor: cell; }
-.ot-in[type=date] { font-size: 12.5px; cursor: text; }
+.ot-grid.ot-fixed { table-layout: fixed; min-width: 0; } .ot-fixed td { overflow: hidden; }
+.ot-in { all: unset; box-sizing: border-box; width: 100%; min-width: 0; height: 22px; padding: 0 4px; font: 12px var(--font); text-overflow: ellipsis; color: #1F2328; cursor: cell; }
+.ot-in::placeholder { color: #C4C8CE; }
 .ot-in:focus { box-shadow: inset 0 0 0 2px #1D6F42; background: #FFFFFF; cursor: text; }
 .ot-in.ot-err { box-shadow: inset 0 0 0 2px #B42318; background: #FEECEB; }
-.ot-grid input[type=checkbox] { width: 18px; height: 18px; accent-color: #1E7A45; margin: 0; vertical-align: middle; }
+.ot-grid input[type=checkbox] { width: 15px; height: 15px; accent-color: #1E7A45; margin: 0; vertical-align: middle; }
 .ot-del { all: unset; cursor: pointer; color: #9CA3AF; font-size: 15px; padding: 0 6px; border-radius: 4px; }
 .ot-del:hover { color: #B42318; background: #FEECEB; } .ot-del.sure { color: #FFFFFF; background: #B42318; font-size: 11px; font-weight: 800; }
-.ot-qb { display: block; font-size: 8.5px; font-weight: 800; color: #1E7A45; line-height: 1; } .ot-qb.off { color: #6B7280; }
-.ot-pk td { padding: 5px 8px; height: auto; } .ot-pk th { white-space: nowrap; }
+.ot-qb { display: block; font-size: 7.5px; font-weight: 800; color: #1E7A45; line-height: 1; } .ot-qb.off { color: #6B7280; }
+.ot-wrap .tiles { gap: 8px; } .ot-wrap .tile { padding: 8px 12px; } .ot-wrap .tile .v { font-size: 20px; } .ot-wrap .chip { min-height: 32px; padding: 0 11px; font-size: 12.5px; }
+.ot-wrap .btn.sm { min-height: 32px; } .ot-wrap .inp { min-height: 34px; padding: 4px 10px; } .ot-bar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.ot-pu { all: unset; cursor: pointer; background: #1E7A45; color: #FFFFFF; font-size: 11px; font-weight: 800; border-radius: 5px; padding: 1px 8px; line-height: 17px; } .ot-pu:hover { background: #17633A; }
+.ot-pk td { padding: 2px 6px; height: 22px; white-space: nowrap; } .ot-pk th { white-space: nowrap; padding: 4px 6px; }
 .ot-pk tr.ot-day td { background: #FFF3D2; color: #6E4300; font-weight: 800; }
 .ot-pk tr.ot-sub td { background: #F3F4F6; font-weight: 800; }
 .ot-pk tr.ot-grand td { background: #21409A; color: #FFFFFF; font-weight: 800; border: none; }
@@ -8837,9 +8841,9 @@ function renderTracker() {
   const tabs = [['pickups', 'Scheduled Pickups'], ['orders', 'Orders'], ['items', 'Items']].map(([k, l]) => `<button class="chip" data-ot="tab" data-v="${k}" aria-pressed="${tab === k}">${l}</button>`).join('');
   const empty = !Object.values(S.ot).some(o => o.src !== 'qb') ? `<section class="card stack"><h2 style="margin:0">Start your tracker</h2><p class="sub" style="margin:0">Load the ${OT_SEED.length} orders read from the CNP Items Order Tracker sheet, or import the whole workbook from Excel (all rows).</p>
     <div class="actions"><button class="btn gold" data-ot="seed">Load ${OT_SEED.length} orders from the sheet</button><button class="btn ghost" data-ot="import">Import from Excel</button></div></section>` : '';
-  return `${head('Order Tracker', 'POs, scheduled pickups, pallets & weight — like the CNP Items Order Tracker sheet', SYNC.pillHtml())}
-  <div class="chips">${tabs}</div>${empty}${tab !== 'items' ? otQBPanel() : ''}
-  ${n || tab === 'items' ? (tab === 'orders' ? otOrdersHtml() : tab === 'items' ? otItemsHtml() : otPickupsHtml()) : ''}`;
+  return `<div class="ot-wrap stack" style="gap:8px">${head('Order Tracker', '', SYNC.pillHtml())}
+  <div class="ot-bar">${tabs}<span style="flex:1"></span>${tab !== 'items' ? otQBPanel() : ''}</div>${empty}
+  ${n || tab === 'items' ? (tab === 'orders' ? otOrdersHtml() : tab === 'items' ? otItemsHtml() : otPickupsHtml()) : ''}</div>`;
 }
 function otPickupsHtml() {
   const IM = otByMpn(), t = otToday(), t7 = isoOf(TODAY + 7);
@@ -8852,28 +8856,28 @@ function otPickupsHtml() {
       html += `<tr class="ot-day"><td colspan="10">${esc(otD(g.date, true))}${tag}</td></tr>`; }
     let w = 0, p = 0, q = 0;
     g.rows.forEach(o => { const c = otCalc(o, IM); w += c.weight; p += c.pallets; q += +o.qty || 0;
-      html += `<tr class="${o.pickedUp ? 'ot-done' : ''}"><td></td><td>${esc(o.pickupNo)}</td><td>${esc(o.loc)}</td><td>${esc(o.carrier)}</td><td>${esc(o.po)}</td><td>${esc(otLabel(o))}</td><td class="num">${otN(c.weight)}</td><td class="num">${otP(c.pallets)}</td><td class="num">${otN(o.qty)}</td><td>${o.pickedUp ? '<span class="tag green">Picked up</span>' : ''}</td></tr>`; });
+      html += `<tr class="${o.pickedUp ? 'ot-done' : ''}"><td></td><td>${esc(o.pickupNo)}</td><td>${esc(o.loc)}</td><td>${esc(o.carrier)}</td><td>${esc(o.po)}</td><td title="${esc(o.mpn || '')}">${esc(o.item)}</td><td class="num">${otN(c.weight)}</td><td class="num">${otP(c.pallets)}</td><td class="num">${otN(o.qty)}</td><td>${o.pickedUp ? '<span class="tag green">Picked up</span>' : ''}</td></tr>`; });
     const open = g.rows.filter(r => !r.pickedUp); if (open.length) { if (g.date < t) late++; else if (g.date <= t7) week++; }
     W += w; P += p; Q += q;
-    html += `<tr class="ot-sub"><td></td><td colspan="5">${esc(g.no || 'No pickup #')} Total</td><td class="num">${otN(w)}</td><td class="num">${otP(p)}</td><td class="num">${otN(q)}</td><td>${open.length ? `<button class="btn good sm" data-ot="picked" data-ids="${esc(open.map(r => r.id).join(','))}">Picked up</button>` : ''}</td></tr>`;
+    html += `<tr class="ot-sub"><td></td><td colspan="5">${esc(g.no || 'No pickup #')} Total</td><td class="num">${otN(w)}</td><td class="num">${otP(p)}</td><td class="num">${otN(q)}</td><td>${open.length ? `<button class="ot-pu" data-ot="picked" data-ids="${esc(open.map(r => r.id).join(','))}">Picked up</button>` : ''}</td></tr>`;
   });
   const unsched = Object.values(S.ot).filter(o => !o.pickedUp && !o.pickupDate).length;
-  return `<div class="tiles">
-    <div class="tile"><div class="k">Pickups shown</div><div class="v">${groups.length}</div></div>
-    <div class="tile"><div class="k">Next 7 days</div><div class="v">${week}</div></div>
-    <div class="tile${late ? ' bad' : ''}"><div class="k">Past due, not picked up</div><div class="v">${late}</div></div>
-    <div class="tile" data-ot="tab" data-v="orders" data-f="nodate" style="cursor:pointer"><div class="k">Open, no pickup date</div><div class="v">${unsched}</div></div></div>
-  <div class="actions"><button class="chip" data-ot="done" aria-pressed="${S.otDone}">Show picked up too</button></div>
+  return `<div class="ot-bar" style="font-size:13px"><span class="tag blue">${groups.length} pickups</span><span class="tag green">${week} in the next 7 days</span>${late ? `<span class="tag red">${late} past due</span>` : ''}
+    <button class="tag gold" data-ot="tab" data-v="orders" data-f="nodate" style="border:none;cursor:pointer">${unsched} open, no pickup date</button><span style="flex:1"></span><button class="chip" data-ot="done" aria-pressed="${S.otDone}">Show picked up too</button></div>
   <div class="ot-sheet">${groups.length ? `<table class="ot-grid ot-pk"><thead><tr><th>Sched. Pickup Date</th><th>Pickup #</th><th>Pickup Loc.</th><th>Carrier</th><th>P.O. #</th><th>Items</th><th class="num">Weight (lbs.)</th><th class="num">Pallets</th><th class="num">Quan.</th><th></th></tr></thead>
     <tbody>${html}<tr class="ot-grand"><td colspan="6">Grand Total</td><td class="num">${otN(W)}</td><td class="num">${otP(P)}</td><td class="num">${otN(Q)}</td><td></td></tr></tbody></table>`
     : '<p class="sub" style="padding:20px;margin:0">No scheduled pickups. Give an order a Sched. Pickup Date on the Orders tab and it shows up here.</p>'}</div>`;
 }
 const OT_COLS = [
-  ['orderDate', 'Order Date', 'date', 118], ['po', 'P.O. #', 'text', 80], ['item', 'Item', 'item', 290], ['qty', 'Quan.', 'num', 72],
-  ['_cs', 'CS per Pallet', 'calc', 70], ['_w', 'Weight', 'calc', 80], ['_p', 'Pallets', 'calc', 64], ['_tot', 'On Order (Total)', 'calc', 84],
-  ['reqPickup', 'Req. Pickup Date', 'date', 118], ['loc', 'Pickup Loc.', 'loc', 108], ['prodDate', 'Sched. Production Date', 'date', 118],
-  ['carrier', 'Carrier', 'carrier', 118], ['pickupDate', 'Sched. Pickup Date', 'date', 118], ['pickupNo', 'Pickup #', 'text', 96],
-  ['_comb', 'Combined', 'calc', 116], ['pickedUp', 'Picked up', 'bool', 66]];
+  ['orderDate', 'Ordered', 'date', 62], ['po', 'P.O. #', 'text', 52], ['item', 'Item', 'item', 180], ['qty', 'Quan.', 'num', 50],
+  ['_cs', 'CS/ Pallet', 'calc', 42], ['_w', 'Weight', 'calc', 54], ['_p', 'Pallets', 'calc', 44], ['_tot', 'On Order', 'calc', 54],
+  ['reqPickup', 'Req. Pickup', 'date', 62], ['loc', 'Pickup Loc.', 'loc', 76], ['prodDate', 'Sched. Prod.', 'date', 62],
+  ['carrier', 'Carrier', 'carrier', 76], ['pickupDate', 'Sched. Pickup', 'date', 62], ['pickupNo', 'Pickup #', 'text', 70],
+  ['_comb', 'Combined', 'calc', 84], ['pickedUp', 'Picked up', 'bool', 40]];
+const otShort = iso => { const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})$/); return m ? `${+m[2]}/${+m[3]}/${m[1].slice(2)}` : (iso || ''); };
+const otParseD = v => { v = String(v || '').trim(); if (!v) return ''; let m = v.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/); if (m) return `${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}`;
+  m = v.match(/^(\d{1,2})[\/.-](\d{1,2})(?:[\/.-](\d{2,4}))?$/); if (!m) return null; const y = m[3] ? (m[3].length === 2 ? '20' + m[3] : m[3]) : String(new Date().getFullYear());
+  const mo = +m[1], d = +m[2]; if (mo < 1 || mo > 12 || d < 1 || d > 31) return null; return `${y}-${String(mo).padStart(2, '0')}-${String(d).padStart(2, '0')}`; };
 function otCalcVal(o, k, IM) { const c = otCalc(o, IM);
   return k === '_cs' ? (c.cs ?? '') : k === '_w' ? otN(c.weight) : k === '_p' ? otP(c.pallets) : k === '_tot' ? (o.pickedUp ? '' : otN(otOnOrder(o) || '')) : k === '_comb' ? otCombined(o, IM) : ''; }
 function otRows() {
@@ -8892,18 +8896,18 @@ function otOrdersHtml() {
     const a = `data-otc="${esc(o.id)}" data-k="${k}" data-r="${r}" data-c="${ci}"`;
     if (t === 'calc') return `<td class="ot-calc${k === '_comb' ? '' : ' num'}" data-otv="${esc(o.id)}" data-k="${k}">${esc(otCalcVal(o, k, IM))}</td>`;
     if (t === 'bool') return `<td class="ot-ctr"><input type="checkbox" ${a} ${o.pickedUp ? 'checked' : ''} aria-label="Picked up"></td>`;
-    if (t === 'date') return `<td><input type="date" class="ot-in" ${a} value="${esc(o[k] || '')}"></td>`;
+    if (t === 'date') return `<td><input size="1" class="ot-in" ${a} data-date="1" value="${esc(otShort(o[k]))}" placeholder="m/d" inputmode="numeric" autocomplete="off"></td>`;
     const list = t === 'item' ? 'ot-dl-items' : t === 'loc' ? 'ot-dl-locs' : t === 'carrier' ? 'ot-dl-car' : '';
-    return `<td><input class="ot-in${t === 'num' ? ' num' : ''}" ${a} value="${esc(t === 'item' ? otLabel(o) : (o[k] ?? ''))}"${list ? ` list="${list}"` : ''}${t === 'num' ? ' inputmode="numeric"' : ''} autocomplete="off"></td>`;
+    return `<td${t === 'item' && o.mpn ? ` title="${esc(o.mpn)}"` : ''}><input size="1" class="ot-in${t === 'num' ? ' num' : ''}" ${a} value="${esc(t === 'item' ? (o.item || '') : (o[k] ?? ''))}"${list ? ` list="${list}"` : ''}${t === 'num' ? ' inputmode="numeric"' : ''} autocomplete="off"></td>`;
   };
   const items = Object.values(otItems()).sort((a, b) => a.name.localeCompare(b.name));
-  return `<div class="actions" style="align-items:center"><input class="inp" id="ot-q" type="search" placeholder="Search P.O., item, pickup #, carrier…" value="${esc(S.otQ)}" style="flex:1 1 240px">
+  return `<div class="ot-bar"><input class="inp" id="ot-q" type="search" placeholder="Search…" value="${esc(S.otQ)}" style="flex:1 1 160px;max-width:260px">
     ${chip('open', 'Open')}${chip('nodate', 'Not scheduled')}${chip('done', 'Picked up')}${chip('all', 'All')}
     <button class="btn ghost sm" data-ot="import">Import from Excel</button><button class="btn gold sm" data-ot="add">+ Add row</button></div>
-  <div class="ot-sheet" id="ot-sheet"><table class="ot-grid"><thead><tr><th class="ot-rn"></th>${OT_COLS.map(([k, h, t, w], i) => `<th style="min-width:${w}px" class="${t === 'calc' ? 'ot-calc' : ''}"><button class="ot-h" data-ot="sort" data-v="${k}"><span class="ot-col">${L[i]}</span>${esc(h)}${S.otSort === k ? (S.otDir > 0 ? ' ▲' : ' ▼') : ''}</button></th>`).join('')}<th class="ot-rn"></th></tr></thead>
+  <div class="ot-sheet" id="ot-sheet"><table class="ot-grid ot-fixed" style="width:${30 * 2 + OT_COLS.reduce((a, c) => a + c[3], 0)}px"><colgroup><col style="width:30px">${OT_COLS.map(c => `<col style="width:${c[3]}px">`).join('')}<col style="width:30px"></colgroup><thead><tr><th class="ot-rn"></th>${OT_COLS.map(([k, h, t, w], i) => `<th style="min-width:${w}px" class="${t === 'calc' ? 'ot-calc' : ''}"><button class="ot-h" data-ot="sort" data-v="${k}"><span class="ot-col">${L[i]}</span>${esc(h)}${S.otSort === k ? (S.otDir > 0 ? ' ▲' : ' ▼') : ''}</button></th>`).join('')}<th class="ot-rn"></th></tr></thead>
   <tbody>${rows.map((o, r) => `<tr class="${o.pickedUp ? 'ot-done' : ''}"><td class="ot-rn"${o.qk ? ` title="${o.qbOpen === false ? 'Received or closed in QuickBooks' : 'Linked to the QuickBooks PO'}"` : ''}>${r + 1}${o.qk ? (o.qbOpen === false ? '<span class="ot-qb off">QB✓</span>' : '<span class="ot-qb">QB</span>') : ''}</td>${OT_COLS.map((c, ci) => cell(o, c, r, ci)).join('')}<td class="ot-rn"><button class="ot-del" data-ot="del" data-id="${esc(o.id)}" aria-label="Delete row" title="Delete row">×</button></td></tr>`).join('')
     || `<tr><td colspan="18" style="padding:20px" class="sub">No orders match.</td></tr>`}</tbody></table></div>
-  <p class="sub" style="margin:0">${rows.length} rows · click a cell and type · Enter moves down, Tab moves right · grey columns work themselves out</p>
+  <p class="sub" style="margin:0;font-size:11.5px">${rows.length} rows · type in any white cell · dates like 11/25 · Enter = down, Tab = right</p>
   <datalist id="ot-dl-items">${items.map(i => `<option value="${esc((i.mpn || '') + ' - ' + i.name)}">`).join('')}</datalist>
   <datalist id="ot-dl-locs">${otLists().locations.map(v => `<option value="${esc(v)}">`).join('')}</datalist>
   <datalist id="ot-dl-car">${otLists().carriers.map(v => `<option value="${esc(v)}">`).join('')}</datalist>`;
@@ -8912,7 +8916,7 @@ function otItemsHtml() {
   const q = S.otIQ.trim().toLowerCase(), all = otItems();
   const open = {}; Object.values(S.ot).forEach(o => { if (!o.pickedUp) { const k = o.mpn || '~' + o.item; open[k] = (open[k] || 0) + (+o.qty || 0); } });
   const rows = Object.entries(all).filter(([, i]) => !q || (i.name + ' ' + i.mpn).toLowerCase().includes(q)).sort((a, b) => a[1].name.localeCompare(b[1].name));
-  const inp = (id, i, k, num) => `<input class="ot-in${num ? ' num' : ''}" data-oti="${esc(id)}" data-k="${k}" value="${esc(i[k] ?? '')}"${num ? ' inputmode="decimal"' : ''}>`;
+  const inp = (id, i, k, num) => `<input size="1" class="ot-in${num ? ' num' : ''}" data-oti="${esc(id)}" data-k="${k}" value="${esc(i[k] ?? '')}"${num ? ' inputmode="decimal"' : ''}>`;
   const L = otLists();
   return `<div class="actions" style="align-items:center"><input class="inp" id="ot-iq" type="search" placeholder="Search items…" value="${esc(S.otIQ)}" style="flex:1 1 240px"><button class="btn gold sm" data-ot="newitem">+ New item</button></div>
   <div class="ot-sheet"><table class="ot-grid"><thead><tr><th class="ot-rn"></th><th style="min-width:270px"><span class="ot-col">A</span>Description</th><th style="min-width:120px" class="ot-calc"><span class="ot-col">B</span>MPN</th><th style="min-width:90px"><span class="ot-col">C</span>CS Per Pallet</th><th style="min-width:100px"><span class="ot-col">D</span>Weight per CS (lbs)</th><th class="ot-calc" style="min-width:100px"><span class="ot-col">E</span>Open on order</th></tr></thead>
@@ -8931,8 +8935,9 @@ function otParseItem(txt) { const norm = s => String(s).toLowerCase().replace(/\
 function otCommit(el) {
   const id = el.dataset.otc, k = el.dataset.k, o = S.ot[id]; if (!o) return; const patch = {};
   if (k === 'pickedUp') patch.pickedUp = el.checked;
-  else if (k === 'item') { const p = otParseItem(el.value); if (!p) { el.classList.add('ot-err'); toast('Pick an item from the list.'); return; } el.classList.remove('ot-err'); if (p.mpn === o.mpn && p.item === o.item) return; Object.assign(patch, p); }
+  else if (k === 'item') { const p = otParseItem(el.value); if (!p) { el.classList.add('ot-err'); toast('Pick an item from the list.'); return; } el.classList.remove('ot-err'); el.value = p.item; el.closest('td').title = p.mpn; if (p.mpn === o.mpn && p.item === o.item) return; Object.assign(patch, p); }
   else if (k === 'qty') { const n = Number(String(el.value).replace(/,/g, '')); if (el.value !== '' && isNaN(n)) { el.classList.add('ot-err'); toast('Quantity must be a number.'); return; } el.classList.remove('ot-err'); if (n === +o.qty) return; patch.qty = el.value === '' ? 0 : n; }
+  else if (el.dataset.date) { const v = otParseD(el.value); if (v === null) { el.classList.add('ot-err'); toast('Type a date like 11/25 or 11/25/26.'); return; } el.classList.remove('ot-err'); el.value = otShort(v); if (v === (o[k] || '')) return; patch[k] = v; }
   else { const v = el.value.trim(); if (v === (o[k] ?? '')) return; patch[k] = v; }
   otPut(id, Object.assign({}, o, patch));
   if (k === 'pickedUp') el.closest('tr').classList.toggle('ot-done', el.checked);
@@ -8998,7 +9003,7 @@ document.addEventListener('input', e => { const t = e.target; if (t.id === 'ot-q
 document.addEventListener('keydown', e => { const t = e.target; if (!t.dataset || !t.dataset.otc) return; const r = +t.dataset.r, c = +t.dataset.c;
   if (e.key === 'Enter') { e.preventDefault(); t.blur(); otMove(r + (e.shiftKey ? -1 : 1), c); }
   else if (e.key === 'ArrowDown' && !t.list) { e.preventDefault(); otMove(r + 1, c); } else if (e.key === 'ArrowUp' && !t.list) { e.preventDefault(); otMove(r - 1, c); }
-  else if (e.key === 'Escape') { const o = S.ot[t.dataset.otc]; if (o && t.dataset.k !== 'pickedUp') { t.value = t.dataset.k === 'item' ? otLabel(o) : String(o[t.dataset.k] ?? ''); t.classList.remove('ot-err'); t.blur(); } } });
+  else if (e.key === 'Escape') { const o = S.ot[t.dataset.otc]; if (o && t.dataset.k !== 'pickedUp') { t.value = t.dataset.k === 'item' ? (o.item || '') : t.dataset.date ? otShort(o[t.dataset.k]) : String(o[t.dataset.k] ?? ''); t.classList.remove('ot-err'); t.blur(); } } });
 
 // ---- QuickBooks open POs → Order Tracker (the office PC sends them every ~30 min as qx/openpo; the nightly build is the fallback)
 S.qxPO = loadLS('chuster-qx', null); S.otMap = loadLS('chuster-otmap', {});
@@ -9050,12 +9055,12 @@ function otMergeQB() {
   if (S.view === 'tracker') { const a = document.activeElement; if (!(a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName))) render(); }
 }
 function otQBPanel() {
-  const { lines, at } = otQBLines(); if (!lines.length) return `<p class="sub" style="margin:0">QuickBooks POs: waiting for the office PC to send them.</p>`;
+  const { lines, at } = otQBLines(); if (!lines.length) return `<span class="sub" style="font-size:12px">QuickBooks: waiting for the office PC</span>`;
   const items = otItems(); const un = lines.filter(l => !otMatch(l, items) && S.otMap[l.full] !== '-');
   const uniq = {}; un.forEach(l => { (uniq[l.full] || (uniq[l.full] = { full: l.full, desc: l.desc, v: l.v, pos: [] })).pos.push(l.num); });
   const opts = Object.entries(items).sort((a, b) => a[1].name.localeCompare(b[1].name)).map(([id, i]) => `<option value="${esc(id)}">${esc(i.name)}${i.mpn ? ' — ' + esc(i.mpn) : ''}</option>`).join('');
   const when = at ? (/T/.test(at) ? new Date(at).toLocaleString('en-US', { month: 'numeric', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : at) : '';
-  return `<details class="card" style="padding:10px 14px"><summary style="cursor:pointer;font-weight:700">QuickBooks POs · updated ${esc(when)} · ${lines.length - un.length} lines on the tracker${Object.keys(uniq).length ? ` · <span style="color:var(--gold-text)">${Object.keys(uniq).length} item${Object.keys(uniq).length > 1 ? "s" : ""} not matched</span>` : ''}</summary>
+  return `<details class="card" style="padding:4px 10px;font-size:12.5px;flex:0 1 auto"><summary style="cursor:pointer;font-weight:700">QuickBooks · ${esc(when)}${Object.keys(uniq).length ? ` · <span style="color:var(--gold-text)">${Object.keys(uniq).length} not matched</span>` : ''}</summary>
     <p class="sub" style="margin:8px 0">New open POs in QuickBooks are added here automatically (about every 30 minutes). Your pickup date, pickup #, carrier and location are never changed; if QuickBooks changes the quantity or expected date, the row follows it.</p>
     ${Object.values(uniq).length ? `<table class="mini-table">${Object.values(uniq).map(u => `<tr><td>${esc(u.full)}${u.desc ? `<div class="sub" style="margin:0;font-size:12px">${esc(u.desc)} · ${esc(u.v)} · PO ${esc(u.pos.join(', '))}</div>` : ''}</td>
       <td><select class="sel" data-otmap="${esc(u.full)}" style="min-width:220px"><option value="">Link to a tracker item…</option>${opts}<option value="-">Not for the tracker</option></select></td></tr>`).join('')}</table>` : ''}</details>`;
