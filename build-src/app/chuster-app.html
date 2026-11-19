@@ -3262,6 +3262,18 @@ function mxTrucks() {
   const rows = DTRUCKS().map((tr, n) => { const L = byT[n] || []; if (!L.length) return null; return { name: tr.name, n: L.length, done: L.filter(done).length, left: L.filter(x => !done(x)).map(x => x.o.c) }; }).filter(Boolean);
   return { date, rows, total: rows.reduce((s, r) => s + r.n, 0), done: rows.reduce((s, r) => s + r.done, 0) };
 }
+// this week (Sunday to today) vs the same week last year, matched by the Hebrew calendar (the week holding the same Hebrew date)
+function mxWeekVsLy() {
+  if (!DLY || !DLY.days) return null;
+  const inv = {}; if (REAL.orders && REAL.orders.list) REAL.orders.list.forEach(o => { if (o.t === 'inv' && o.d) inv[o.d] = (inv[o.d] || 0) + (o.a || 0); });
+  const dly = rd => { const L = DLY.days[isoOf(rd)]; return L ? L.reduce((t, e) => t + (e[1] || 0), 0) : 0; };
+  const wd = dow(TODAY), ws = TODAY - wd, ly = sameDayLastYear(TODAY), lws = ly - dow(ly);
+  if (isoOf(lws) < DLY.from) return null;
+  // the % compares complete days only (Sunday to yesterday), so it's fair at any hour
+  let cur = 0, done = 0; for (let r = ws; r <= TODAY; r++) { const v = Math.max(dly(r), inv[isoOf(r)] || 0); cur += v; if (r < TODAY) done += v; }
+  let same = 0, full = 0; for (let i = 0; i < 7; i++) { const v = dly(lws + i); full += v; if (i < wd) same += v; }
+  return { cur, done, same, full, lws };
+}
 function mxTodayVsLy() {
   if (!DLY || !DLY.days) return null;
   const look = rd => { const iso = isoOf(rd); const has = iso >= DLY.from && iso <= DLY.to; const L = has ? (DLY.days[iso] || []) : null; return { rd, amt: L ? L.reduce((s, e) => s + (e[1] || 0), 0) : 0, n: L ? L.length : 0, has }; };
@@ -3317,6 +3329,7 @@ function renderHomeMix() {
   if (P.boxes) today2.push(`the box printer packed <b>${fn(P.boxes)} boxes</b>`);
   if (today2.length) bits.push('Today ' + today2.join(' and ') + '.');
   // rings
+  const WK = mxWeekVsLy(), weekF = WK && WK.full ? WK.cur / WK.full : 0;
   const monthF = D.oct.prevFull ? D.oct.now / D.oct.prevFull : 0, boxF = P.usual ? P.boxes / P.usual : 0, dlvF = T && T.total ? T.done / T.total : 0;
   const arc = (r, f, col) => { const c = 2 * Math.PI * r, v = Math.max(0, Math.min(1, f)); return `<circle cx="120" cy="120" r="${r}" stroke="${col}" stroke-opacity=".18"/>${v > 0 ? `<circle cx="120" cy="120" r="${r}" stroke="${col}" stroke-dasharray="${(c * v).toFixed(1)} ${c.toFixed(1)}"/>` : ''}`; };
   const mvs = pct(D.oct.now, D.oct.prevSame);
@@ -3390,9 +3403,10 @@ function renderHomeMix() {
     <div class="mx-w s2 r2 pfull">
       <div class="mx-ch">Today</div>
       <div class="mx-rings">
-        <svg viewBox="0 0 240 240" role="img" aria-label="${MN} so far ${Math.round(monthF * 100)}% of all of ${MN} ${PY}; boxes ${Math.round(boxF * 100)}% of a usual day; ${T ? T.done + ' of ' + T.total + ' stops delivered' : 'no deliveries'}"><g transform="rotate(-90 120 120)" fill="none" stroke-linecap="round" stroke-width="26">${arc(104, monthF, 'var(--mx-gold)')}${arc(74, boxF, 'var(--mx-blue)')}${arc(44, dlvF, 'var(--mx-green)')}</g></svg>
+        <svg viewBox="0 0 240 240" role="img" aria-label="${MN} so far ${Math.round(monthF * 100)}% of all of ${MN} ${PY}; this week ${Math.round(weekF * 100)}% of the same week last year; boxes ${Math.round(boxF * 100)}% of a usual day; ${T ? T.done + ' of ' + T.total + ' stops delivered' : 'no deliveries'}"><g transform="rotate(-90 120 120)" fill="none" stroke-linecap="round" stroke-width="20">${arc(108, monthF, 'var(--mx-gold)')}${arc(84, weekF, 'var(--mx-purple)')}${arc(60, boxF, 'var(--mx-blue)')}${arc(36, dlvF, 'var(--mx-green)')}</g></svg>
         <div class="mx-lg">
           <div class="it"><div class="k" style="color:var(--mx-gold)">${MN} so far</div><div class="v">${fm(D.oct.now)}<small> / ${fm(D.oct.prevFull)}</small></div><div class="mx-mut" style="margin:0">all of ${MN} ${PY} · ${mxDiff(mvs)} vs same days</div></div>
+          ${WK ? `<div class="it"><div class="k" style="color:var(--mx-purple)">This week</div><div class="v">${fm(WK.cur)}<small> / ${fm(WK.full)}</small></div><div class="mx-mut" style="margin:0">same week last year${WK.same && WK.done ? ` · ${mxDiff(pct(WK.done, WK.same))} through ${WD[dow(TODAY - 1)]}` : ''}</div></div>` : ''}
           <div class="it"><div class="k" style="color:var(--mx-blue)">Boxes packed</div><div class="v">${fn(P.boxes)}${P.usual ? `<small> / ${fn(P.usual)} usual</small>` : ''}</div></div>
           <div class="it"><div class="k" style="color:var(--mx-green)">Delivered</div><div class="v">${T && T.total ? `${T.done}<small> / ${T.total} stops</small>` : '<small>No stops today</small>'}</div>${T && T.total && T.date !== isoOf(TODAY) ? `<div class="mx-mut" style="margin:0">${fmtShort(isoRd(T.date))}</div>` : ''}</div>
         </div>
