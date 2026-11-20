@@ -1,0 +1,75 @@
+{
+ "date": "2026-11-20",
+ "generatedAt": "2026-11-20T13:51:38.380819+00:00",
+ "production": {
+  "total": 0,
+  "packs": 0,
+  "items": [],
+  "on": true
+ },
+ "sales": {
+  "invoices": 0,
+  "net": 0.0,
+  "tax": 0.0,
+  "total": 0.0,
+  "byArea": [],
+  "topCustomers": []
+ },
+ "deliveries": {
+  "trucks": [],
+  "totals": {
+   "delivered": 0,
+   "notDelivered": 0
+  }
+ },
+ "coverage": {
+  "label": "Williamsburg",
+  "repCodes": [
+   "MH",
+   "MHC"
+  ],
+  "total": 37,
+  "covered": 0,
+  "notCovered": 37,
+  "notCoveredStores": [
+   "All Fresh Williamsburg Supermarket",
+   "Bedford Garden Supermarket",
+   "Central Market",
+   "Chestnut Grocery",
+   "Coconut Kosher Supermarket",
+   "Food Expo Supermarket",
+   "Food pyramid",
+   "Foodoo",
+   "Frankels Kosher Market",
+   "Goldberger's Grocery Wilson",
+   "Greenfresh Kosher Supermarket",
+   "Hatzlacha Williamsburg Supermarket",
+   "K Corner",
+   "Kahan's Foodmart",
+   "Klein Grocery",
+   "Landau's Bedford Supermarket",
+   "Lee Gardens Supermarket Inc",
+   "Lefkowitz Supermarket Lee",
+   "Meitiv Williamsburg",
+   "Mini Market Plus Inc",
+   "Myrtle Plaza Grocery Inc",
+   "NITRA GROCERY",
+   "One Stop Kosher Supermarket",
+   "Quality Fresh Market",
+   "Rosemary Kosher",
+   "Rosenfeld Penn",
+   "Schwartz Kosher Supermarket",
+   "Shopron Williamsburg",
+   "Skillmart",
+   "Southside Food Plaza",
+   "Spot Williamsburg",
+   "Straus",
+   "The Corner Lee",
+   "The Pantry Kosher",
+   "The Vendors",
+   "The Yellow Basket",
+   "W Fresh"
+  ],
+  "coveredStores": []
+ }
+}
