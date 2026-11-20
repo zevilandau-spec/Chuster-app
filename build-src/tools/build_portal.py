@@ -7,7 +7,9 @@ Each store's link is  https://chuster.netlify.app/c/#<id>.<key>
 The payload has no build date, and the IV comes from the content, so a store's file only changes when its
 numbers change (keeps the repo small). Days late, aging and "this year vs last year" are worked out in the page.
 """
-import base64, collections, glob, hashlib, hmac, json, os, re, sys
+import base64, collections, datetime as dt, glob, hashlib, hmac, json, os, re, sys
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import heb
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 RAW, DATA, SYNC, OUT = sys.argv[1:5]
@@ -44,6 +46,39 @@ def skip_line(full):
 
 
 top = lambda c: str(c or '').split(':')[0].strip()
+
+# ---- settings (news, order cutoff, salesmen's WhatsApp) ----
+CFGP = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'portal.json')
+PC = json.load(open(CFGP, encoding='utf-8')) if os.path.exists(CFGP) else {}
+REPN = D.get('repNames') or {}
+
+# ---- Yom Tov dates: the next 12 months, and the same Yom Tov last year ----
+TODAY = dt.date.fromisoformat(AS_OF) if AS_OF else dt.date.today()
+YT = [  # key, name, hebrew month, day, days it runs, closed (no delivery), days before to look at last year
+    ('ch', 'Chanukah', 9, 25, 8, False, 21), ('pu', 'Purim', 'adar', 14, 1, False, 14), ('pe', 'Pesach', 1, 15, 8, True, 30),
+    ('sh', 'Shavuos', 3, 6, 2, True, 14), ('rh', 'Rosh Hashana', 7, 1, 2, True, 21), ('su', 'Sukkos', 7, 15, 9, True, 21)]
+
+
+def yt_date(m, d, hy):
+    if m == 'adar':
+        m = heb.last_month(hy)
+    return dt.date.fromordinal(heb.to_abs(m, d, hy))
+
+
+def yt_upcoming():
+    hy = heb.from_abs(TODAY.toordinal())[2]
+    out = []
+    for y in (hy, hy + 1):
+        for k, nm, m, d, ln, closed, back in YT:
+            g = yt_date(m, d, y)
+            if g + dt.timedelta(days=ln - 1) >= TODAY and g <= TODAY + dt.timedelta(days=365):
+                prev = yt_date(m, d, y - 1)
+                out.append({'k': k, 'h': nm, 'd': g.isoformat(), 'n': ln, 'x': closed, 'back': back, 'ly': prev.isoformat()})
+    return sorted(out, key=lambda r: r['d'])
+
+
+UPC = yt_upcoming()
+NEXT_YT = next((u for u in UPC if (dt.date.fromisoformat(u['d']) - TODAY).days <= 60), None)
 tx = collections.defaultdict(list)    # store -> [kind, date, num, total, lines]
 for kind, pre in (('i', 'inv'), ('c', 'cm'), ('r', 'sr')):
     for t in sets(pre):
@@ -82,7 +117,19 @@ for c in D.get('customers', []):
         'b': round(c.get('balance') or 0, 2),
         'o': [[o.get('date', ''), str(o.get('num', '')), o.get('due', ''), round(o.get('amt') or 0, 2)] for o in (c.get('open') or [])],
         'it': items, 'tx': T2, 'p': sorted(pays.get(name, [])),
+        'r': [c.get('rep') or '', REPN.get(c.get('rep') or '', '')],
     }
+    if NEXT_YT:   # what this store bought for the same Yom Tov last year
+        a = (dt.date.fromisoformat(NEXT_YT['ly']) - dt.timedelta(days=NEXT_YT['back'])).isoformat()
+        b = (dt.date.fromisoformat(NEXT_YT['ly']) + dt.timedelta(days=NEXT_YT['n'] - 1)).isoformat()
+        got = collections.Counter()
+        for k, d, n, tot, L in T2:
+            if a <= d <= b and k in ('i', 'c'):
+                for i, q, amt in L:
+                    got[i] += q if k == 'i' else -abs(q)
+        its = [[i, round(q)] for i, q in got.most_common() if q >= 1][:10]
+        if its:
+            payload['yt'] = {'k': NEXT_YT['k'], 'h': NEXT_YT['h'], 'd': NEXT_YT['d'], 'from': a, 'to': b, 'items': its}
     raw = json.dumps(payload, separators=(',', ':'), ensure_ascii=False, sort_keys=True).encode('utf-8')
     v = '1'
     fid = b64u(hmac.new(PS, ('id|' + v + '|' + name).encode(), hashlib.sha256).digest())[:22]
@@ -94,5 +141,10 @@ for c in D.get('customers', []):
     if old != body:
         open(path, 'w').write(body)
     made += 1
-json.dump({'asOf': AS_OF}, open(os.path.join(OUT, 'meta.json'), 'w'))
+# one shared file for every store: news, order cutoff, Yom Tov dates, products (names and case sizes only, no prices)
+CAT = [[c.get('full'), c.get('name') or '', c.get('pack') or '', c.get('group') or '', c.get('code') or ''] for c in D.get('catalog', []) if c.get('full') and not c.get('off')]
+info = {'asOf': AS_OF, 'news': PC.get('news'), 'cutoff': PC.get('cutoff', ''), 'office': PC.get('office', {}), 'kosher': PC.get('kosher', ''),
+        'reps': PC.get('reps', {}), 'closed': PC.get('closedDays', [6]), 'yt': [{k: u[k] for k in ('k', 'h', 'd', 'n', 'x')} for u in UPC],
+        'cat': [[nice(f)[0], nice(f)[1], g, code] for f, n, p, g, code in CAT]}
+json.dump(info, open(os.path.join(OUT, 'meta.json'), 'w'), ensure_ascii=False, separators=(',', ':'))
 print(f'portals: {made} stores (history from {Y0})')

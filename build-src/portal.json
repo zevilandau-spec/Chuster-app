@@ -1,0 +1,25 @@
+{
+  "_note": "Settings for the customer portal. Change the text here and the next nightly build puts it on every store's page.",
+  "news": {
+    "title": "Chanukah is coming",
+    "text": "Book your Chanukah order early. The trucks fill up the week before.",
+    "date": "2026-11-18"
+  },
+  "cutoff": "Order by 3 PM for next-day delivery.",
+  "office": {
+    "phone": "718-399-2864",
+    "whatsapp": "17183992864",
+    "email": "Chusternoodle@gmail.com"
+  },
+  "reps": {
+    "MH": {
+      "name": "Mordche Hersh",
+      "whatsapp": "",
+      "phone": ""
+    }
+  },
+  "kosher": "Under strict rabbinical supervision. Ask us for the certificate.",
+  "closedDays": [
+    6
+  ]
+}

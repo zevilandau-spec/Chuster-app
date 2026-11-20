@@ -34,7 +34,10 @@ jobs:
           import base64, hashlib, hmac, json
           cfg = json.load(open('sync.json')); PS = hmac.new(base64.b64decode(cfg['key']), b'chuster-portal-v1', hashlib.sha256).digest()
           b64u = lambda b: base64.urlsafe_b64encode(b).decode().rstrip('=')
-          name = 'Schreiber Cataring'
+          D = json.load(open('build/data.json'))
+          mh = sorted([c for c in D['customers'] if c.get('rep') == 'MH' and (c.get('ytd') or 0) > 0], key=lambda c: -(c.get('ytd') or 0))
+          name = mh[min(4, len(mh) - 1)]['name'] if mh else 'Schreiber Cataring'
+          print('preview store:', name)
           fid = b64u(hmac.new(PS, ('id|1|' + name).encode(), hashlib.sha256).digest())[:22]; key = b64u(hmac.new(PS, ('key|1|' + name).encode(), hashlib.sha256).digest())
           open('/tmp/link.txt', 'w').write(fid + '.' + key)
           PY
@@ -48,15 +51,21 @@ jobs:
           const { chromium } = require('playwright'); const fs = require('fs');
           (async () => { const b = await chromium.launch(); const link = fs.readFileSync('/tmp/link.txt', 'utf8').trim(); const errs = [];
             const p = await (await b.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true })).newPage(); p.on('pageerror', e => errs.push(String(e)));
-            p.on('console', m => errs.push('console: ' + m.text())); p.on('requestfailed', r => errs.push('failed: ' + r.url()));
-            await p.goto('http://localhost:8088/c/#' + link); await p.waitForTimeout(2500);
-            await p.screenshot({ path: '/tmp/out/p1-statement.png', fullPage: true });
-            console.log('TEXT', (await p.evaluate(() => document.body.innerText)).slice(0, 400).replace(/\n/g, ' | '), 'ERR', errs.join(' | '));
-            await p.click('[data-tab=iv]'); await p.waitForTimeout(500); await p.screenshot({ path: '/tmp/out/p2-invoices.png', fullPage: true });
-            await p.locator('[data-inv]').first().click(); await p.waitForTimeout(500); await p.screenshot({ path: '/tmp/out/p3-invoice.png' });
-            await p.reload(); await p.waitForTimeout(2000); await p.click('[data-tab=by]'); await p.waitForTimeout(500); await p.screenshot({ path: '/tmp/out/p4-buying.png', fullPage: true });
-            const d = await (await b.newContext({ viewport: { width: 1200, height: 900 }, deviceScaleFactor: 1 })).newPage(); await d.goto('http://localhost:8088/c/#' + link); await d.waitForTimeout(2000); await d.screenshot({ path: '/tmp/out/p5-desktop.png', fullPage: true });
-            const bad = await (await b.newContext({ viewport: { width: 390, height: 700 } })).newPage(); await bad.goto('http://localhost:8088/c/#AAAAAAAAAAAAAAAAAAAAAA.BBBB'); await bad.waitForTimeout(1500); await bad.screenshot({ path: '/tmp/out/p6-badlink.png' });
+            p.on('console', m => m.type() === 'error' && errs.push('console: ' + m.text())); p.on('requestfailed', r => errs.push('failed: ' + r.url()));
+            const W = t => p.waitForTimeout(t || 400), tall = h => p.setViewportSize({ width: 390, height: h || 844 });
+            const shot = async (f, full) => { await W(); await p.screenshot({ path: '/tmp/out/' + f + '.png', fullPage: !!full }); };
+            await p.goto('http://localhost:8088/c/?demo#' + link); await W(2500);
+            await shot('01-home', true);
+            await p.click('[data-tab=order]'); await shot('02-order', true);
+            await p.click('[data-act=yt-fill]').catch(() => p.click('[data-act=again]')); await p.evaluate(() => window.scrollTo(0, 0)); await shot('03-order-filled');
+            await tall(1100); await p.locator('[data-prod]').first().click(); await shot('04-product'); await p.click('[data-act=close-btn]');
+            await p.click('[data-act=review]'); await shot('05-review'); await p.click('[data-act=send-order]'); await shot('06-sent'); await p.click('[data-act=close-btn]');
+            await tall(); await p.click('[data-tab=acct]'); await shot('07-account', true);
+            await tall(1100); await p.click('.acard [data-act=pay]'); await p.click('[data-act=pay-go]'); await shot('08-pay'); await p.click('[data-act=close-btn]');
+            await tall(1300); await p.click('.acard [data-act=credit]'); await shot('09-credit'); await p.click('[data-act=close-btn]');
+            await tall(1100); await p.click('.acard [data-act=year]'); await shot('10-year'); await p.click('[data-act=close-btn]');
+            await tall(); await p.click('[data-tab=buy]'); await shot('11-buying', true);
+            const d = await (await b.newContext({ viewport: { width: 1200, height: 900 }, deviceScaleFactor: 1 })).newPage(); await d.goto('http://localhost:8088/c/?demo#' + link); await d.waitForTimeout(2000); await d.screenshot({ path: '/tmp/out/12-desktop.png', fullPage: true });
             console.log('errors', errs.join(' | ') || 'none'); await b.close(); })();
           JS
           mkdir -p /tmp/out && ls /tmp/site/c | head && test -f /tmp/site/c/d/$(cut -d. -f1 /tmp/link.txt).json && echo FILE-OK; node /tmp/shot.js || true
