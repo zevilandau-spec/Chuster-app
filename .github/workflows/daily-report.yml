@@ -23,9 +23,9 @@ jobs:
           CHUSTER_SECRETS: ${{ secrets.CHUSTER_SECRETS }}
           CHUSTER_DB_URL: ${{ secrets.CHUSTER_DB_URL }}
           IN_DATE: ${{ github.event.inputs.date }}
-          # --- Williamsburg coverage config ---
-          WILLI_AREA_MATCH: "willi"          # area label substring (case-insensitive) that means Williamsburg
-          WILLI_REP_CODES: "MH,MHC"          # salesman rep code(s) whose stores to check
+          # --- salesman coverage config ---
+          SALES_REP_CODES: "MH,MHC"          # the route salesman's QuickBooks rep code(s)
+          EXCLUDE_AREAS: "Wholesale,Catering,Other,Referral,Country"  # not door-to-door neighborhoods
         run: |
           set -e
           python3 - <<'PY'
@@ -223,25 +223,18 @@ jobs:
           print(f"::notice::DELIVERIES {dl['totals']['delivered']} delivered, {dl['totals']['notDelivered']} not")
 
           # ======================================================================
-          # 4) WILLIAMSBURG COVERAGE  (salesman's Willi stores not covered today)
+          # 4) SALESMAN COVERAGE  (areas he worked today -> stores he missed there)
           # ======================================================================
-          # ---- diagnostics: areas + rep codes, so config can be verified ----
-          from collections import Counter
+          from collections import Counter, defaultdict
           area_ct = Counter(v['area'] for v in cust.values())
           rep_ct = Counter(v['rep'] for v in cust.values())
           print("::notice::AREAS " + ", ".join(f"{a}={n}" for a, n in area_ct.most_common(30)))
           print("::notice::REPS " + ", ".join(f"{r}={n}" for r, n in rep_ct.most_common(30)))
 
-          area_match = (os.environ.get('WILLI_AREA_MATCH') or 'willi').lower()
-          codes = [c.strip() for c in (os.environ.get('WILLI_REP_CODES') or '').split(',') if c.strip()]
-          is_willi = lambda a: area_match in (a or '').lower()
-          willi_all = {n for n, v in cust.items() if is_willi(v['area'])}
-          print(f"::notice::WILLI area '{area_match}' matches {len(willi_all)} stores | rep filter {codes}")
-          # williamsburg stores grouped by rep (to confirm which rep code is the salesman's)
-          wrep = Counter(cust[n]['rep'] for n in willi_all)
-          print("::notice::WILLI-by-rep " + ", ".join(f"{r}={n}" for r, n in wrep.most_common(20)))
+          codes = [c.strip() for c in (os.environ.get('SALES_REP_CODES') or '').split(',') if c.strip()]
+          exclude = {a.strip().lower() for a in (os.environ.get('EXCLUDE_AREAS') or '').split(',') if a.strip()}
 
-          # invoices dated today, by customer (an order today = covered)
+          # covered today = the store placed an order today OR was marked visited today
           ordered_today = set()
           for o in invs:
               if isinstance(o, dict) and o.get('c') and (o.get('d') or '')[:10] == target:
@@ -251,20 +244,32 @@ jobs:
               v = vn.get(name) or {}
               return isinstance(v, dict) and (v.get('visited') or '')[:10] == target
 
-          mine = [n for n in willi_all if (not codes or cust[n]['rep'] in codes) and cust[n].get('active', True)]
-          covered = []; notcov = []
-          for n in sorted(mine):
+          # the salesman's active stores, grouped by neighborhood
+          areas_cov = defaultdict(lambda: {'covered': [], 'notcov': []})
+          for n, v in cust.items():
+              if codes and v['rep'] not in codes: continue
+              if not v.get('active', True): continue
+              if (v['area'] or '').lower() in exclude: continue
               how = []
               if n in ordered_today: how.append('order')
               if visited_today(n): how.append('visit')
-              (covered if how else notcov).append({'name': n, 'how': how, 'rep': cust[n]['rep'], 'area': cust[n]['area']})
-          report['coverage'] = {
-              'label': 'Williamsburg', 'repCodes': codes,
-              'total': len(mine), 'covered': len(covered), 'notCovered': len(notcov),
-              'notCoveredStores': [x['name'] for x in notcov],
-              'coveredStores': [{'name': x['name'], 'how': x['how']} for x in covered],
-          }
-          print(f"::notice::COVERAGE Williamsburg {len(covered)}/{len(mine)} covered; NOT covered: " + (", ".join(report['coverage']['notCoveredStores']) or 'none'))
+              (areas_cov[v['area']]['covered'] if how else areas_cov[v['area']]['notcov']).append({'name': n, 'how': how})
+          # he "worked" an area today if at least one of his stores there was covered
+          worked = []
+          for a, dct in areas_cov.items():
+              if not dct['covered']: continue
+              tot = len(dct['covered']) + len(dct['notcov'])
+              worked.append({
+                  'area': a, 'covered': len(dct['covered']), 'total': tot,
+                  'notCovered': sorted(x['name'] for x in dct['notcov']),
+                  'coveredStores': sorted(x['name'] for x in dct['covered']),
+              })
+          worked.sort(key=lambda x: -x['covered'])
+          report['coverage'] = {'repCodes': codes, 'workedToday': bool(worked), 'areas': worked}
+          for w in worked:
+              print(f"::notice::COVERAGE {w['area']}: {w['covered']}/{w['total']} covered; missed: " + (", ".join(w['notCovered']) or 'none'))
+          if not worked:
+              print("::notice::COVERAGE no areas worked today (no orders/visits from the salesman's stores)")
 
           os.makedirs('reports', exist_ok=True)
           json.dump(report, open('reports/daily-report.json', 'w'), indent=1)

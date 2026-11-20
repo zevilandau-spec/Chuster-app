@@ -21,11 +21,15 @@ cov = R.get('coverage', {}) or {}
 dtot = deliv.get('totals', {}) or {}
 dl_done, dl_not = dtot.get('delivered', 0), dtot.get('notDelivered', 0)
 dl_all = dl_done + dl_not
+cov_areas = cov.get('areas', []) or []
+c_miss = sum(len(w['notCovered']) for w in cov_areas)
+c_cov = sum(w['covered'] for w in cov_areas)
+c_tot = sum(w['total'] for w in cov_areas)
 tiles = [
     ('#C2410C', money(sales.get('total', 0)), 'sales today', f"{sales.get('invoices',0)} invoices"),
     ('#0F766E', num(prod.get('total', 0)), 'boxes made', f"{num(prod.get('packs',0))} packs"),
     ('#1D4ED8', f"{dl_done}/{dl_all}", 'deliveries', f"{dl_not} not yet"),
-    ('#7C3AED', f"{cov.get('covered',0)}/{cov.get('total',0)}", 'Williamsburg', 'stores covered'),
+    ('#7C3AED', (f"{c_cov}/{c_tot}" if cov_areas else '—'), 'coverage', (f"{c_miss} missed" if cov_areas else 'no route today')),
 ]
 tiles_html = ''.join(f'''<td style="width:25%;padding:0 5px;" valign="top">
   <div style="background:#F8FAFC;border:1px solid #E7E9EE;border-radius:12px;padding:12px 8px;text-align:center;">
@@ -99,21 +103,27 @@ trucks = deliv.get('trucks', []) or []
 deliv_block = section_head('Deliveries', f"{dl_done} delivered · {dl_not} not yet") + f'''
 <tr><td style="padding:2px 22px 6px;">{''.join(truck_card(t) for t in trucks) if trucks else '<p style="margin:6px 0;font-size:13px;color:#94A3B8;">No delivery stops today.</p>'}</td></tr>'''
 
-# ---------- WILLIAMSBURG COVERAGE ----------
-ncov = cov.get('notCoveredStores', []) or []
-covered_n, total_n = cov.get('covered', 0), cov.get('total', 0)
-if covered_n > 0:
-    cov_sub = f"{covered_n} of {total_n} covered · {len(ncov)} missed"
-    if ncov:
-        lis = ''.join(f'<li style="margin:2px 0;">{s}</li>' for s in ncov)
-        cov_body = f'''<p style="margin:0 0 6px;font-size:13px;color:#374151;">Stores not covered today:</p>
-          <ul style="margin:0;padding-left:20px;font-size:13px;color:#1F2430;">{lis}</ul>'''
-    else:
-        cov_body = '<p style="margin:0;font-size:13px;color:#16A34A;font-weight:600;">Every Williamsburg store covered today 🎉</p>'
+# ---------- SALESMAN COVERAGE (areas worked today -> stores missed) ----------
+if cov_areas:
+    cov_sub = 'worked ' + ', '.join(w['area'] for w in cov_areas)
+    blocks = ''
+    for w in cov_areas:
+        missed = w['notCovered']
+        if missed:
+            lis = ''.join(f'<li style="margin:2px 0;">{s}</li>' for s in missed)
+            body = f'''<p style="margin:5px 0 3px;font-size:12.5px;color:#B91C1C;">Not covered ({len(missed)}):</p>
+              <ul style="margin:0 0 4px;padding-left:20px;font-size:13px;color:#1F2430;">{lis}</ul>'''
+        else:
+            body = '<p style="margin:5px 0 4px;font-size:13px;color:#16A34A;font-weight:600;">Every store covered 🎉</p>'
+        blocks += f'''<div style="border-top:1px solid #F1F2F5;padding:8px 0 2px;">
+          <div style="font-weight:700;font-size:14px;color:#1F2430;">{w['area']}
+            <span style="font-weight:600;color:#94A3B8;font-size:12.5px;">· {w['covered']} of {w['total']} covered</span></div>
+          {body}</div>'''
+    cov_body = blocks
 else:
-    cov_sub = 'not worked today'
-    cov_body = f'''<p style="margin:0;font-size:13px;color:#6B7280;">No Williamsburg orders or visits were logged today, so none of the {total_n} stores show as covered.</p>'''
-cov_block = section_head('Williamsburg coverage', cov_sub) + f'''
+    cov_sub = 'no route today'
+    cov_body = '<p style="margin:0;font-size:13px;color:#6B7280;">No orders or visits from the salesman’s stores today, so no neighborhood shows as worked.</p>'
+cov_block = section_head('Salesman coverage', cov_sub) + f'''
 <tr><td style="padding:4px 22px 14px;">{cov_body}</td></tr>'''
 
 HTML = f'''<!doctype html><html><head><meta charset="utf-8"></head>
