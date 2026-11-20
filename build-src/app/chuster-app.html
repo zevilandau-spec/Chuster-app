@@ -930,6 +930,7 @@ body::before { background: var(--bg); }
 .ot-grid input[type=checkbox] { width: 15px; height: 15px; accent-color: #1E7A45; margin: 0; vertical-align: middle; }
 .ot-del { all: unset; cursor: pointer; color: #9CA3AF; font-size: 15px; padding: 0 6px; border-radius: 4px; }
 .ot-del:hover { color: #B42318; background: #FEECEB; } .ot-del.sure { color: #FFFFFF; background: #B42318; font-size: 11px; font-weight: 800; }
+.ot-grid td.ot-ack-ok { color: #1E6B3A; font-weight: 700; } .ot-grid td.ot-ack-bad { color: #B42318; background: #FEECEB; font-weight: 800; }
 .ot-qb { display: block; font-size: 7.5px; font-weight: 800; color: #1E7A45; line-height: 1; } .ot-qb.off { color: #6B7280; }
 .ot-wrap .tiles { gap: 8px; } .ot-wrap .tile { padding: 8px 12px; } .ot-wrap .tile .v { font-size: 20px; } .ot-wrap .chip { min-height: 32px; padding: 0 11px; font-size: 12.5px; }
 .ot-wrap .btn.sm { min-height: 32px; } .ot-wrap .inp { min-height: 34px; padding: 4px 10px; } .ot-bar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
@@ -2152,6 +2153,7 @@ function renderSalesReport() {
 
 // What's new — a running list of what shipped, newest first. r: role that sees it (Owner-only if set).
 const CHANGELOG = [
+  { d: '2026-11-20', t: 'Winland acknowledgements in the Order Tracker', b: "When Winland emails an Order Acknowledgment, the tracker fills the new Winland Ack column by itself (within the hour): \u2713 with their sales order # when their pickup date and quantity match yours, or a red \u26a0 showing what's different. Hover for the details." },
   { d: '2026-11-19', t: 'Received in QuickBooks = picked up', b: "Order Tracker rows whose PO is received (or closed) in QuickBooks are now marked picked up by themselves (grey QB\u2713 mark), and item names like WEGE Sourdough or Mini Tortilla Chips now match the tracker's items." },
   { d: '2026-11-19', t: 'Order Tracker follows QuickBooks', b: "New purchase orders you make in QuickBooks now appear in the Order Tracker by themselves (about every 30 minutes) for the items on its list. Your pickup date, pickup #, carrier and location stay as you typed them; if QuickBooks changes a PO's quantity or expected date, the row follows. Rows from QuickBooks show a small QB mark." },
   { d: '2026-11-18', t: 'Order Tracker', b: "The CNP Items Order Tracker sheet now lives in the app (menu \u2192 Deliveries \u2192 Order Tracker, or the Command center tile): an Excel-style Orders grid you type straight into, Scheduled Pickups grouped by date and pickup # with totals, and the Items list. Weight, pallets, on-order totals and \u201cCombined\u201d work themselves out, and it\u2019s shared live like the rest of the app. Import from Excel loads every row of the workbook." },
@@ -8434,7 +8436,7 @@ const SYNC = (function () {
     if (!viaApp && onNetlify && e && e.name === 'TypeError') { viaApp = true; try { localStorage.setItem('chuster-db-via-app', '1'); } catch (x) { /* ignore */ } setTimeout(() => tick(), 500); }
   }
   const st = { ok: null, err: '', last: 0, since: loadLS('chuster-sync-since', {}), out: loadLS('chuster-sync-out', {}), seen: {}, key: null, flushing: false, pulling: false, started: false };
-  const COLLS = ['gc', 'ds', 'rd', 'll', 'do', 'sc', 'tr', 'lq', 'ls', 'lm', 'lx', 'lh', 'qi', 'qo', 'qc', 'qs', 'qp', 'qh', 'qw', 'qr', 'ps', 'pp', 'pn', 'pq', 'sx', 'sl', 'vn', 'pt', 'cv', 'cg', 'df', 'cut', 'av', 'ct', 'mv', 'ec', 'ei', 'mp', 'ot', 'oi', 'ol', 'qx', 'om'];
+  const COLLS = ['gc', 'ds', 'rd', 'll', 'do', 'sc', 'tr', 'lq', 'ls', 'lm', 'lx', 'lh', 'qi', 'qo', 'qc', 'qs', 'qp', 'qh', 'qw', 'qr', 'ps', 'pp', 'pn', 'pq', 'sx', 'sl', 'vn', 'pt', 'cv', 'cg', 'df', 'cut', 'av', 'ct', 'mv', 'ec', 'ei', 'mp', 'ot', 'oi', 'ol', 'qx', 'om', 'wa'];
   const h = s => { let a = 0x811c9dc5, b = 0x9e3779b9; for (let i = 0; i < s.length; i++) { const c = s.charCodeAt(i); a = Math.imul(a ^ c, 16777619) >>> 0; b = Math.imul(b ^ c, 2246822519) >>> 0; } return a.toString(36) + b.toString(36); };
   const b64 = u8 => { let s = ''; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); return btoa(s); };
   const unb64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -8874,12 +8876,13 @@ const OT_COLS = [
   ['_cs', 'CS/ Pallet', 'calc', 42], ['_w', 'Weight', 'calc', 54], ['_p', 'Pallets', 'calc', 44], ['_tot', 'On Order', 'calc', 54],
   ['reqPickup', 'Req. Pickup', 'date', 62], ['loc', 'Pickup Loc.', 'loc', 76], ['prodDate', 'Sched. Prod.', 'date', 62],
   ['carrier', 'Carrier', 'carrier', 76], ['pickupDate', 'Sched. Pickup', 'date', 62], ['pickupNo', 'Pickup #', 'text', 70],
-  ['_comb', 'Combined', 'calc', 84], ['pickedUp', 'Picked up', 'bool', 40]];
+  ['_comb', 'Combined', 'calc', 84], ['_ack', 'Winland Ack', 'calc', 100], ['pickedUp', 'Picked up', 'bool', 40]];
 const otShort = iso => { const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})$/); return m ? `${+m[2]}/${+m[3]}/${m[1].slice(2)}` : (iso || ''); };
 const otParseD = v => { v = String(v || '').trim(); if (!v) return ''; let m = v.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/); if (m) return `${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}`;
   m = v.match(/^(\d{1,2})[\/.-](\d{1,2})(?:[\/.-](\d{2,4}))?$/); if (!m) return null; const y = m[3] ? (m[3].length === 2 ? '20' + m[3] : m[3]) : String(new Date().getFullYear());
   const mo = +m[1], d = +m[2]; if (mo < 1 || mo > 12 || d < 1 || d > 31) return null; return `${y}-${String(mo).padStart(2, '0')}-${String(d).padStart(2, '0')}`; };
 function otCalcVal(o, k, IM) { const c = otCalc(o, IM);
+  if (k === '_ack') return o.ackSo ? (o.ackOk ? '✓ SO ' + o.ackSo : '⚠ ' + (o.ackNote || 'check')) : '';
   return k === '_cs' ? (c.cs ?? '') : k === '_w' ? otN(c.weight) : k === '_p' ? otP(c.pallets) : k === '_tot' ? (o.pickedUp ? '' : otN(otOnOrder(o) || '')) : k === '_comb' ? otCombined(o, IM) : ''; }
 function otRows() {
   const f = S.otF, q = S.otQ.trim().toLowerCase();
@@ -8892,9 +8895,10 @@ function otRows() {
 }
 function otOrdersHtml() {
   const IM = otByMpn(), rows = otRows(); S.otIds = rows.map(o => o.id);
-  const L = 'ABCDEFGHIJKLMNOP', f = S.otF; const chip = (k, l) => `<button class="chip" data-ot="filter" data-v="${k}" aria-pressed="${f === k}">${l}</button>`;
+  const L = 'ABCDEFGHIJKLMNOPQRS', f = S.otF; const chip = (k, l) => `<button class="chip" data-ot="filter" data-v="${k}" aria-pressed="${f === k}">${l}</button>`;
   const cell = (o, [k, , t], r, ci) => {
     const a = `data-otc="${esc(o.id)}" data-k="${k}" data-r="${r}" data-c="${ci}"`;
+    if (k === '_ack') return `<td class="ot-calc ${otAckCls(o)}" data-otv="${esc(o.id)}" data-k="${k}" title="${esc(otAckTip(o))}">${esc(otCalcVal(o, k, IM))}</td>`;
     if (t === 'calc') return `<td class="ot-calc${k === '_comb' ? '' : ' num'}" data-otv="${esc(o.id)}" data-k="${k}">${esc(otCalcVal(o, k, IM))}</td>`;
     if (t === 'bool') return `<td class="ot-ctr"><input type="checkbox" ${a} ${o.pickedUp ? 'checked' : ''} aria-label="Picked up"></td>`;
     if (t === 'date') return `<td><input size="1" class="ot-in" ${a} data-date="1" value="${esc(otShort(o[k]))}" placeholder="m/d" inputmode="numeric" autocomplete="off"></td>`;
@@ -8928,7 +8932,8 @@ function otItemsHtml() {
     <div class="actions"><button class="btn primary sm" data-ot="lists">Save lists</button></div></section>`;
 }
 function otSoft() { // a cell changed: update the grey columns in place without losing the cursor
-  const IM = otByMpn(); document.querySelectorAll('#ot-sheet [data-otv]').forEach(td => { const o = S.ot[td.dataset.otv]; if (o) td.textContent = otCalcVal(o, td.dataset.k, IM); });
+  const IM = otByMpn(); document.querySelectorAll('#ot-sheet [data-otv]').forEach(td => { const o = S.ot[td.dataset.otv]; if (!o) return; td.textContent = otCalcVal(o, td.dataset.k, IM);
+    if (td.dataset.k === '_ack') { td.className = 'ot-calc ' + otAckCls(o); td.title = otAckTip(o); } });
 }
 function otParseItem(txt) { const norm = s => String(s).toLowerCase().replace(/\s+/g, ' ').trim(); txt = norm(txt); if (!txt) return { mpn: '', item: '' };
   for (const i of Object.values(otItems())) if (norm((i.mpn || '') + ' - ' + i.name) === txt || norm(i.name) === txt || (i.mpn && norm(i.mpn) === txt)) return { mpn: i.mpn || '', item: i.name };
@@ -8942,6 +8947,7 @@ function otCommit(el) {
   else { const v = el.value.trim(); if (v === (o[k] ?? '')) return; patch[k] = v; }
   otPut(id, Object.assign({}, o, patch));
   if (k === 'pickedUp') el.closest('tr').classList.toggle('ot-done', el.checked);
+  if (['reqPickup', 'qty', 'item', 'po'].includes(k)) otApplyAcks(id);
   const td = el.closest('td'); td.classList.add('ot-ok'); setTimeout(() => td.classList.remove('ot-ok'), 700); otSoft();
 }
 function otItemCommit(el) {
@@ -9068,6 +9074,7 @@ function otMergeQB() {
   vals.forEach(([qid, q]) => { if (q.src !== 'qb' || q.pickupDate || q.pickupNo || q.carrier || q.loc || q.prodDate || q.pickedUp) return;
     const twin = vals.find(([rid, o]) => rid !== qid && !o.qk && S.ot[rid] && String(o.po) === String(q.po) && o.mpn === q.mpn && o.item === q.item);
     if (twin) { otPut(twin[0], Object.assign({}, S.ot[twin[0]], { qk: q.qk, qbQty: q.qbQty, qbDeliv: q.qbDeliv, qbOpen: q.qbOpen })); otPut(qid, null); } });
+  otApplyAcks();
   if ((added || closed) && S.view === 'tracker') toast([added ? `${added} new PO line${added > 1 ? 's' : ''} from QuickBooks` : '', closed ? `${closed} marked picked up (received in QuickBooks)` : ''].filter(Boolean).join(' · ') + '.');
   if (S.view === 'tracker') { const a = document.activeElement; if (!(a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName))) render(); }
 }
@@ -9085,6 +9092,30 @@ function otQBPanel() {
 document.addEventListener('change', e => { const t = e.target; if (!t.dataset || t.dataset.otmap == null || !t.value) return;
   S.otMap[t.dataset.otmap] = t.value; saveLS('chuster-otmap', S.otMap); try { SYNC.put('om', 'map', S.otMap); } catch (x) { } otMergeQB(); render(); });
 setTimeout(() => { try { otMergeQB(); } catch (e) { } }, 4000);
+
+// ---- Winland order acknowledgements (the hourly email watcher reads the PDFs → feed/winland-acks.json → wa/acks)
+S.wa = loadLS('chuster-wa', null);
+SYNC.on('wa', (k, v) => { if (k === 'acks' && v) { S.wa = v; saveLS('chuster-wa', v); setTimeout(() => { otApplyAcks(); if (S.view === 'tracker') { const a = document.activeElement; if (!(a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName))) render(); } }, 0); } });
+const otAckCls = o => !o.ackSo ? '' : o.ackOk ? 'ot-ack-ok' : 'ot-ack-bad';
+function otAckTip(o) { if (!o.ackSo) return ''; const a = (S.wa && S.wa.acks || {})[o.po] || {};
+  return `Winland acknowledged ${otD(String(o.ackAt || '').slice(0, 10))} · SO ${o.ackSo} · their pickup date ${otD(o.ackDate)}${a.pallets ? ' · ' + a.pallets + ' pallets' : ''}${a.shipFrom ? ' · from ' + a.shipFrom : ''}${o.ackOk ? ' · matches your date and quantity' : ' — ' + (o.ackWhy || o.ackNote || '')}`; }
+function otApplyAcks(onlyId) { // fill the acknowledgement on the matching row; flag it when Winland's date or quantity differs
+  if (!isZevi() || !S.wa || !S.wa.acks) return 0; let n = 0;
+  Object.entries(S.ot).forEach(([id, o]) => {
+    if (onlyId && id !== onlyId) return; const a = S.wa.acks[String(o.po || '').trim()]; if (!a) return;
+    const ln = (a.lines || []).find(l => l.mpn && l.mpn === o.mpn) || ((a.lines || []).length === 1 && !o.mpn ? a.lines[0] : null); if (!ln) return;
+    const p = {}; const notes = [];
+    let req = o.reqPickup || ''; if (!req && a.reqPickup) { p.reqPickup = a.reqPickup; req = a.reqPickup; }   // no date yet: take Winland's
+    const short = [];
+    if (a.reqPickup && req && a.reqPickup !== req) { notes.push(`Winland's pickup date is ${otShort(a.reqPickup)}, yours is ${otShort(req)}`); short.push('date ' + otShort(a.reqPickup).replace(/\/\d\d$/, '')); }
+    if (ln.qty != null && +o.qty && Math.round(ln.qty) !== Math.round(+o.qty)) { notes.push(`Winland has ${otN(ln.qty)} ${ln.uom || ''}, yours is ${otN(o.qty)}`); short.push('qty ' + otN(ln.qty)); }
+    const want = { ackSo: a.so || '', ackAt: a.ackAt || '', ackDate: a.reqPickup || '', ackOk: !notes.length, ackNote: short.join(', '), ackWhy: notes.join('; ') };
+    Object.keys(want).forEach(k2 => { if (o[k2] !== want[k2]) p[k2] = want[k2]; });
+    if (Object.keys(p).length) { otPut(id, Object.assign({}, o, p)); n++; }
+  });
+  return n;
+}
+setTimeout(() => { try { otApplyAcks(); } catch (e) { } }, 4500);
 S.emailConn = (() => { try { return JSON.parse(localStorage.getItem('chuster-ec-v1')) || {}; } catch (e) { return {}; } })();
 const saveEC = () => { try { localStorage.setItem('chuster-ec-v1', JSON.stringify(S.emailConn)); } catch (e) { } };
 SYNC.on('ec', (k, val) => { S.emailConn = S.emailConn || {}; if (val == null) delete S.emailConn[k]; else S.emailConn[k] = val; saveEC(); });

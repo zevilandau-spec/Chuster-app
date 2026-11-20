@@ -40,6 +40,11 @@ jobs:
             put(f"ei/{uid}.json", {'v': v, 't': {'.sv': 'timestamp'}})
             wrote += 1
             print(f"::notice::wrote ei/{uid} for {user}: {len(items)} items")
+          # Winland order acknowledgements (read from the PDFs by the email watcher) → Order Tracker
+          if os.path.exists('feed/winland-acks.json'):
+            wa = json.load(open('feed/winland-acks.json', encoding='utf-8'))
+            put("wa/acks.json", {'v': enc({'k': 'acks', 'val': wa, 'by': 'watcher'}), 't': {'.sv': 'timestamp'}})
+            print(f"::notice::wrote wa/acks: {len(wa.get('acks', {}))} acknowledgements")
           put("_t.json", {'.sv': 'timestamp'})  # bump sync marker so open apps pull now
           # verify round-trip for the first user
           first = next(iter(feed)) if feed else None
