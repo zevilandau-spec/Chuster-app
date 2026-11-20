@@ -60,6 +60,7 @@ jobs:
             console.log('errors', errs.join(' | ') || 'none'); await b.close(); })();
           JS
           mkdir -p /tmp/out && ls /tmp/site/c | head && test -f /tmp/site/c/d/$(cut -d. -f1 /tmp/link.txt).json && echo FILE-OK; node /tmp/shot.js || true
-      - if: always()
-        uses: actions/upload-artifact@v4
-        with: { name: portal-preview, path: /tmp/out, retention-days: 1 }
+      - name: Pictures into the log (artifacts can't be downloaded from here)
+        if: always()
+        run: |
+          cd /tmp/out && for f in *.png; do base64 -w 0 "$f" | fold -w 8000 | sed "s/^/IMG:$f:/"; echo; done
