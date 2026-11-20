@@ -1,25 +1,244 @@
 {
- "date": "2026-11-20",
- "generatedAt": "2026-11-20T13:51:38.380819+00:00",
+ "date": "2026-11-19",
+ "generatedAt": "2026-11-20T13:52:44.188773+00:00",
  "production": {
-  "total": 0,
-  "packs": 0,
-  "items": [],
+  "total": 1140,
+  "packs": 21770,
+  "items": [
+   {
+    "label": "Chus Toasted 18.00I",
+    "name": "Toast Barley",
+    "boxes": 114,
+    "packs": 684
+   },
+   {
+    "label": "Chu SD Pretzel Nugget 2x30.00I",
+    "name": "SD Nuggets 60",
+    "boxes": 109,
+    "packs": 7412
+   },
+   {
+    "label": "Land Fine.00I",
+    "name": "Fine",
+    "boxes": 81,
+    "packs": 0
+   },
+   {
+    "label": "Chu SD Pretzel Nugget 8x12.00I",
+    "name": "FP SD Pretzel",
+    "boxes": 77,
+    "packs": 7392
+   },
+   {
+    "label": "Chus Soup 7oz.00I",
+    "name": "Soup Mandlen",
+    "boxes": 75,
+    "packs": 0
+   },
+   {
+    "label": "Land Elbow.00I",
+    "name": "Elbow",
+    "boxes": 67,
+    "packs": 0
+   },
+   {
+    "label": "Chus Fusilli.00I",
+    "name": "Fusilli",
+    "boxes": 62,
+    "packs": 0
+   },
+   {
+    "label": "Chus Tri Clr.00I",
+    "name": "Tri Color",
+    "boxes": 61,
+    "packs": 0
+   },
+   {
+    "label": "Totilla Enchilada 120.00I",
+    "name": "Totilla Enchilada 120",
+    "boxes": 52,
+    "packs": 6240
+   },
+   {
+    "label": "Land Spiral.00I",
+    "name": "Spiral",
+    "boxes": 51,
+    "packs": 0
+   },
+   {
+    "label": "Chus Penne.00I",
+    "name": "Penny Rigate",
+    "boxes": 50,
+    "packs": 0
+   },
+   {
+    "label": "Chus Spiral.00I",
+    "name": "Spiral",
+    "boxes": 48,
+    "packs": 0
+   },
+   {
+    "label": "Land Penne.00I",
+    "name": "Penne",
+    "boxes": 48,
+    "packs": 0
+   },
+   {
+    "label": "Land Toasted 6x3.00I",
+    "name": "Toast Barley",
+    "boxes": 43,
+    "packs": 0
+   },
+   {
+    "label": "Land Ziti.00I",
+    "name": "Ziti",
+    "boxes": 40,
+    "packs": 0
+   },
+   {
+    "label": "Chus Farfflie.00I",
+    "name": "Farfalie",
+    "boxes": 37,
+    "packs": 0
+   },
+   {
+    "label": "Chus WG Elbow.00I",
+    "name": "WG Elbow",
+    "boxes": 29,
+    "packs": 0
+   },
+   {
+    "label": "Land Med.00I",
+    "name": "Medium",
+    "boxes": 26,
+    "packs": 0
+   },
+   {
+    "label": "Chus Med.00I",
+    "name": "Med.",
+    "boxes": 23,
+    "packs": 0
+   },
+   {
+    "label": "Chus WG Penne.00I",
+    "name": "WG Penne",
+    "boxes": 20,
+    "packs": 0
+   },
+   {
+    "label": "Land Lg Bow.00I",
+    "name": "Lg. Bow",
+    "boxes": 20,
+    "packs": 0
+   },
+   {
+    "label": "Chus Toas 6x3.00I",
+    "name": "Toast Barley",
+    "boxes": 7,
+    "packs": 42
+   }
+  ],
   "on": true
  },
  "sales": {
-  "invoices": 0,
-  "net": 0.0,
+  "invoices": 36,
+  "net": 71349.89,
   "tax": 0.0,
-  "total": 0.0,
-  "byArea": [],
-  "topCustomers": []
+  "total": 71349.89,
+  "byArea": [
+   {
+    "area": "Monsey",
+    "net": 31531.31
+   },
+   {
+    "area": "Monroe",
+    "net": 23354.06
+   },
+   {
+    "area": "Wholesale",
+    "net": 10928.8
+   },
+   {
+    "area": "Boro Park",
+    "net": 4275.72
+   },
+   {
+    "area": "Other",
+    "net": 1260.0
+   }
+  ],
+  "topCustomers": [
+   {
+    "name": "ROSENFELD",
+    "net": 7006.8
+   },
+   {
+    "name": "Evergreen Monsey New",
+    "net": 6455.67
+   },
+   {
+    "name": "Rockland Kosher Supermarket",
+    "net": 5837.21
+   },
+   {
+    "name": "Shlomies Grocery",
+    "net": 4837.07
+   },
+   {
+    "name": "Mottys Supermarket",
+    "net": 4521.8
+   },
+   {
+    "name": "Bingo Wholesale",
+    "net": 4275.72
+   }
+  ]
  },
  "deliveries": {
-  "trucks": [],
+  "trucks": [
+   {
+    "name": "Pick up",
+    "driver": "",
+    "delivered": [],
+    "notDelivered": [
+     "Superstop  (#156198)",
+     "Gourmet Glatt South  (#156199)",
+     "Aisle 9 Jackson  (#156201)",
+     "Square Girls School  (#156213)",
+     "Aperion Caterers  (#156217)",
+     "ROSENFELD  (#156227)",
+     "Pineapple Supermarket 2  (#156229)",
+     "Segal Catering  (#156232)",
+     "United Talmudic Academy 82  (#156240)"
+    ]
+   },
+   {
+    "name": "Truck 1",
+    "driver": "",
+    "delivered": [],
+    "notDelivered": [
+     "Linden Food Basket LLC  (#156182)",
+     "NPGS #4  (#156183)",
+     "Gourmet Glatt Jackson  (#156184)",
+     "Gourmet Glatt Lakewood  (#156186)",
+     "Moishe's discount Lakewood  (#156187)",
+     "Kosher Village  (#156188)",
+     "Aisle 9 Market  (#156191)",
+     "Foodex Kosher Supermarket  (#156193)",
+     "NPGS #2  (#156194)",
+     "Seasons  (#156195)",
+     "NPGS #3  (#156196)",
+     "Evergreen Lakewood New  (#156197)",
+     "Kosher West  (#156202)",
+     "Seasons Lakewood  (#156204)",
+     "Nutmeg kosher market  (#156205)",
+     "Bingo Wholesale  (#156215)"
+    ]
+   }
+  ],
   "totals": {
    "delivered": 0,
-   "notDelivered": 0
+   "notDelivered": 25
   }
  },
  "coverage": {
