@@ -1,6 +1,190 @@
 {
- "updated": "2026-11-20T15:20:00Z",
+ "updated": "2026-11-20T16:27:33Z",
  "acks": {
+  "65526": {
+   "po": "65526",
+   "so": "433031",
+   "reqPickup": "2026-11-18",
+   "poDate": "2026-10-22",
+   "shipFrom": "Budd Lake DC",
+   "pallets": 7.0,
+   "weightLb": 8925.0,
+   "ackAt": "2026-10-22T07:50:24",
+   "lines": [
+    {
+     "mat": "89NP2062443",
+     "mpn": "14221LAN00",
+     "qty": 420.0,
+     "uom": "CS",
+     "price": 32.19,
+     "total": 13519.8,
+     "desc": "1/20 PSTA EGG BOWS-CHULA"
+    }
+   ],
+   "link": "https://outlook.office365.com/owa/?ItemID=AAMkAGFmNjRjZDVlLTlkMTctNGJlZS04MDkwLTdiZDJlZGI1Yzk4MQBGAAAAAAAtR1pTZy7eSLs3LAUrVBv3BwDkzKQ6q1lhTJbNMK%2BHUFF5AAAAAAEMAADkzKQ6q1lhTJbNMK%2BHUFF5AAXUQ6cDAAA%3D&exvsurl=1&viewmodel=ReadMessageItem",
+   "emailAt": "2026-10-22T12:53:57Z"
+  },
+  "65527": {
+   "po": "65527",
+   "so": "433032",
+   "reqPickup": "2026-12-02",
+   "poDate": "2026-10-22",
+   "shipFrom": "Budd Lake DC",
+   "pallets": 7.0,
+   "weightLb": 8925.0,
+   "ackAt": "2026-10-22T07:55:15",
+   "lines": [
+    {
+     "mat": "89NP2062443",
+     "mpn": "14221LAN00",
+     "qty": 420.0,
+     "uom": "CS",
+     "price": 32.19,
+     "total": 13519.8,
+     "desc": "1/20 PSTA EGG BOWS-CHULA"
+    }
+   ],
+   "link": "https://outlook.office365.com/owa/?ItemID=AAMkAGFmNjRjZDVlLTlkMTctNGJlZS04MDkwLTdiZDJlZGI1Yzk4MQBGAAAAAAAtR1pTZy7eSLs3LAUrVBv3BwDkzKQ6q1lhTJbNMK%2BHUFF5AAAAAAEMAADkzKQ6q1lhTJbNMK%2BHUFF5AAXUQ6cFAAA%3D&exvsurl=1&viewmodel=ReadMessageItem",
+   "emailAt": "2026-10-22T12:56:42Z"
+  },
+  "65528": {
+   "po": "65528",
+   "so": "433038",
+   "reqPickup": "2026-12-23",
+   "poDate": "2026-10-22",
+   "shipFrom": "Budd Lake DC",
+   "pallets": 7.0,
+   "weightLb": 8925.0,
+   "ackAt": "2026-10-22T07:58:35",
+   "lines": [
+    {
+     "mat": "89NP2062443",
+     "mpn": "14221LAN00",
+     "qty": 420.0,
+     "uom": "CS",
+     "price": 32.19,
+     "total": 13519.8,
+     "desc": "1/20 PSTA EGG BOWS-CHULA"
+    }
+   ],
+   "link": "https://outlook.office365.com/owa/?ItemID=AAMkAGFmNjRjZDVlLTlkMTctNGJlZS04MDkwLTdiZDJlZGI1Yzk4MQBGAAAAAAAtR1pTZy7eSLs3LAUrVBv3BwDkzKQ6q1lhTJbNMK%2BHUFF5AAAAAAEMAADkzKQ6q1lhTJbNMK%2BHUFF5AAXUQ6cIAAA%3D&exvsurl=1&viewmodel=ReadMessageItem",
+   "emailAt": "2026-10-22T13:01:30Z"
+  },
+  "65535": {
+   "po": "65535",
+   "so": "437111",
+   "reqPickup": "2026-11-24",
+   "poDate": "2026-11-03",
+   "shipFrom": "Budd Lake DC",
+   "pallets": 8.0,
+   "weightLb": 4850.0,
+   "ackAt": "2026-11-04T11:31:10",
+   "lines": [
+    {
+     "mat": "6N5P6742443",
+     "mpn": "13000LAN00",
+     "qty": 448.0,
+     "uom": "CS",
+     "price": 13.37,
+     "total": 5989.76,
+     "desc": "1/10 PSTA NDL EGG FINE-CHULA"
+    }
+   ],
+   "link": "https://outlook.office365.com/owa/?ItemID=AAMkAGFmNjRjZDVlLTlkMTctNGJlZS04MDkwLTdiZDJlZGI1Yzk4MQBGAAAAAAAtR1pTZy7eSLs3LAUrVBv3BwDkzKQ6q1lhTJbNMK%2BHUFF5AAAAAAEMAADkzKQ6q1lhTJbNMK%2BHUFF5AAXc7TV%2FAAA%3D&exvsurl=1&viewmodel=ReadMessageItem",
+   "emailAt": "2026-11-04T17:38:36Z"
+  },
+  "65536": {
+   "po": "65536",
+   "so": "437114",
+   "reqPickup": "2026-12-15",
+   "poDate": "2026-11-03",
+   "shipFrom": "Budd Lake DC",
+   "pallets": 8.0,
+   "weightLb": 4850.0,
+   "ackAt": "2026-11-04T11:31:13",
+   "lines": [
+    {
+     "mat": "6N5P6742443",
+     "mpn": "13000LAN00",
+     "qty": 448.0,
+     "uom": "CS",
+     "price": 13.37,
+     "total": 5989.76,
+     "desc": "1/10 PSTA NDL EGG FINE-CHULA"
+    }
+   ],
+   "link": "https://outlook.office365.com/owa/?ItemID=AAMkAGFmNjRjZDVlLTlkMTctNGJlZS04MDkwLTdiZDJlZGI1Yzk4MQBGAAAAAAAtR1pTZy7eSLs3LAUrVBv3BwDkzKQ6q1lhTJbNMK%2BHUFF5AAAAAAEMAADkzKQ6q1lhTJbNMK%2BHUFF5AAXc7TV%2BAAA%3D&exvsurl=1&viewmodel=ReadMessageItem",
+   "emailAt": "2026-11-04T17:37:21Z"
+  },
+  "65537": {
+   "po": "65537",
+   "so": "437121",
+   "reqPickup": "2026-11-17",
+   "poDate": "2026-11-03",
+   "shipFrom": "Budd Lake DC",
+   "pallets": 3.0,
+   "weightLb": 3572.0,
+   "ackAt": "2026-11-04T14:03:32",
+   "lines": [
+    {
+     "mat": "88NP4162442",
+     "mpn": "18131CHU00",
+     "qty": 165.0,
+     "uom": "CS",
+     "price": 18.32,
+     "total": 3022.8,
+     "desc": "2/10 PSTA ROTINI-CHUST"
+    }
+   ],
+   "link": "https://outlook.office365.com/owa/?ItemID=AAMkAGFmNjRjZDVlLTlkMTctNGJlZS04MDkwLTdiZDJlZGI1Yzk4MQBGAAAAAAAtR1pTZy7eSLs3LAUrVBv3BwDkzKQ6q1lhTJbNMK%2BHUFF5AAAAAAEMAADkzKQ6q1lhTJbNMK%2BHUFF5AAXc7TWFAAA%3D&exvsurl=1&viewmodel=ReadMessageItem",
+   "emailAt": "2026-11-04T20:05:56Z"
+  },
+  "65538": {
+   "po": "65538",
+   "so": "437124",
+   "reqPickup": "2026-11-17",
+   "poDate": "2026-11-03",
+   "shipFrom": "Budd Lake DC",
+   "pallets": 2.0,
+   "weightLb": 2425.0,
+   "ackAt": "2026-11-04T11:31:17",
+   "lines": [
+    {
+     "mat": "88NP4162442",
+     "mpn": "18131CHU00",
+     "qty": 112.0,
+     "uom": "CS",
+     "price": 18.32,
+     "total": 2051.84,
+     "desc": "2/10 PSTA ROTINI-CHUST"
+    }
+   ],
+   "link": "https://outlook.office365.com/owa/?ItemID=AAMkAGFmNjRjZDVlLTlkMTctNGJlZS04MDkwLTdiZDJlZGI1Yzk4MQBGAAAAAAAtR1pTZy7eSLs3LAUrVBv3BwDkzKQ6q1lhTJbNMK%2BHUFF5AAAAAAEMAADkzKQ6q1lhTJbNMK%2BHUFF5AAXc7TV9AAA%3D&exvsurl=1&viewmodel=ReadMessageItem",
+   "emailAt": "2026-11-04T17:36:40Z"
+  },
+  "65541": {
+   "po": "65541",
+   "so": "439208",
+   "reqPickup": "2026-12-17",
+   "poDate": "2026-11-09",
+   "shipFrom": "Budd Lake DC",
+   "pallets": 8.0,
+   "weightLb": 4850.0,
+   "ackAt": "2026-11-09T11:23:43",
+   "lines": [
+    {
+     "mat": "6N5P6742443",
+     "mpn": "13000LAN00",
+     "qty": 448.0,
+     "uom": "CS",
+     "price": 13.37,
+     "total": 5989.76,
+     "desc": "1/10 PSTA NDL EGG FINE-CHULA"
+    }
+   ],
+   "link": "https://outlook.office365.com/owa/?ItemID=AAMkAGFmNjRjZDVlLTlkMTctNGJlZS04MDkwLTdiZDJlZGI1Yzk4MQBGAAAAAAAtR1pTZy7eSLs3LAUrVBv3BwDkzKQ6q1lhTJbNMK%2BHUFF5AAAAAAEMAADkzKQ6q1lhTJbNMK%2BHUFF5AAXgJxuKAAA%3D&exvsurl=1&viewmodel=ReadMessageItem",
+   "emailAt": "2026-11-09T17:28:08Z"
+  },
   "65544": {
    "po": "65544",
    "so": "442073",
