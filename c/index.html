@@ -101,7 +101,7 @@ button.li { width: 100%; background: none; border-left: 0; border-right: 0; bord
     } catch (e) { fail('This link doesn\'t work anymore.'); return null; }
   }
 
-  let D, ASOF, TAB = 'st';
+  let D, ASOF, TAB = 'st', SHOW = 40;
   function lateOf(due) { const d = toIso(due); return d ? dnum(ASOF) - dnum(d) : null; }
   function pill(late) { if (late == null) return ''; return late > 0 ? `<span class="pill ${late > 30 ? 'l2' : 'l1'}">${late} day${late === 1 ? '' : 's'} late</span>` : `<span class="pill ok">${late === 0 ? 'due today' : 'not due yet'}</span>`; }
   function aging() {
@@ -128,13 +128,13 @@ button.li { width: 100%; background: none; border-left: 0; border-right: 0; bord
 
   function invoices() {
     const openSet = new Set(D.o.map(o => o[1]));
-    const T = D.tx.filter(t => t[0] !== 'r').slice().reverse();
+    const ALL = D.tx.filter(t => t[0] !== 'r').slice().reverse(), T = ALL.slice(0, SHOW);
     let last = '';
     const rows = T.map(([k, d, n, tot]) => { const m = d.slice(0, 7); const head = m !== last ? `<div class="lab" style="margin:14px 0 2px">${MON[+m.slice(5) - 1]} ${m.slice(0, 4)}</div>` : ''; last = m;
       const st = k === 'c' ? '<span class="pill pd">credit</span>' : openSet.has(n) ? pill(lateOf((D.o.find(o => o[1] === n) || [])[2])) : '<span class="pill ok">paid</span>';
       return `${head}<button class="li" data-inv="${esc(n)}" data-k="${k}"><div class="m"><b>${k === 'c' ? 'Credit' : 'Invoice'} #${esc(n)}</b><span>${fmtD(d)}</span></div><div>${st}</div><div class="r">${money(k === 'c' ? -Math.abs(tot) : tot)}</div></button>`; }).join('');
     const P = D.p.slice().reverse().slice(0, 12);
-    return `<div class="card"><h2>Your invoices</h2><p class="mut" style="margin:-4px 0 4px">Tap one to see what was on it, or save it as a PDF.</p>${rows || '<p class="mut">No invoices yet.</p>'}</div>
+    return `<div class="card"><h2>Your invoices</h2><p class="mut" style="margin:-4px 0 4px">Tap one to see what was on it, or save it as a PDF.</p>${rows || '<p class="mut">No invoices yet.</p>'}${ALL.length > SHOW ? `<div class="acts"><button class="btn" data-act="more">Show older invoices (${ALL.length - SHOW} more)</button></div>` : ''}</div>
       ${P.length ? `<div class="card"><h2>Payments we received</h2>${P.map(([d, a, n]) => `<div class="li"><div class="m"><b>${fmtD(d)}</b><span>${n ? 'Check / ref ' + esc(n) : 'Payment'}</span></div><div class="r">${money(a)}</div></div>`).join('')}</div>` : ''}`;
   }
 
@@ -197,6 +197,7 @@ button.li { width: 100%; background: none; border-left: 0; border-right: 0; bord
     if (t.dataset.tab) { TAB = t.dataset.tab; render(); return; }
     if (t.dataset.inv) { invoiceSheet(t.dataset.inv, t.dataset.k); return; }
     const a = t.dataset.act;
+    if (a === 'more') { SHOW += 60; render(); return; }
     if (a === 'print') { TAB = 'st'; render(); setTimeout(() => window.print(), 50); }
     if (a === 'print-sheet') { document.body.classList.add('print-sheet'); window.print(); setTimeout(() => document.body.classList.remove('print-sheet'), 500); }
     if (a === 'close-btn' || (a === 'close' && e.target === t)) $('#sheet').innerHTML = '';

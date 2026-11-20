@@ -54,7 +54,7 @@ jobs:
             console.log('TEXT', (await p.evaluate(() => document.body.innerText)).slice(0, 400).replace(/\n/g, ' | '), 'ERR', errs.join(' | '));
             await p.click('[data-tab=iv]'); await p.waitForTimeout(500); await p.screenshot({ path: '/tmp/out/p2-invoices.png', fullPage: true });
             await p.locator('[data-inv]').first().click(); await p.waitForTimeout(500); await p.screenshot({ path: '/tmp/out/p3-invoice.png' });
-            await p.goto('http://localhost:8088/c/#' + link); await p.waitForTimeout(2000); await p.click('[data-tab=by]'); await p.waitForTimeout(500); await p.screenshot({ path: '/tmp/out/p4-buying.png', fullPage: true });
+            await p.reload(); await p.waitForTimeout(2000); await p.click('[data-tab=by]'); await p.waitForTimeout(500); await p.screenshot({ path: '/tmp/out/p4-buying.png', fullPage: true });
             const d = await (await b.newContext({ viewport: { width: 1200, height: 900 }, deviceScaleFactor: 1 })).newPage(); await d.goto('http://localhost:8088/c/#' + link); await d.waitForTimeout(2000); await d.screenshot({ path: '/tmp/out/p5-desktop.png', fullPage: true });
             const bad = await (await b.newContext({ viewport: { width: 390, height: 700 } })).newPage(); await bad.goto('http://localhost:8088/c/#AAAAAAAAAAAAAAAAAAAAAA.BBBB'); await bad.waitForTimeout(1500); await bad.screenshot({ path: '/tmp/out/p6-badlink.png' });
             console.log('errors', errs.join(' | ') || 'none'); await b.close(); })();

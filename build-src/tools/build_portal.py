@@ -33,7 +33,8 @@ cat = {c.get('full'): c for c in D.get('catalog', []) if c.get('full')}
 def nice(full):
     c = cat.get(full)
     if c:
-        return [c.get('name') or full, c.get('pack') or '']
+        nm, pk = c.get('name') or full, c.get('pack') or ''
+        return [nm, '' if pk and nm.lower().endswith(pk.lower()) else pk]
     t = str(full).split(':')[-1].strip()
     return [re.sub(r'^\d{3}\s+', '', t), '']
 
