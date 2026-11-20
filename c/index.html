@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<title>Chuster Noodle · Your account</title>
+<link rel="icon" href="/favicon-32.png">
+<style>
+:root { --ink: #1B2238; --navy: #1B2A66; --gold: #E2A92B; --goldt: #8A6A1F; --mut: #5A6378; --line: #E6E8EF; --bg: #F3F4F8; --card: #FFFFFF; --soft: #EEF1FA;
+  --red: #B42318; --redbg: #FDE7E4; --amb: #8A5A00; --ambbg: #FFF4DB; --grn: #15703E; --grnbg: #E7F5EC; }
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.45 -apple-system, "SF Pro Text", system-ui, "Segoe UI", Roboto, Arial, sans-serif; -webkit-font-smoothing: antialiased; }
+.wrap { max-width: 860px; margin: 0 auto; padding: 16px 16px calc(40px + env(safe-area-inset-bottom)); }
+.top { display: flex; align-items: center; gap: 12px; padding: 4px 2px 14px; }
+.top img { width: 74px; height: auto; }
+.top .co { font-weight: 700; color: var(--navy); font-size: 15px; } .top .co small { display: block; font-weight: 400; color: var(--mut); font-size: 12.5px; }
+.hero { background: var(--navy); color: #FFFFFF; border-radius: 22px; padding: 20px; }
+.hero .who { font-size: 13px; color: #C9D2F2; } .hero h1 { margin: 2px 0 14px; font-size: 24px; letter-spacing: -.01em; }
+.hero .row { display: flex; gap: 10px; flex-wrap: wrap; }
+.hero .box { flex: 1 1 140px; border-radius: 14px; padding: 10px 12px; background: rgba(255, 255, 255, .08); }
+.hero .box .l { font-size: 10.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #F2C55C; }
+.hero .box .v { font-size: 22px; font-weight: 800; margin-top: 2px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.hero .box.late .v { color: #FFB4A8; }
+.hero .asof { font-size: 12px; color: #C9D2F2; margin-top: 12px; }
+.tabs { display: flex; gap: 6px; background: var(--card); border-radius: 999px; padding: 4px; margin: 14px 0; position: sticky; top: 8px; z-index: 5; box-shadow: 0 2px 10px rgba(20, 30, 70, .06); }
+.tabs button { flex: 1; border: none; background: none; font: inherit; font-weight: 700; font-size: 14px; padding: 10px 6px; border-radius: 999px; color: var(--mut); cursor: pointer; }
+.tabs button[aria-selected="true"] { background: var(--soft); color: var(--navy); }
+.card { background: var(--card); border-radius: 20px; padding: 16px; margin-bottom: 12px; }
+.card h2 { margin: 0 0 10px; font-size: 16px; }
+.lab { font-size: 10.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--goldt); }
+.bar { display: flex; height: 10px; border-radius: 5px; overflow: hidden; background: var(--line); gap: 2px; margin-top: 6px; } .bar i { display: block; height: 100%; }
+.ages { display: grid; grid-template-columns: repeat(auto-fit, minmax(118px, 1fr)); gap: 8px; margin-top: 10px; }
+.ages div { font-size: 12px; color: var(--mut); } .ages b { display: block; font-size: 14.5px; color: var(--ink); font-variant-numeric: tabular-nums; }
+.dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 5px; vertical-align: 1px; }
+.li { display: flex; align-items: center; gap: 10px; padding: 12px 2px; border-top: 1px solid var(--line); }
+.li:first-of-type { border-top: none; }
+button.li { width: 100%; background: none; border-left: 0; border-right: 0; border-bottom: 0; font: inherit; color: inherit; text-align: left; cursor: pointer; }
+.li .m { min-width: 0; flex: 1; } .li .m b { display: block; font-size: 15px; } .li .m span { font-size: 12.5px; color: var(--mut); }
+.li .r { text-align: right; font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; } .li .r small { display: block; font-weight: 500; color: var(--mut); font-size: 12px; }
+.pill { display: inline-block; font-size: 11.5px; font-weight: 700; padding: 2px 9px; border-radius: 999px; white-space: nowrap; }
+.pill.ok { background: var(--grnbg); color: var(--grn); } .pill.l1 { background: var(--ambbg); color: var(--amb); } .pill.l2 { background: var(--redbg); color: var(--red); } .pill.pd { background: var(--soft); color: var(--navy); }
+.total { display: flex; justify-content: space-between; padding-top: 12px; border-top: 1.5px solid var(--navy); margin-top: 4px; font-weight: 800; font-size: 16px; }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; border: none; border-radius: 999px; padding: 11px 18px; font: inherit; font-weight: 700; cursor: pointer; background: var(--soft); color: var(--navy); text-decoration: none; }
+.btn.pri { background: var(--navy); color: #FFFFFF; }
+.acts { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+.big { font-size: 28px; font-weight: 800; letter-spacing: -.01em; font-variant-numeric: tabular-nums; }
+.up { color: var(--grn); font-weight: 700; } .dn { color: var(--red); font-weight: 700; }
+.two { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.mut { color: var(--mut); font-size: 13px; }
+.chart { margin-top: 10px; } .legend { display: flex; gap: 14px; font-size: 12.5px; color: var(--mut); margin-top: 6px; }
+.prod { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 4px 12px; align-items: center; padding: 10px 0; border-top: 1px solid var(--line); }
+.prod:first-of-type { border-top: none; }
+.prod .nm { min-width: 0; } .prod .nm b { display: block; font-size: 14.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .prod .nm span { font-size: 12px; color: var(--mut); }
+.prod .q { text-align: right; font-variant-numeric: tabular-nums; font-weight: 800; } .prod .q small { display: block; font-weight: 500; font-size: 11.5px; color: var(--mut); }
+.prod .ch { min-width: 54px; text-align: right; font-size: 13px; }
+.sheet { position: fixed; inset: 0; z-index: 20; background: rgba(10, 15, 35, .45); display: flex; align-items: flex-end; justify-content: center; }
+.sheet .in { background: var(--card); width: 100%; max-width: 700px; max-height: 92vh; overflow: auto; border-radius: 22px 22px 0 0; padding: 18px 18px calc(18px + env(safe-area-inset-bottom)); }
+@media (min-width: 720px) { .sheet { align-items: center; } .sheet .in { border-radius: 22px; } }
+.ln { display: grid; grid-template-columns: minmax(0, 1fr) 54px 92px; gap: 8px; padding: 9px 0; border-top: 1px solid var(--line); font-size: 14px; }
+.ln .q, .ln .a { text-align: right; font-variant-numeric: tabular-nums; } .ln span { color: var(--mut); font-size: 12px; }
+.ln.h { font-size: 10.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--goldt); border-top: none; }
+.foot { text-align: center; color: var(--mut); font-size: 13px; margin-top: 18px; } .foot a { color: var(--navy); font-weight: 700; text-decoration: none; }
+.err { text-align: center; padding: 60px 20px; color: var(--mut); }
+.hide { display: none !important; }
+@media print {
+  body { background: #FFFFFF; } .tabs, .acts, .foot, .noprint { display: none !important; }
+  .hero { background: #FFFFFF; color: var(--ink); border: 2px solid var(--navy); } .hero .who, .hero .asof { color: var(--mut); } .hero .box { background: var(--soft); } .hero .box.late .v { color: var(--red); }
+  .card { break-inside: avoid; border: 1px solid var(--line); } .sheet { position: static; background: none; } .sheet .in { max-height: none; box-shadow: none; }
+  body.print-sheet .wrap { display: none; }
+}
+</style>
+</head>
+<body>
+<div class="wrap" id="app"><div class="err">Loading your account…</div></div>
+<div id="sheet"></div>
+<script>
+(function () {
+  const $ = s => document.querySelector(s);
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const money = n => (n < 0 ? '−$' : '$') + Math.abs(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const k$ = n => n >= 1e6 ? '$' + (n / 1e6).toFixed(2) + 'M' : n >= 1e4 ? '$' + Math.round(n / 1e3) + 'K' : '$' + Math.round(n).toLocaleString('en-US');
+  const unb64u = s => { s = s.replace(/-/g, '+').replace(/_/g, '/'); while (s.length % 4) s += '='; return Uint8Array.from(atob(s), c => c.charCodeAt(0)); };
+  const toIso = s => { const m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(s || ''); return m ? `${m[3]}-${m[1].padStart(2, '0')}-${m[2].padStart(2, '0')}` : (/^\d{4}-\d{2}-\d{2}/.test(s || '') ? s.slice(0, 10) : ''); };
+  const dnum = iso => Math.round(Date.UTC(+iso.slice(0, 4), +iso.slice(5, 7) - 1, +iso.slice(8, 10)) / 864e5);
+  const fmtD = iso => iso ? new Date(iso + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
+  const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const fail = msg => { $('#app').innerHTML = `<div class="err"><img src="logo.webp" alt="Chuster" style="width:120px"><p style="font-size:16px;color:#1B2238;margin-top:18px"><b>${esc(msg)}</b></p><p>Ask Chuster Noodle for your link: <a href="tel:7183992864">718-399-2864</a></p></div>`; };
+
+  async function load() {
+    const h = location.hash.slice(1); const dot = h.indexOf('.');
+    if (dot < 10) return fail('This link is not complete.');
+    const id = h.slice(0, dot), key = h.slice(dot + 1);
+    try {
+      const [meta, body] = await Promise.all([fetch('d/meta.json', { cache: 'no-cache' }).then(r => r.json()).catch(() => ({})), fetch('d/' + encodeURIComponent(id) + '.json', { cache: 'no-cache' }).then(r => { if (!r.ok) throw new Error('nf'); return r.text(); })]);
+      const [ivs, cts] = body.trim().split('.');
+      const k = await crypto.subtle.importKey('raw', unb64u(key), 'AES-GCM', false, ['decrypt']);
+      const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: unb64u(ivs) }, k, unb64u(cts));
+      return { D: JSON.parse(new TextDecoder().decode(pt)), asOf: meta.asOf || new Date().toISOString().slice(0, 10) };
+    } catch (e) { fail('This link doesn\'t work anymore.'); return null; }
+  }
+
+  let D, ASOF, TAB = 'st';
+  function lateOf(due) { const d = toIso(due); return d ? dnum(ASOF) - dnum(d) : null; }
+  function pill(late) { if (late == null) return ''; return late > 0 ? `<span class="pill ${late > 30 ? 'l2' : 'l1'}">${late} day${late === 1 ? '' : 's'} late</span>` : `<span class="pill ok">${late === 0 ? 'due today' : 'not due yet'}</span>`; }
+  function aging() {
+    const a = [0, 0, 0, 0, 0]; let sum = 0;
+    D.o.forEach(([d, n, due, amt]) => { sum += amt; const l = lateOf(due); const i = l == null || l <= 0 ? 0 : l <= 30 ? 1 : l <= 60 ? 2 : l <= 90 ? 3 : 4; a[i] += amt; });
+    a[0] += D.b - sum; return a;   // payments/credits not yet matched to an invoice count against "current"
+  }
+  const AG = [['Current', '#2DB862'], ['1–30 days late', '#F5A400'], ['31–60 days late', '#F07F2F'], ['61–90 days late', '#E0452F'], ['Over 90 days', '#9B1C1C']];
+
+  function statement() {
+    const ag = aging(), pos = ag.map(v => Math.max(0, v)), tot = pos.reduce((a, b) => a + b, 0) || 1;
+    const open = D.o.slice().sort((x, y) => toIso(x[0]).localeCompare(toIso(y[0])));
+    let run = 0;
+    const rows = open.map(([d, n, due, amt]) => { run += amt; const l = lateOf(due);
+      return `<button class="li" data-inv="${esc(n)}"><div class="m"><b>#${esc(n)}</b><span>${fmtD(toIso(d))} · due ${fmtD(toIso(due))}</span></div><div>${pill(l)}</div><div class="r">${money(amt)}<small>${money(run)}</small></div></button>`; }).join('');
+    const diff = D.b - open.reduce((t, o) => t + o[3], 0);
+    return `<div class="card"><div class="lab">How much is late</div><div class="bar" aria-hidden="true">${pos.map((v, i) => v > 0 ? `<i style="flex:${(v / tot).toFixed(4)};background:${AG[i][1]}"></i>` : '').join('')}</div>
+      <div class="ages">${AG.map((x, i) => `<div><span class="dot" style="background:${x[1]}"></span>${x[0]}<b>${money(ag[i])}</b></div>`).join('')}</div></div>
+      <div class="card"><h2>Open invoices <span class="mut" style="font-weight:500">· ${open.length}</span></h2>${rows || '<p class="mut">No open invoices. Thank you!</p>'}
+      ${Math.abs(diff) >= 1 ? `<div class="li"><div class="m"><b>${diff < 0 ? 'Payments & credits' : 'Other charges'}</b><span>not matched to an invoice yet</span></div><div class="r">${money(diff)}</div></div>` : ''}
+      ${open.length ? `<div class="total"><span>Amount due</span><span>${money(D.b)}</span></div>` : ''}
+      <div class="acts noprint"><button class="btn pri" data-act="print">Save as PDF / print</button></div></div>`;
+  }
+
+  function invoices() {
+    const openSet = new Set(D.o.map(o => o[1]));
+    const T = D.tx.filter(t => t[0] !== 'r').slice().reverse();
+    let last = '';
+    const rows = T.map(([k, d, n, tot]) => { const m = d.slice(0, 7); const head = m !== last ? `<div class="lab" style="margin:14px 0 2px">${MON[+m.slice(5) - 1]} ${m.slice(0, 4)}</div>` : ''; last = m;
+      const st = k === 'c' ? '<span class="pill pd">credit</span>' : openSet.has(n) ? pill(lateOf((D.o.find(o => o[1] === n) || [])[2])) : '<span class="pill ok">paid</span>';
+      return `${head}<button class="li" data-inv="${esc(n)}" data-k="${k}"><div class="m"><b>${k === 'c' ? 'Credit' : 'Invoice'} #${esc(n)}</b><span>${fmtD(d)}</span></div><div>${st}</div><div class="r">${money(k === 'c' ? -Math.abs(tot) : tot)}</div></button>`; }).join('');
+    const P = D.p.slice().reverse().slice(0, 12);
+    return `<div class="card"><h2>Your invoices</h2><p class="mut" style="margin:-4px 0 4px">Tap one to see what was on it, or save it as a PDF.</p>${rows || '<p class="mut">No invoices yet.</p>'}</div>
+      ${P.length ? `<div class="card"><h2>Payments we received</h2>${P.map(([d, a, n]) => `<div class="li"><div class="m"><b>${fmtD(d)}</b><span>${n ? 'Check / ref ' + esc(n) : 'Payment'}</span></div><div class="r">${money(a)}</div></div>`).join('')}</div>` : ''}`;
+  }
+
+  function buying() {
+    const y = +ASOF.slice(0, 4), md = ASOF.slice(5), cut = (y - 1) + '-' + md;
+    const sign = k => k === 'c' ? -1 : 1;
+    let ytd = 0, lyd = 0; const mon = {}; const prod = {};
+    D.tx.forEach(([k, d, n, tot, L]) => { const s = sign(k); const amt = L.reduce((t, l) => t + l[2], 0) * (k === 'c' ? -1 : 1) || s * Math.abs(tot);
+      const yy = +d.slice(0, 4); mon[d.slice(0, 7)] = (mon[d.slice(0, 7)] || 0) + amt;
+      if (yy === y) ytd += amt; else if (yy === y - 1 && d <= cut) lyd += amt;
+      L.forEach(([i, q, a]) => { const p = prod[i] || (prod[i] = { i, q: 0, ql: 0, a: 0, last: '' }); const qq = q * (k === 'c' ? -1 : 1);
+        if (yy === y) { p.q += qq; p.a += a * (k === 'c' ? -1 : 1); } else if (yy === y - 1 && d <= cut) p.ql += qq; if (k !== 'c' && q > 0 && d > p.last) p.last = d; }); });
+    const pct = lyd ? Math.round((ytd / lyd - 1) * 100) : null;
+    // months: this year vs last year
+    const W = 640, H = 170, gw = W / 12, bw = 16; const vals = MON.map((_, i) => [mon[`${y}-${String(i + 1).padStart(2, '0')}`] || 0, mon[`${y - 1}-${String(i + 1).padStart(2, '0')}`] || 0]);
+    const mx = Math.max(1, ...vals.flat()); const cm = +ASOF.slice(5, 7) - 1;
+    const bars = vals.map(([a, b], i) => { const x = i * gw + gw / 2, hb = b / mx * (H - 24), ha = a / mx * (H - 24);
+      return `<rect x="${x - bw - 1}" y="${H - 20 - hb}" width="${bw}" height="${hb}" rx="5" fill="#D5D9E4"><title>${MON[i]} ${y - 1}: ${money(b)}</title></rect>${i <= cm ? `<rect x="${x + 1}" y="${H - 20 - ha}" width="${bw}" height="${ha}" rx="5" fill="#1B2A66"${i === cm ? ' fill-opacity=".55"' : ''}><title>${MON[i]} ${y}: ${money(a)}</title></rect>` : ''}<text x="${x}" y="${H - 4}" text-anchor="middle" font-size="12" fill="#5A6378">${MON[i][0]}</text>`; }).join('');
+    const P = Object.values(prod).filter(p => p.q > 0).sort((a, b) => b.a - a.a).slice(0, 12);
+    const recent = dnum(ASOF) - 75, gone = Object.values(prod).filter(p => p.last && dnum(p.last) < recent && dnum(p.last) >= dnum(ASOF) - 400).sort((a, b) => b.last.localeCompare(a.last)).slice(0, 8);
+    const nm = i => D.it[i] || ['', ''];
+    const ch = (q, ql) => !ql ? (q ? '<span class="up">new</span>' : '') : `<span class="${q >= ql ? 'up' : 'dn'}">${q >= ql ? '+' : '−'}${Math.abs(Math.round((q / ql - 1) * 100))}%</span>`;
+    return `<div class="card"><div class="two"><div><div class="lab">Bought this year</div><div class="big">${k$(ytd)}</div><div class="mut">Jan 1 to ${MON[cm]} ${+ASOF.slice(8)}</div></div>
+        <div><div class="lab">Same time last year</div><div class="big" style="color:var(--mut)">${k$(lyd)}</div><div class="mut">${pct == null ? '' : `<span class="${pct >= 0 ? 'up' : 'dn'}">${pct >= 0 ? '+' : '−'}${Math.abs(pct)}%</span> vs last year`}</div></div></div>
+      <div class="chart"><svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Your purchases each month, ${y} against ${y - 1}">${bars}</svg></div>
+      <div class="legend"><span><span class="dot" style="background:#1B2A66"></span>${y}</span><span><span class="dot" style="background:#D5D9E4"></span>${y - 1}</span></div></div>
+      <div class="card"><h2>Your top products this year</h2><p class="mut" style="margin:-4px 0 4px">Cases this year, and the change from the same time last year.</p>
+      ${P.map(p => `<div class="prod"><div class="nm"><b>${esc(nm(p.i)[0])}</b><span>${esc(nm(p.i)[1])}</span></div><div class="q">${Math.round(p.q).toLocaleString('en-US')}<small>cases</small></div><div class="ch">${ch(p.q, p.ql)}</div></div>`).join('') || '<p class="mut">No purchases yet this year.</p>'}</div>
+      ${gone.length ? `<div class="card"><h2>Haven't ordered in a while</h2><p class="mut" style="margin:-4px 0 4px">You used to buy these. Want some on your next order?</p>
+      ${gone.map(p => `<div class="prod"><div class="nm"><b>${esc(nm(p.i)[0])}</b><span>${esc(nm(p.i)[1])}</span></div><div class="q" style="font-weight:600;font-size:13px">last ${fmtD(p.last)}</div><div></div></div>`).join('')}</div>` : ''}`;
+  }
+
+  function invoiceSheet(n, k) {
+    const t = D.tx.find(x => x[2] === n && (!k || x[0] === k)); if (!t) return;
+    const [kind, d, num, tot, L] = t; const o = D.o.find(x => x[1] === n);
+    $('#sheet').innerHTML = `<div class="sheet" data-act="close"><div class="in" role="dialog" aria-modal="true" aria-label="Invoice ${esc(num)}">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px"><div><div class="lab">${kind === 'c' ? 'Credit memo' : 'Invoice'}</div><div style="font-size:22px;font-weight:800">#${esc(num)}</div><div class="mut">${fmtD(d)}${o ? ' · due ' + fmtD(toIso(o[2])) : ''}</div></div><img src="logo.webp" alt="Chuster" style="width:84px"></div>
+      <div style="margin:10px 0 2px">${o ? pill(lateOf(o[2])) + ` <span class="mut">open ${money(o[3])}</span>` : kind === 'c' ? '' : '<span class="pill ok">paid</span>'}</div>
+      <div class="ln h" style="margin-top:12px"><div>Product</div><div class="q">Cases</div><div class="a">Amount</div></div>
+      ${L.map(([i, q, a]) => `<div class="ln"><div>${esc((D.it[i] || [])[0])} <span>${esc((D.it[i] || [])[1] || '')}</span></div><div class="q">${(+q).toLocaleString('en-US')}</div><div class="a">${money(a)}</div></div>`).join('')}
+      <div class="total"><span>Total</span><span>${money(kind === 'c' ? -Math.abs(tot) : tot)}</span></div>
+      <div class="acts noprint"><button class="btn pri" data-act="print-sheet">Save as PDF / print</button><button class="btn" data-act="close-btn">Close</button></div></div></div>`;
+  }
+
+  function render() {
+    const ag = aging(), past = ag[1] + ag[2] + ag[3] + ag[4];
+    $('#app').innerHTML = `<div class="top"><img src="logo.webp" alt="Chuster Noodle"><div class="co">Chuster Noodle Packaging USA<small>65 Steuben St., Brooklyn NY 11205</small></div></div>
+      <div class="hero"><div class="who">Your account</div><h1>${esc(D.n)}</h1><div class="row">
+        <div class="box"><div class="l">Amount due</div><div class="v">${money(D.b)}</div></div>
+        ${past > 0.5 ? `<div class="box late"><div class="l">Past due</div><div class="v">${money(past)}</div></div>` : ''}
+        ${D.t ? `<div class="box"><div class="l">Terms</div><div class="v" style="font-size:18px">${esc(D.t)}</div></div>` : ''}</div>
+        <div class="asof">Up to date as of ${fmtD(ASOF)}</div></div>
+      <div class="tabs" role="tablist">${[['st', 'Statement'], ['iv', 'Invoices'], ['by', 'Your buying']].map(([k, l]) => `<button role="tab" aria-selected="${TAB === k}" data-tab="${k}">${l}</button>`).join('')}</div>
+      <div id="pane">${TAB === 'st' ? statement() : TAB === 'iv' ? invoices() : buying()}</div>
+      <div class="foot">Questions about your account? <a href="tel:7183992864">718-399-2864</a> · <a href="mailto:Chusternoodle@gmail.com">Chusternoodle@gmail.com</a></div>`;
+  }
+
+  document.addEventListener('click', e => {
+    const t = e.target.closest('[data-tab],[data-inv],[data-act]'); if (!t) return;
+    if (t.dataset.tab) { TAB = t.dataset.tab; render(); return; }
+    if (t.dataset.inv) { invoiceSheet(t.dataset.inv, t.dataset.k); return; }
+    const a = t.dataset.act;
+    if (a === 'print') { TAB = 'st'; render(); setTimeout(() => window.print(), 50); }
+    if (a === 'print-sheet') { document.body.classList.add('print-sheet'); window.print(); setTimeout(() => document.body.classList.remove('print-sheet'), 500); }
+    if (a === 'close-btn' || (a === 'close' && e.target === t)) $('#sheet').innerHTML = '';
+  });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') $('#sheet').innerHTML = ''; });
+  window.addEventListener('hashchange', () => location.reload());
+
+  load().then(r => { if (!r) return; D = r.D; ASOF = r.asOf; render(); });
+})();
+</script>
+</body>
+</html>
