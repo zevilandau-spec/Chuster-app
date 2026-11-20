@@ -1,0 +1,14 @@
+name: Check Order Tracker QuickBooks POs
+on: workflow_dispatch
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Has the office PC sent open POs (qx/openpo)?
+        env:
+          CHUSTER_SECRETS: ${{ secrets.CHUSTER_SECRETS }}
+          CHUSTER_DB_URL: ${{ secrets.CHUSTER_DB_URL }}
+        run: |
+          pip install -q cryptography
+          python3 build-src/ci/ot_check.py
