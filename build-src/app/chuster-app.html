@@ -1206,6 +1206,32 @@ main { padding-block: 14px 32px; }
 .dday-opts button { flex: 1; min-width: 90px; padding: 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface-2); font: inherit; font-weight: 800; cursor: pointer; color: inherit; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
 .dday-opts button.on { border-color: var(--brand, #22409A); color: var(--brand, #22409A); background: var(--ct-blue-bg); }
 .dday-cancel { display: block; margin: 18px auto 0; background: none; border: none; font: inherit; font-weight: 800; color: var(--muted); cursor: pointer; }
+/* film rolls */
+.fr-tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 4px; }
+.fr-tiles div { background: var(--surface); border-radius: 14px; padding: 12px 14px; display: flex; flex-direction: column; gap: 2px; }
+.fr-tiles b { font-size: 24px; line-height: 1.1; } .fr-tiles span { font-size: 12.5px; color: var(--muted); }
+.fr-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 12px; align-items: start; }
+.fr-card { padding: 14px 16px; margin: 0; border-left: 5px solid var(--line-strong); }
+.fr-card.fr-short { border-left-color: var(--bad-text); } .fr-card.fr-low { border-left-color: var(--gold); } .fr-card.fr-ok { border-left-color: var(--good-text); }
+.fr-top { display: flex; gap: 12px; align-items: flex-start; width: 100%; background: none; border: none; padding: 0; font: inherit; color: inherit; text-align: left; cursor: pointer; }
+.fr-n { flex: 1; min-width: 0; } .fr-n b { display: block; font-size: 15.5px; } .fr-n small { color: var(--muted); font-size: 12.5px; }
+.fr-big { text-align: right; } .fr-big b { display: block; font-size: 28px; line-height: 1; } .fr-big b.fr-amt { font-size: 17px; } .fr-big small { color: var(--muted); font-size: 11.5px; }
+.fr-mid { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 8px; }
+.fr-bar-w { position: relative; height: 8px; border-radius: 4px; background: var(--surface-2); margin-top: 10px; overflow: hidden; }
+.fr-bar-w i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 4px; background: var(--good-text); }
+.fr-low .fr-bar-w i { background: var(--gold); } .fr-short .fr-bar-w i { background: var(--bad-text); }
+.fr-bar-w s { position: absolute; top: -2px; bottom: -2px; width: 2px; background: var(--fg); opacity: .35; }
+.fr-more { margin-top: 10px; border-top: 1px solid var(--line); padding-top: 8px; display: flex; flex-direction: column; gap: 4px; }
+.fr-more .lab-sm { font-size: 12px; font-weight: 800; color: var(--muted); margin-top: 6px; }
+.fr-count h2 { margin: 0 0 6px; }
+.fr-crow { display: grid; grid-template-columns: minmax(0, 1fr) 84px 122px; gap: 10px; align-items: center; padding: 9px 0; border-top: 1px solid var(--line); }
+.fr-chead { font-size: 12px; font-weight: 800; color: var(--muted); border-top: none; padding: 0 0 2px; }
+.fr-cn b { display: block; font-size: 14.5px; } .fr-cn small { color: var(--muted); font-size: 12px; }
+.fr-crow .fr-in { width: 100%; min-height: 44px; border: 1.5px solid var(--line-strong); border-radius: 10px; padding: 6px 10px; font: 700 17px var(--font); text-align: right; background: var(--surface); color: var(--fg); }
+.fr-lab { display: flex; align-items: center; gap: 6px; } .fr-lab span { font-size: 12px; color: var(--muted); width: 26px; }
+.fr-idle summary { cursor: pointer; padding: 2px 0; } .fr-idle[open] summary { margin-bottom: 8px; }
+.fr-bar { position: sticky; top: 8px; z-index: 4; margin-bottom: 12px; }
+@media (max-width: 640px) { .fr-tiles { grid-template-columns: 1fr 1fr; } .fr-crow { grid-template-columns: minmax(0, 1fr) 70px 104px; gap: 8px; } }
 </style>
 
 <div class="app" id="app">
@@ -2901,6 +2927,7 @@ const VIEWS = {
   vendors: { title: 'Vendors & bills', r: renderVendors },
   salesorders: { title: 'Sales orders', r: renderSalesOrders },
   stockmoves: { title: 'Stock moves', r: renderStockMoves },
+  film: { title: 'Film rolls', r: renderFilm },
   polist: { title: 'All purchase orders', r: renderPOList },
   journal: { title: 'Journal entries', r: renderJournal },
   accounts: { title: 'Chart of accounts', r: renderAccounts },
@@ -2978,7 +3005,7 @@ const NAV = [
   { h: 'SALES & MONEY', items: [['mysales', 'Salesman dashboard', 'chart'], ['storesales', 'Store sales', 'chart'], ['scorecard', 'Store scorecard', 'people'], ['movers', 'What changed', 'alert'], ['atrisk', 'At-risk board', 'alert'], ['crosssell', 'Cross-sell', 'chart'], ['newlost', 'New & lost stores', 'people'], ['habits', 'Order habits', 'clock'], ['seasonality', 'Seasonality', 'chart'], ['salesreport', 'Sales report', 'chart'], ['brandsales', 'Sales by brand', 'chart'], ['lostsales', 'Lost sales', 'alert'], ['repscore', 'Salesman scorecard', 'people'], ['reps', 'Sales by rep & commission', 'people'], ['returns', 'Returns & credits', 'card'], ['finance', 'Finance', 'chart']] },
   { h: 'PRODUCTS', items: [['catalog', 'Catalog', 'box'], ['prodsales', 'Product sales', 'chart'], ['winners', 'Winners & losers', 'chart'], ['items', 'Products & profit', 'chart'], ['margin', 'Margins', 'chart'], ['pricelist', 'Price list', 'order'], ['pricecheck', 'Price check', 'card'], ['pricespread', 'Price spread', 'chart']] },
   { h: 'DELIVERIES', items: [['route', 'Deliveries', 'box'], ['addrcheck', 'Check address', 'pin'], ['stop', 'Driver', 'wheel'], ['pickups', 'Pickups', 'truck'], ['tracker', 'Order Tracker', 'truck'], ['live', 'Live trucks', 'pin'], ['loading', 'Loading', 'truck'], ['dsched', 'Delivery days', 'cal'], ['delivstats', 'Delivery stats', 'chart'], ['routeprofit', 'Route profit', 'chart']] },
-  { h: 'WAREHOUSE', items: [['packnext', 'What to pack', 'clip'], ['forecast', 'Week-ahead forecast', 'chart'], ['packing', 'Packing plan', 'clip'], ['stockcover', 'Stock cover', 'box'], ['packlog', 'Pack log', 'clip'], ['packrep', 'Packing report', 'chart'], ['printer', 'Box printer', 'box'], ['yield', 'Yield', 'chart']] },
+  { h: 'WAREHOUSE', items: [['packnext', 'What to pack', 'clip'], ['forecast', 'Week-ahead forecast', 'chart'], ['packing', 'Packing plan', 'clip'], ['stockcover', 'Stock cover', 'box'], ['packlog', 'Pack log', 'clip'], ['packrep', 'Packing report', 'chart'], ['printer', 'Box printer', 'box'], ['film', 'Film rolls', 'box'], ['yield', 'Yield', 'chart']] },
   { h: 'STOCK & BUYING', items: [['inventory', 'Inventory', 'box', 'inv'], ['prodplan', 'Make today', 'box'], ['ordernow', 'Order now', 'alert'], ['toorder', 'To order (by vendor)', 'card'], ['reorder', 'Reorder alerts', 'alert'], ['plan', 'Plan a season', 'chart'], ['margin', 'Margin watch', 'chart'], ['buying', 'Buying & suppliers', 'card'], ['polist', 'All purchase orders', 'clip'], ['stockmoves', 'Stock moves', 'box']] },
   { h: 'BOOKS', items: [['expenses', 'Expenses', 'chart'], ['bank', 'Bank & deposits', 'card'], ['vendors', 'Vendors & bills', 'people'], ['salesorders', 'Sales orders & estimates', 'order'], ['journal', 'Journal entries', 'clip'], ['accounts', 'Chart of accounts', 'chart']] }
 ];
@@ -2995,7 +3022,7 @@ const officePlus = () => S.role === 'Office' && S.realUser === 'Joel';
 const isZevi = () => S.baseRole === 'Owner' && S.realUser === 'Zevi';
 try { S.lang = localStorage.getItem('chuster-lang') || 'en'; } catch (e) { S.lang = 'en'; }
 const ROLE_VIEWS = {
-  Warehouse: ['ask', 'catalog', 'packnext', 'packing', 'stockcover', 'packlog', 'packrep', 'printer', 'yield', 'inventory', 'prodplan', 'ordernow', 'reorder', 'plan', 'margin', 'loading', 'loadlist', 'calendar', 'stockmoves', 'polist'],
+  Warehouse: ['ask', 'catalog', 'packnext', 'packing', 'stockcover', 'packlog', 'packrep', 'printer', 'film', 'yield', 'inventory', 'prodplan', 'ordernow', 'reorder', 'plan', 'margin', 'loading', 'loadlist', 'calendar', 'stockmoves', 'polist'],
   Driver: ['route', 'addrcheck', 'stop', 'loading', 'loadlist', 'calendar'],
   Sales: ['ask', 'catalog', 'mysales', 'visits', 'coverage', 'mycomm', 'pitch', 'customers', 'collect', 'orders', 'order', 'inbox', 'toqb', 'payments', 'yomtov', 'lost', 'pricelist', 'pricecheck', 'calendar', 'salesorders', 'prodsales', 'scorecard', 'crosssell', 'atrisk', 'returns'],
   SalesDriver: ['ask', 'catalog', 'mysales', 'visits', 'coverage', 'mycomm', 'pitch', 'customers', 'collect', 'orders', 'order', 'inbox', 'toqb', 'payments', 'yomtov', 'lost', 'pricelist', 'pricecheck', 'calendar', 'route', 'addrcheck', 'stop', 'loading', 'loadlist', 'salesorders', 'prodsales', 'scorecard', 'crosssell', 'atrisk', 'returns']
@@ -8434,7 +8461,7 @@ const SYNC = (function () {
     if (!viaApp && onNetlify && e && e.name === 'TypeError') { viaApp = true; try { localStorage.setItem('chuster-db-via-app', '1'); } catch (x) { /* ignore */ } setTimeout(() => tick(), 500); }
   }
   const st = { ok: null, err: '', last: 0, since: loadLS('chuster-sync-since', {}), out: loadLS('chuster-sync-out', {}), seen: {}, key: null, flushing: false, pulling: false, started: false };
-  const COLLS = ['gc', 'ds', 'rd', 'll', 'do', 'sc', 'tr', 'lq', 'ls', 'lm', 'lx', 'lh', 'qi', 'qo', 'qc', 'qs', 'qp', 'qh', 'qw', 'qr', 'ps', 'pp', 'pn', 'pq', 'sx', 'sl', 'vn', 'pt', 'cv', 'cg', 'df', 'cut', 'av', 'ct', 'mv', 'ec', 'ei', 'mp', 'ot', 'oi', 'ol', 'qx', 'om'];
+  const COLLS = ['gc', 'ds', 'rd', 'll', 'do', 'sc', 'tr', 'lq', 'ls', 'lm', 'lx', 'lh', 'qi', 'qo', 'qc', 'qs', 'qp', 'qh', 'qw', 'qr', 'ps', 'pp', 'pn', 'pq', 'sx', 'sl', 'vn', 'pt', 'cv', 'cg', 'df', 'cut', 'av', 'ct', 'mv', 'ec', 'ei', 'mp', 'ot', 'oi', 'ol', 'qx', 'om', 'fr'];
   const h = s => { let a = 0x811c9dc5, b = 0x9e3779b9; for (let i = 0; i < s.length; i++) { const c = s.charCodeAt(i); a = Math.imul(a ^ c, 16777619) >>> 0; b = Math.imul(b ^ c, 2246822519) >>> 0; } return a.toString(36) + b.toString(36); };
   const b64 = u8 => { let s = ''; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); return btoa(s); };
   const unb64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -10075,6 +10102,153 @@ function renderSalesOrders() {
     <div class="qw-lines">${r[5].slice(0, 8).map(l => `<div class="qw-line"><span class="num">${fnu(l[2])}</span><span>${esc(l[1] || nameOfFull(l[0]))}${l[3] ? ` <small class="sub">(${fnu(l[3])} invoiced)</small>` : ''}</span><span class="num">${money(l[4])}</span></div>`).join('')}</div>
     ${(S.role === 'Owner' || S.role === 'Office' || isSales()) ? `<div class="actions"><button class="btn ghost sm" data-act="bk-toorder" data-t="${S.bkSoTab}" data-n="${esc(r[1])}">Make it a new order</button></div>` : ''}</article>`).join('') || '<section class="card"><p class="sub" style="margin:0">Nothing open.</p></section>'}`;
 }
+/* ================= Film rolls: film on the shelf, from QuickBooks film bills + what was packed (box printer) ================= */
+// Film comes in by the pound (noodle film, LallyPak) or by the piece (snack film, Prime/LallyPak), never in rolls. So: one count
+// of the rolls on the shelf (with the size printed on one roll's label) sets the start; film bills after that add, and the boxes
+// packed (or snack cases bought from the co-packer) take away, at the film-per-box rate learned from two-plus years of bills.
+const FR_LEAD_WEEKS = 6;   // reorder warning when less than this is left
+const FR_SYN = [[/\blandaus?\b/g, 'landau'], [/\bsourg?h?dough\b|\bsd\b/g, 'sourdough'], [/\bstics\b|\bstix\b/g, 'sticks'], [/\bspagh?ett?i\b/g, 'spaghetti'], [/\bbarely\b/g, 'barley'], [/\bmed\b/g, 'medium'],
+  [/\bwhole grain\b|\bwg\b/g, 'wholegrain'], [/\bsm\b/g, 'small'], [/\blg\b/g, 'large'], [/\bbow tie\b/g, 'bowtie'], [/\btoast\b/g, 'toasted'], [/\bhoneybbq\b/g, 'honey bbq'], [/\boniongarlic\b/g, 'onion garlic'], [/\bcroutons?\b/g, 'crouton'], [/\bcrunchie?s\b/g, 'crunchies']];
+const FR_STOP = new Set(['chuster', 'landau', 'oz', 'lb', 'x', 'pa', 'fp', 'family', 'pack', 'packs', 'pcks', 'pck', 'the', 'of', 'and', 'deal', 'new', 'old', 'film', 'plate', 'plates', 'job', 'crunchy']);
+const FR_DISTINCT = new Set(['wholegrain', 'toasted', 'garlic', 'small', 'large', 'thin', 'mini', 'honey', 'bbq', 'onion', 'sea', 'salt', 'egg', 'free']);
+const frOz = s => { const m = /(\d+(?:\.\d+)?)\s*oz/i.exec(String(s || '')); return m ? +m[1] : null; };
+const frSizeOz = s => { const m = /(\d+(?:\.\d+)?)\s*[x\/]\s*(\d+(?:\.\d+)?)\s*$/i.exec(String(s || '').trim()); return m ? +m[2] : null; };
+const frNorm = s => String(s || '').toLowerCase().replace(/(\d)\s+(oz|lb)/g, '$1$2').replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim();
+function frToks(s) { let t = ' ' + String(s || '').toLowerCase().replace(/[^a-z0-9 ]+/g, ' ') + ' '; FR_SYN.forEach(([r, v]) => { t = t.replace(r, v); }); return t.split(/\s+/).filter(w => w && !/^\d/.test(w) && !FR_STOP.has(w)); }
+const frBrand = s => /landau/i.test(s) ? 'landau' : /chuster/i.test(s) ? 'chuster' : '';
+const frFam = s => /family|\bfp\b|fp\s*$|\bpa\s*$|12\s*x\s*1/i.test(String(s || ''));
+const frDay = iso => { const r = isoRd(iso.slice(0, 10)), d = dateOf(r); return `${MONS[d.getMonth()]} ${d.getDate()}${d.getFullYear() !== dateOf(TODAY).getFullYear() ? ', ' + d.getFullYear() : ''}`; };
+S.frCounts = loadLS('chuster-film-counts', {});
+SYNC.on('fr', (k, v) => { if (v == null) delete S.frCounts[k]; else S.frCounts[k] = v; saveLS('chuster-film-counts', S.frCounts); if (S.view === 'film' && !S.frCount) render(); });
+
+let FR_CACHE = null;
+function frModel() {
+  if (!REAL || !REAL.buy) return null;
+  const key = (PK ? PK.days.length : 0) + '|' + REAL.buy.lines.length + '|' + JSON.stringify(S.frCounts).length + '|' + TODAY;
+  if (FR_CACHE && FR_CACHE.key === key) return FR_CACHE.v;
+  const B = REAL.buy, internal = B.vendors.indexOf('Chuster Packaging Retail');
+  // 1) the films (Film and Film OLD are the same film under two QuickBooks lists)
+  const films = {};
+  B.items.forEach((it, i) => {
+    if (!/^film/i.test(it.group || '') || !/:/.test(it.full || '')) return;
+    const leaf = String(it.full).split(':').slice(1).join(':').trim(); if (/^plates?$/i.test(leaf)) return;
+    const k = frNorm(leaf); const f = films[k] || (films[k] = { k, name: (it.name || leaf).replace(/\s+/g, ' ').replace(/\.+$/, '').trim(), idx: [], bills: [] }); f.idx.push(i);
+  });
+  const byIdx = {}; Object.values(films).forEach(f => f.idx.forEach(i => { byIdx[i] = f; }));
+  B.lines.forEach(([d, v, i, q, p, a, n]) => { const f = byIdx[i]; if (f && q > 0) f.bills.push({ d, q, p, v: B.vendors[v] || '', n }); });
+  // 2) what each film is used for: products packed here (packing bills from the box printer) or snack cases bought from the co-packer
+  const cands = [];
+  if (PK) PK.items.forEach((it, i) => { if (it.kind === 'made' && !/\d\s*lb\b/i.test(it.size || '') && !/-\s*\d+\s*pack\b/i.test(it.name || '')) cands.push({ src: 'pk', i, name: it.name, size: it.size || '', full: it.full }); });
+  B.items.forEach((it, i) => { if (/snack/i.test(it.group || '') && !/^film/i.test(it.group || '') && !/-\s*\d+\s*pack\b/i.test(it.name || '')) cands.push({ src: 'buy', i, name: it.name, size: it.size || '', full: it.full }); });
+  cands.forEach(c => { c.t = new Set(frToks(c.name)); c.b = frBrand(c.full + ' ' + c.name); c.fam = frFam(c.name + ' ' + c.size); c.oz = frSizeOz(c.size); });
+  const daily = {};   // film key -> { rd: boxes }
+  const pkUse = {}, buyUse = {};
+  Object.values(films).forEach(f => {
+    const F = frToks(f.name), bf = frBrand(f.name), fam = frFam(f.name), oz = fam ? null : frOz(f.name); let best = 99, hit = [];
+    cands.forEach(c => { if (bf && c.b && bf !== c.b) return; if (c.fam !== fam) return; if (!F.length || !F.every(w => c.t.has(w))) return; if ([...c.t].some(w => FR_DISTINCT.has(w) && !F.includes(w))) return; if (oz != null && c.oz != null && Math.abs(oz - c.oz) > 0.6) return; const extra = c.t.size - new Set(F).size; if (extra < best) { best = extra; hit = [c]; } else if (extra === best) hit.push(c); });
+    f.uses = best <= 2 ? hit : [];
+  });
+  // a product made with two films (an old design and the new one): the film with the newest bill gets it
+  const lastBill = f => f.bills.reduce((m, b) => b.d > m ? b.d : m, '');
+  const owner = {}; Object.values(films).forEach(f => f.uses.forEach(c => { const id = c.src + c.i, o = owner[id]; if (!o || lastBill(f) > lastBill(o)) owner[id] = f; }));
+  Object.values(films).forEach(f => { f.uses = f.uses.filter(c => owner[c.src + c.i] === f); });
+  Object.values(films).forEach(f => {
+    f.uses.forEach(c => { (c.src === 'pk' ? pkUse : buyUse)[c.i] = (c.src === 'pk' ? pkUse : buyUse)[c.i] || []; (c.src === 'pk' ? pkUse : buyUse)[c.i].push(f.k); });
+    daily[f.k] = {};
+  });
+  if (PK) PK.days.forEach(([d, lo, mk]) => { const r = isoRd(d); mk.forEach(([i, q]) => { (pkUse[i] || []).forEach(k => { daily[k][r] = (daily[k][r] || 0) + q; }); }); });
+  B.lines.forEach(([d, v, i, q]) => { if (v === internal || !buyUse[i] || !(q > 0)) return; const r = isoRd(d); buyUse[i].forEach(k => { daily[k][r] = (daily[k][r] || 0) + q; }); });
+  const boxes = (k, a, b) => { let s = 0; const m = daily[k]; for (const r in m) if (+r >= a && +r <= b) s += m[r]; return s; };
+  // 3) per film: unit, film-per-box, usage, stock, weeks left, next 8 weeks
+  const list = Object.values(films).map(f => {
+    f.bills.sort((x, y) => x.d.localeCompare(y.d));
+    const c = S.frCounts[f.k];
+    if (!f.bills.some(b => isoRd(b.d) >= TODAY - 3 * 365) && !c) return null;
+    const lastP = (f.bills.filter(b => b.p > 0).slice(-1)[0] || {}).p || 0;
+    f.unit = lastP >= 1 ? 'lb' : 'bags';
+    f.bills = f.bills.filter(b => !(b.p > 0) || (b.p >= 1) === (f.unit === 'lb'));   // a film that moved from pounds to bags: only the bills in today's unit count
+    const recent = f.bills.filter(b => isoRd(b.d) >= TODAY - 3 * 365);
+    const last = f.bills[f.bills.length - 1];
+    // film per box, from the bills: everything delivered before the latest bill was used up between the first and the latest bill
+    const used = recent.length >= 2 ? recent.slice(0, -1).reduce((s, b) => s + b.q, 0) : 0;
+    const a0 = recent.length ? isoRd(recent[0].d) : 0, a1 = recent.length ? isoRd(recent[recent.length - 1].d) : 0;
+    const bx = recent.length >= 2 ? boxes(f.k, a0, a1 - 1) : 0;
+    f.perBox = bx > 0 && used > 0 ? used / bx : null;
+    const billRate = recent.length >= 2 && a1 > a0 ? used / (a1 - a0) : null;   // film per day from the bills alone
+    const b56 = boxes(f.k, TODAY - 56, TODAY);
+    f.rate = f.perBox && b56 > 0 ? b56 * f.perBox / 56 : billRate || 0;
+    f.how = f.perBox && b56 > 0 ? 'packed' : billRate ? 'bills' : '';
+    const usedSince = r => f.perBox && f.how === 'packed' ? boxes(f.k, r + 1, TODAY) * f.perBox : f.rate * Math.max(0, TODAY - r);
+    if (c && c.size > 0) {
+      const cr = isoRd(String(c.at).slice(0, 10));
+      const after = f.bills.filter(b => isoRd(b.d) > cr).reduce((s, b) => s + b.q, 0);
+      f.stock = Math.max(0, c.rolls * c.size + after - usedSince(cr)); f.counted = true; f.size = c.size;
+    } else if (last) {
+      f.stock = Math.max(0, last.q - usedSince(isoRd(last.d))); f.counted = false; f.size = c && c.size > 0 ? c.size : null;
+    } else { f.stock = null; f.counted = !!c; f.size = null; }
+    f.rolls = f.size && f.stock != null ? f.stock / f.size : c && !(c.size > 0) ? c.rolls : null;
+    f.weeks = f.rate > 0 && f.stock != null ? f.stock / f.rate / 7 : null;
+    // next 8 weeks: what was used these same 8 weeks last year, grown or shrunk like this year is going
+    const ly = boxes(f.k, TODAY + 1 - 364, TODAY + 56 - 364), now90 = boxes(f.k, TODAY - 89, TODAY), ly90 = boxes(f.k, TODAY - 89 - 364, TODAY - 364);
+    const trend = now90 > 0 && ly90 > 0 ? Math.min(1.6, Math.max(0.6, now90 / ly90)) : 1;
+    f.need8 = f.perBox && ly > 0 ? ly * trend * f.perBox : f.rate * 56;
+    f.busy = f.rate > 0 && f.need8 > f.rate * 56 * 1.25;
+    f.short = f.stock != null && f.need8 > 0 && f.need8 > f.stock;
+    f.low = f.weeks != null && f.weeks < FR_LEAD_WEEKS;
+    f.idle = !(f.rate > 0) || (f.how === 'bills' && last && isoRd(last.d) < TODAY - 365);
+    f.state = f.idle ? 'idle' : f.stock == null ? 'nodata' : f.short ? 'short' : f.low ? 'low' : 'ok';
+    f.last = last; f.snack = /snack|pretzel|chips|crouton|flips|tortilla|nugget|crunchies|sticks|flats/i.test(f.name) && !/spaghetti|angel|barley/i.test(f.name);
+    return f;
+  }).filter(Boolean).sort((a, b) => ({ short: 0, low: 1, ok: 2, nodata: 3, idle: 4 }[a.state] - { short: 0, low: 1, ok: 2, nodata: 3, idle: 4 }[b.state]) || (a.weeks == null ? 1e9 : a.weeks) - (b.weeks == null ? 1e9 : b.weeks) || a.name.localeCompare(b.name));
+  FR_CACHE = { key, v: list }; return list;
+}
+const frAmt = (f, q) => q == null ? '—' : f.unit === 'lb' ? fn(q) + ' lb' : (q >= 1e5 ? fnu(q / 1e6) + 'M' : q >= 1e4 ? fn(q / 1e3) + 'K' : fn(q)) + ' bags';
+const frRolls = n => n == null ? '' : n < 10 ? fnu(Math.max(0, n)) : fn(n);
+
+function renderFilm() {
+  const L = frModel(); if (!L) return `${head('Film rolls', 'Film on the shelf')}<section class="card"><p class="sub" style="margin:0">The film bills from QuickBooks aren't loaded yet.</p></section>`;
+  const counting = !!S.frCount, flt = S.frFlt || 'all';
+  if (counting) {
+    const byN = (x, y) => x.name.localeCompare(y.name); const groups = [['Noodle film', L.filter(f => !f.snack && f.state !== 'idle').sort(byN)], ['Snack and family-bag film', L.filter(f => f.snack && f.state !== 'idle').sort(byN)], ['Old or slow films (count them if they\'re on the shelf)', L.filter(f => f.state === 'idle').sort(byN)]];
+    const dr = S.frDraft || (S.frDraft = {});
+    const entered = Object.keys(dr).filter(k => dr[k] && dr[k].rolls !== '' && dr[k].rolls != null).length;
+    return `${head('Count film rolls', 'Walk the film shelf. Type how many rolls of each film you have, and what one roll\'s label says.')}
+      <div class="count-bar fr-bar"><div><b>${entered} counted</b><div class="sub" style="margin:0;font-size:12px">Half a roll? Type .5. Leave a film empty if you didn't count it.</div></div><div style="display:flex;gap:8px"><button class="btn sm" data-act="fr-cancel">Cancel</button><button class="btn primary sm" data-act="fr-save"${entered ? '' : ' disabled'}>Save count</button></div></div>
+      ${groups.map(([h, G]) => G.length ? `<section class="card fr-count"><h2>${h}</h2>
+        <div class="fr-crow fr-chead"><span>Film</span><span>Rolls</span><span>One roll's label</span></div>
+        ${G.map(f => { const c = S.frCounts[f.k] || {}, d = dr[f.k] || {}; return `<div class="fr-crow"><div class="fr-cn"><b>${esc(f.name)}</b><small>${f.last ? 'last came in ' + frDay(f.last.d) + ' · ' + frAmt(f, f.last.q) : 'no bill yet'}</small></div>
+          <input class="fr-in" type="number" inputmode="decimal" min="0" step="0.5" data-fk="${esc(f.k)}" data-ff="rolls" value="${esc(d.rolls != null ? d.rolls : '')}" placeholder="${c.rolls != null ? esc(c.rolls) : '0'}" aria-label="Rolls of ${esc(f.name)}">
+          <label class="fr-lab"><input class="fr-in" type="number" inputmode="decimal" min="0" data-fk="${esc(f.k)}" data-ff="size" value="${esc(d.size != null ? d.size : '')}" placeholder="${c.size ? esc(c.size) : ''}" aria-label="${f.unit === 'lb' ? 'Pounds' : 'Bags'} on one roll of ${esc(f.name)}"><span>${f.unit === 'lb' ? 'lb' : 'bags'}</span></label></div>`; }).join('')}</section>` : '').join('')}`;
+  }
+  const counted = Object.values(S.frCounts).filter(Boolean), lastCount = counted.map(c => c.at).sort().pop();
+  const nShort = L.filter(f => f.state === 'short').length, nLow = L.filter(f => f.state === 'low').length, needSize = L.filter(f => S.frCounts[f.k] && !(S.frCounts[f.k].size > 0)).length;
+  const live = L.filter(f => f.state !== 'idle'), idle = L.filter(f => f.state === 'idle');
+  const show = live.filter(f => flt === 'all' || (flt === 'warn' ? f.state === 'short' || f.state === 'low' : flt === 'snack' ? f.snack : !f.snack));
+  const est = f => f.counted && f.size ? '' : ' (estimate)';
+  const pill = f => f.state === 'short' ? (!f.counted && f.stock < 1 ? `<span class="tag red">Count it: estimate says used up</span>` : `<span class="tag red">Not enough for the next 8 weeks${est(f)}</span>`) : f.state === 'low' ? `<span class="tag gold">Running low${est(f)}</span>` : f.state === 'ok' ? `<span class="tag green">OK${est(f)}</span>` : `<span class="tag">No numbers yet</span>`;
+  const card = f => { const open = S.frOpen === f.k; const w = f.weeks; const pct = w == null ? 0 : Math.min(100, w / 16 * 100);
+    return `<article class="card fr-card fr-${f.state}"><button class="fr-top" data-act="fr-open" data-k="${esc(f.k)}" aria-expanded="${open}">
+      <div class="fr-n"><b>${esc(f.name)}</b><small>${f.uses.length ? 'for ' + esc([...new Set(f.uses.map(u => u.name))].slice(0, 2).join(', ')) : 'not matched to a product yet'}</small></div>
+      <div class="fr-big">${f.rolls != null ? `<b class="num">${frRolls(f.rolls)}</b><small>${f.counted && f.size ? 'rolls' : f.size ? 'rolls (est.)' : 'rolls counted'}</small>` : `<b class="num fr-amt">${frAmt(f, f.stock)}</b><small>${f.counted ? '' : 'estimate'}</small>`}</div></button>
+      <div class="fr-mid">${pill(f)}<span class="sub" style="margin:0">${w == null || (!f.counted && f.stock < 1) ? '' : w >= 52 ? 'over a year left' : `about <b>${w < 2 ? fnu(w) : fn(w)} week${Math.round(w) === 1 ? '' : 's'}</b> left`}${f.busy && w != null && (f.counted || f.stock >= 1) ? ' · busy weeks ahead' : ''}</span></div>
+      ${w != null ? `<div class="fr-bar-w" aria-hidden="true"><i style="width:${pct}%"></i><s style="left:${FR_LEAD_WEEKS / 16 * 100}%"></s></div>` : ''}
+      ${open ? `<div class="fr-more">
+        <div class="bk-line"><span>On the shelf now</span><b class="num">${frAmt(f, f.stock)}${f.rolls != null && f.size ? ' · ' + frRolls(f.rolls) + ' rolls' : ''}</b></div>
+        <div class="bk-line"><span>Next 8 weeks need${f.busy ? ' (busy season)' : ''}</span><b class="num">${frAmt(f, f.need8)}${f.size ? ' · ' + frRolls(f.need8 / f.size) + ' rolls' : ''}</b></div>
+        <div class="bk-line"><span>Using per week</span><b class="num">${frAmt(f, f.rate * 7)}</b></div>
+        <div class="bk-line"><span>Counted</span><b>${S.frCounts[f.k] ? frDay(S.frCounts[f.k].at) + ' · ' + fnu(S.frCounts[f.k].rolls) + ' rolls' + (S.frCounts[f.k].size > 0 ? ' of ' + frAmt(f, S.frCounts[f.k].size) : ' · <span style="color:var(--gold-text)">roll size missing</span>') + ' · ' + esc(S.frCounts[f.k].by || '') : 'not yet'}</b></div>
+        <p class="sub" style="margin:6px 0 2px">${f.how === 'packed' ? `Film used goes down with every box packed${f.uses.some(u => u.src === 'buy') ? ' (or case bought from the co-packer)' : ''}, at about ${f.unit === 'lb' ? fnu(f.perBox) + ' lb' : fnu(f.perBox) + ' bags'} of film per box, learned from your film bills.` : f.how === 'bills' ? 'Used up at the pace of your film bills (no packing matched to this film).' : 'Not enough bills yet to know how fast it\'s used.'}</p>
+        <div class="lab-sm">Film bills from QuickBooks</div>
+        ${f.bills.slice(-5).reverse().map(b => `<div class="bk-line"><span>${frDay(b.d)} · ${esc(b.v)}${b.n ? ' · #' + esc(b.n) : ''}</span><b class="num">${frAmt(f, b.q)}</b></div>`).join('') || '<p class="sub">None.</p>'}</div>` : ''}</article>`; };
+  return `${head('Film rolls', 'How much film is on the shelf, how long it lasts, and what to reorder', `<button class="btn primary sm" data-act="fr-count">Count rolls</button>`)}
+    ${!counted.length ? `<div class="note" style="background:var(--gold-soft);border-color:var(--gold)"><b>Count the rolls once to start.</b> Until then the numbers below are estimates from the last film bill. Tap <b>Count rolls</b>, type the rolls of each film and what one roll's label says (pounds or bags).</div>` : needSize ? `<div class="note" style="background:var(--gold-soft);border-color:var(--gold)"><b>${needSize} film${needSize === 1 ? ' needs' : 's need'} the roll size.</b> Look at one roll's label and type the pounds or bags, so the app can count rolls.</div>` : ''}
+    <div class="fr-tiles"><div><b class="num" style="color:${nShort ? 'var(--bad-text)' : 'inherit'}">${nShort}</b><span>not enough for the next 8 weeks${counted.length ? '' : ' (estimates)'}</span></div><div><b class="num" style="color:${nLow ? 'var(--gold-text)' : 'inherit'}">${nLow}</b><span>running low (under ${FR_LEAD_WEEKS} weeks)</span></div><div><b class="num">${live.length}</b><span>films in use</span></div><div><b>${lastCount ? frDay(lastCount) : '—'}</b><span>last count</span></div></div>
+    <div class="chips" style="margin:12px 0">${[['all', 'All'], ['warn', 'Needs reorder'], ['noodle', 'Noodle film'], ['snack', 'Snack & family bags']].map(([k, n]) => `<button class="chip" data-act="fr-flt" data-v="${k}" aria-pressed="${flt === k}">${n}</button>`).join('')}</div>
+    <div class="fr-grid">${show.map(card).join('') || '<section class="card"><p class="sub" style="margin:0">Nothing here.</p></section>'}</div>
+    ${idle.length ? `<details class="card fr-idle"><summary><b>Not packed lately</b> <span class="sub" style="margin:0">· ${idle.length} old or slow films, still on the shelf from earlier bills</span></summary>${idle.map(f => `<div class="bk-line"><span>${esc(f.name)}<br><small class="sub" style="margin:0">${f.last ? 'last bill ' + frDay(f.last.d) + ' · ' + frAmt(f, f.last.q) : ''}</small></span><b>${S.frCounts[f.k] ? fnu(S.frCounts[f.k].rolls) + ' rolls counted' : ''}</b></div>`).join('')}</details>` : ''}
+    <p class="sub" style="margin:10px 2px">New film is added from the film bills in QuickBooks (LallyPak, Prime Packaging). Film used comes from the boxes packed on the box printer, and snack cases bought from the co-packer. Next 8 weeks is what you used these same weeks last year.</p>`;
+}
+
 function renderStockMoves() {
   const B = BK(); if (!B || !B.stock) return bkEmpty('Stock moves', 'Assembly builds and inventory adjustments from QuickBooks');
   const T = B.stock; const today = isoRd(REAL.asOf);
@@ -10429,6 +10603,11 @@ document.addEventListener('click', e => {
     case 'mp-day': S.mpDay = d.day; render(); break;
     case 'mp-view': S.mpView = d.v; render(); break;
     case 'mp-auto': { const m = Object.assign({}, printAutoRaw()); m[d.k] = !m[d.k]; S.mpAuto = m; try { localStorage.setItem('chuster-mpauto-v1', JSON.stringify(m)); } catch (e) { } try { SYNC.put('mp', 'autoset', m); } catch (e) { } render(); break; }
+    case 'fr-count': S.frCount = true; S.frDraft = {}; render(); window.scrollTo(0, 0); break;
+    case 'fr-cancel': S.frCount = false; S.frDraft = {}; render(); break;
+    case 'fr-save': { const by = byName(), at = nowIso(); let n = 0; Object.entries(S.frDraft || {}).forEach(([k, v]) => { if (!v || v.rolls === '' || v.rolls == null || !isFinite(+v.rolls)) return; const old = S.frCounts[k] || {}; const size = v.size !== '' && v.size != null && +v.size > 0 ? +v.size : (old.size || 0); const rec = { rolls: +v.rolls, size, at, by }; S.frCounts[k] = rec; try { SYNC.put('fr', k, rec); } catch (e) { } n++; }); saveLS('chuster-film-counts', S.frCounts); S.frCount = false; S.frDraft = {}; FR_CACHE = null; render(); toast(n ? `Saved the count of ${n} film${n === 1 ? '' : 's'}.` : 'Nothing counted.'); break; }
+    case 'fr-open': S.frOpen = S.frOpen === d.k ? null : d.k; render(); break;
+    case 'fr-flt': S.frFlt = d.v; render(); break;
     case 'mp-hand': { const m = Object.assign({}, printHandRaw()); if (m[d.lab]) delete m[d.lab]; else m[d.lab] = true; S.mpHand = m; try { localStorage.setItem('chuster-mphand-v1', JSON.stringify(m)); } catch (e) { } try { SYNC.put('mp', 'handset', m); } catch (e) { } render(); toast(m[d.lab] ? '“' + d.lab + '” set to packed by hand — left out of the counts.' : '“' + d.lab + '” back in the counts.'); break; }
     case 'mp-notline': { const m = Object.assign({}, printNotLineRaw()); m[d.name] = true; S.mpNotLine = m; try { localStorage.setItem('chuster-mpnotline-v1', JSON.stringify(m)); } catch (e) { } try { SYNC.put('mp', 'notline', m); } catch (e) { } render(); toast('“' + d.name + '” taken off Pack next (packed by hand).'); break; }
     case 'mp-maptoggle': S.mpMapOpen = !S.mpMapOpen; render(); break;
@@ -10843,6 +11022,7 @@ document.addEventListener('input', e => {
   if (e.target.classList && e.target.classList.contains('pkx-in')) { const f = e.target.dataset.full; if (e.target.value === '') delete S.pkxDraft[f]; else S.pkxDraft[f] = e.target.value; return; }
   if (e.target.classList && e.target.classList.contains('pkd-in')) { const n = e.target.dataset.num; if (e.target.value === '') delete S.pkDates[n]; else S.pkDates[n] = e.target.value; return; }
   if (e.target.classList && e.target.classList.contains('pka-in')) { S.apptDraft[e.target.dataset.id] = e.target.value; return; }
+  if (e.target.classList && e.target.classList.contains('fr-in')) { const k = e.target.dataset.fk, f = e.target.dataset.ff; const dr = S.frDraft || (S.frDraft = {}); dr[k] = Object.assign({}, dr[k], { [f]: e.target.value }); const n = Object.keys(dr).filter(x => dr[x].rolls !== '' && dr[x].rolls != null).length; const bar = document.querySelector('.fr-bar'); if (bar) { bar.querySelector('b').textContent = n + ' counted'; bar.querySelector('[data-act=fr-save]').disabled = !n; } return; }
   if (e.target.classList && e.target.classList.contains('cnt-in')) {
     const full = e.target.dataset.full, v = e.target.value; S.countDraft[full] = v;
     const badge = document.getElementById('d_' + e.target.dataset.k); const qb = +e.target.dataset.qb;
