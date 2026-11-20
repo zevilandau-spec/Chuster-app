@@ -1,7 +1,16 @@
 {
- "updated": "2026-11-20T18:23:29Z",
+ "updated": "2026-11-20T20:22:23Z",
  "feed": {
   "zevi": [
+   {
+    "cat": "pickup",
+    "who": "Wonton Food (Cindy Chen)",
+    "subj": "Confirm production appt — PO 65543",
+    "sum": "Wonton asks to confirm the production appointment for PO 65543: 11/30 6:00 AM–12/01 6:00 AM (Rabbi/CRC Kashrus copied for supervision).",
+    "at": "2026-11-20T20:19:59",
+    "link": "https://outlook.office365.com/owa/?ItemID=AAMkAGFmNjRjZDVlLTlkMTctNGJlZS04MDkwLTdiZDJlZGI1Yzk4MQBGAAAAAAAtR1pTZy7eSLs3LAUrVBv3BwDkzKQ6q1lhTJbNMK%2BHUFF5AAAAAAEMAADkzKQ6q1lhTJbNMK%2BHUFF5AAXnSf16AAA%3D&exvsurl=1&viewmodel=ReadMessageItem",
+    "flag": "reply"
+   },
    {
     "cat": "shortage",
     "who": "Gourmet Glatt Lakewood",
