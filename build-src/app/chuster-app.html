@@ -2152,6 +2152,7 @@ function renderSalesReport() {
 
 // What's new — a running list of what shipped, newest first. r: role that sees it (Owner-only if set).
 const CHANGELOG = [
+  { d: '2026-11-19', t: 'Received in QuickBooks = picked up', b: "Order Tracker rows whose PO is received (or closed) in QuickBooks are now marked picked up by themselves (grey QB\u2713 mark), and item names like WEGE Sourdough or Mini Tortilla Chips now match the tracker's items." },
   { d: '2026-11-19', t: 'Order Tracker follows QuickBooks', b: "New purchase orders you make in QuickBooks now appear in the Order Tracker by themselves (about every 30 minutes) for the items on its list. Your pickup date, pickup #, carrier and location stay as you typed them; if QuickBooks changes a PO's quantity or expected date, the row follows. Rows from QuickBooks show a small QB mark." },
   { d: '2026-11-18', t: 'Order Tracker', b: "The CNP Items Order Tracker sheet now lives in the app (menu \u2192 Deliveries \u2192 Order Tracker, or the Command center tile): an Excel-style Orders grid you type straight into, Scheduled Pickups grouped by date and pickup # with totals, and the Items list. Weight, pallets, on-order totals and \u201cCombined\u201d work themselves out, and it\u2019s shared live like the rest of the app. Import from Excel loads every row of the workbook." },
   { d: '2026-11-15', t: 'Menu: pinned favorites', b: "The side menu is shorter now — a ★ Favorites section at the top with your most-used screens, and the full list tucked behind 'All screens'. Tap the star on any screen to pin or unpin it; your picks are remembered on your device.", r: 'Owner' },
@@ -8905,7 +8906,7 @@ function otOrdersHtml() {
     ${chip('open', 'Open')}${chip('nodate', 'Not scheduled')}${chip('done', 'Picked up')}${chip('all', 'All')}
     <button class="btn ghost sm" data-ot="import">Import from Excel</button><button class="btn gold sm" data-ot="add">+ Add row</button></div>
   <div class="ot-sheet" id="ot-sheet"><table class="ot-grid ot-fixed" style="width:${30 * 2 + OT_COLS.reduce((a, c) => a + c[3], 0)}px"><colgroup><col style="width:30px">${OT_COLS.map(c => `<col style="width:${c[3]}px">`).join('')}<col style="width:30px"></colgroup><thead><tr><th class="ot-rn"></th>${OT_COLS.map(([k, h, t, w], i) => `<th style="min-width:${w}px" class="${t === 'calc' ? 'ot-calc' : ''}"><button class="ot-h" data-ot="sort" data-v="${k}"><span class="ot-col">${L[i]}</span>${esc(h)}${S.otSort === k ? (S.otDir > 0 ? ' ▲' : ' ▼') : ''}</button></th>`).join('')}<th class="ot-rn"></th></tr></thead>
-  <tbody>${rows.map((o, r) => `<tr class="${o.pickedUp ? 'ot-done' : ''}"><td class="ot-rn"${o.qk ? ` title="${o.qbOpen === false ? 'Received or closed in QuickBooks' : 'Linked to the QuickBooks PO'}"` : ''}>${r + 1}${o.qk ? (o.qbOpen === false ? '<span class="ot-qb off">QB✓</span>' : '<span class="ot-qb">QB</span>') : ''}</td>${OT_COLS.map((c, ci) => cell(o, c, r, ci)).join('')}<td class="ot-rn"><button class="ot-del" data-ot="del" data-id="${esc(o.id)}" aria-label="Delete row" title="Delete row">×</button></td></tr>`).join('')
+  <tbody>${rows.map((o, r) => `<tr class="${o.pickedUp ? 'ot-done' : ''}"><td class="ot-rn"${o.qk || o.qbAuto ? ` title="${o.qbAuto ? 'Marked picked up: received in QuickBooks' : o.qbOpen === false ? 'Received or closed in QuickBooks' : 'Linked to the QuickBooks PO'}"` : ''}>${r + 1}${o.qbAuto && !o.qk ? '<span class="ot-qb off">QB✓</span>' : ''}${o.qk ? (o.qbOpen === false ? '<span class="ot-qb off">QB✓</span>' : '<span class="ot-qb">QB</span>') : ''}</td>${OT_COLS.map((c, ci) => cell(o, c, r, ci)).join('')}<td class="ot-rn"><button class="ot-del" data-ot="del" data-id="${esc(o.id)}" aria-label="Delete row" title="Delete row">×</button></td></tr>`).join('')
     || `<tr><td colspan="18" style="padding:20px" class="sub">No orders match.</td></tr>`}</tbody></table></div>
   <p class="sub" style="margin:0;font-size:11.5px">${rows.length} rows · type in any white cell · dates like 11/25 · Enter = down, Tab = right</p>
   <datalist id="ot-dl-items">${items.map(i => `<option value="${esc((i.mpn || '') + ' - ' + i.name)}">`).join('')}</datalist>
@@ -9014,7 +9015,7 @@ function otQBLines() { // every open PO line, from the office PC if it sent them
   const out = [];
   if (S.qxPO && S.qxPO.l) S.qxPO.l.forEach(p => (p.l || []).forEach(l => out.push({ num: String(p.n || ''), d: p.d || '', v: p.v || '', deliv: p.deliv || '', full: l[0], desc: l[1] || '', qty: +l[2] || 0, rcv: +l[3] || 0 })));
   else if (REAL && REAL.openPO && REAL.openPO.list) REAL.openPO.list.forEach(p => out.push({ num: String(p.num || ''), d: otMdy(p.date), v: p.vendor || '', deliv: otMdy(p.deliv), full: p.item, desc: p.name || '', qty: (+p.qty || +p.left || 0), rcv: (+p.qty || 0) - (+p.left || 0) }));
-  const seen = {}; out.forEach(l => { const b = l.num + '|' + l.full; seen[b] = (seen[b] || 0) + 1; l.qk = b + '|' + seen[b]; });
+  const seen = {}; out.forEach(l => { const b = l.num + '|' + l.full; seen[b] = (seen[b] || 0) + 1; l.qk = b + '|' + seen[b]; l.done = l.qty > 0 && l.rcv >= l.qty; });
   return { lines: out, at: S.qxPO && S.qxPO.at ? S.qxPO.at : (REAL && REAL.openPO ? REAL.openPO.asOf : '') };
 }
 function otMatch(l, items) { // which tracker item a QuickBooks PO line is
@@ -9025,16 +9026,24 @@ function otMatch(l, items) { // which tracker item a QuickBooks PO line is
   const nn = s => String(s || '').toLowerCase().replace(/\b\d{5,}[a-z]*\d*\b|\b[0-9a-z]*\d{4,}[0-9a-z]*\b/g, ' ').replace(/[^a-z0-9]+/g, ' ').trim();
   const cands = [l.full.split(':').pop(), l.desc, cat && cat.name].filter(Boolean).map(nn);
   for (const [id, i] of Object.entries(items)) if (cands.includes(nn(i.name))) return id;
-  return null;
+  if (/^(film|cartons?|labels?|boxes|packaging)\b/i.test(l.full)) return null;
+  const words = s => nn(s).split(' ').filter(w => w.length > 1 && !/^(loose|old|lb|lbs|\d+lb|\d+)$/.test(w));
+  const Q = words(l.full + ' ' + l.desc); const has = w => Q.some(q => q === w || (w.length >= 4 && q.length >= 4 && (q.startsWith(w) || w.startsWith(q))));
+  let top = null, topS = 0, tie = false;
+  Object.entries(items).forEach(([id, i]) => { const N = words(i.name); if (!N.length) return; const hit = N.filter(has).length; const sc = hit / N.length + hit / 100;
+    if (hit >= 2 && hit / N.length >= 0.6) { if (sc > topS + 1e-9) { top = id; topS = sc; tie = false; } else if (Math.abs(sc - topS) < 1e-9) tie = true; } });
+  return tie ? null : top;
 }
 function otMergeQB() {
   if (!isZevi()) return; const { lines } = otQBLines(); if (!lines.length) return;
   const items = otItems(); const rows = Object.entries(S.ot); const byQk = {}; rows.forEach(([id, o]) => { if (o.qk) byQk[o.qk] = id; });
-  const open = new Set(), linked = new Set(); let added = 0;
+  const open = new Set(), linked = new Set(), openPOs = new Set(); let added = 0, closed = 0;
+  lines.forEach(l => { if (!l.done) openPOs.add(String(l.num)); });
   lines.forEach(l => {
-    const iid = otMatch(l, items); if (!iid) return; const it = items[iid]; open.add(l.qk);
+    const iid = otMatch(l, items); if (!iid) return; const it = items[iid]; if (!l.done) open.add(l.qk);
     let id = byQk[l.qk];
     if (!id) { const u = rows.find(([rid, o]) => !o.qk && !linked.has(rid) && !o.pickedUp && String(o.po) === l.num && o.mpn === it.mpn && o.item === it.name); if (u) { id = u[0]; byQk[l.qk] = id; linked.add(id); } }
+    if (!id && l.done) return;   // already fully received in QuickBooks: nothing to track
     if (!id) { id = 'q' + l.qk.replace(/[^A-Za-z0-9_\-.~:@+]/g, '-').slice(0, 150);
       if (!S.ot[id]) { otPut(id, { orderDate: l.d, po: l.num, mpn: it.mpn, item: it.name, qty: l.qty, reqPickup: l.deliv, loc: '', prodDate: '', carrier: '', pickupDate: '', pickupNo: '', pickedUp: false, qk: l.qk, qbQty: l.qty, qbDeliv: l.deliv, qbOpen: true, src: 'qb' }); added++; }
       byQk[l.qk] = id; return; }
@@ -9042,16 +9051,24 @@ function otMergeQB() {
     if (o.qk !== l.qk) p.qk = l.qk;
     if (o.qbQty !== l.qty) { if (o.qbQty != null && !o.pickedUp) p.qty = l.qty; p.qbQty = l.qty; }   // QuickBooks changed the quantity
     if (o.qbDeliv !== l.deliv) { if (o.qbDeliv != null && !o.pickedUp && l.deliv) p.reqPickup = l.deliv; p.qbDeliv = l.deliv; }
-    if (o.qbOpen !== true) p.qbOpen = true;
+    if (l.done) { if (o.qbOpen !== false) p.qbOpen = false; if (!o.pickedUp) { p.pickedUp = true; p.qbAuto = 'received'; closed++; } }
+    else if (o.qbOpen !== true) p.qbOpen = true;
     if (Object.keys(p).length) otPut(id, Object.assign({}, o, p));
   });
-  Object.entries(S.ot).forEach(([id, o]) => { if (o.qk && o.qbOpen && !open.has(o.qk)) otPut(id, Object.assign({}, o, { qbOpen: false })); }); // received or closed in QuickBooks
+  // received or closed in QuickBooks → picked up. Only when the QuickBooks list is fresh, and never a row typed in the last 2 days.
+  const { at } = otQBLines(); const fresh = at && (Date.now() - new Date(at).getTime()) < 2 * 864e5; const cutoff = isoOf(TODAY - 2);
+  Object.entries(S.ot).forEach(([id, o]) => {
+    if (o.pickedUp) { if (o.qk && o.qbOpen && !open.has(o.qk)) otPut(id, Object.assign({}, o, { qbOpen: false })); return; }
+    const gone = o.qk ? !open.has(o.qk) : (o.po && !openPOs.has(String(o.po)));
+    if (gone && fresh && o.po && o.orderDate && o.orderDate <= cutoff) { otPut(id, Object.assign({}, o, { pickedUp: true, qbOpen: false, qbAuto: 'received' })); closed++; }
+    else if (o.qk && o.qbOpen && !open.has(o.qk)) otPut(id, Object.assign({}, o, { qbOpen: false }));
+  });
   // a row the sheet/Excel import brought in and the same QuickBooks line: keep one
   const vals = Object.entries(S.ot);
   vals.forEach(([qid, q]) => { if (q.src !== 'qb' || q.pickupDate || q.pickupNo || q.carrier || q.loc || q.prodDate || q.pickedUp) return;
     const twin = vals.find(([rid, o]) => rid !== qid && !o.qk && S.ot[rid] && String(o.po) === String(q.po) && o.mpn === q.mpn && o.item === q.item);
     if (twin) { otPut(twin[0], Object.assign({}, S.ot[twin[0]], { qk: q.qk, qbQty: q.qbQty, qbDeliv: q.qbDeliv, qbOpen: q.qbOpen })); otPut(qid, null); } });
-  if (added && S.view === 'tracker') toast(`${added} new PO line${added > 1 ? 's' : ''} from QuickBooks added to the tracker.`);
+  if ((added || closed) && S.view === 'tracker') toast([added ? `${added} new PO line${added > 1 ? 's' : ''} from QuickBooks` : '', closed ? `${closed} marked picked up (received in QuickBooks)` : ''].filter(Boolean).join(' · ') + '.');
   if (S.view === 'tracker') { const a = document.activeElement; if (!(a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName))) render(); }
 }
 function otQBPanel() {
@@ -9061,7 +9078,7 @@ function otQBPanel() {
   const opts = Object.entries(items).sort((a, b) => a[1].name.localeCompare(b[1].name)).map(([id, i]) => `<option value="${esc(id)}">${esc(i.name)}${i.mpn ? ' — ' + esc(i.mpn) : ''}</option>`).join('');
   const when = at ? (/T/.test(at) ? new Date(at).toLocaleString('en-US', { month: 'numeric', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : at) : '';
   return `<details class="card" style="padding:4px 10px;font-size:12.5px;flex:0 1 auto"><summary style="cursor:pointer;font-weight:700">QuickBooks · ${esc(when)}${Object.keys(uniq).length ? ` · <span style="color:var(--gold-text)">${Object.keys(uniq).length} not matched</span>` : ''}</summary>
-    <p class="sub" style="margin:8px 0">New open POs in QuickBooks are added here automatically (about every 30 minutes). Your pickup date, pickup #, carrier and location are never changed; if QuickBooks changes the quantity or expected date, the row follows it.</p>
+    <p class="sub" style="margin:8px 0">New open POs in QuickBooks are added here automatically (about every 30 minutes). When a PO is received in QuickBooks, its row is marked picked up (grey QB✓). Your pickup date, pickup #, carrier and location are never changed; if QuickBooks changes the quantity or expected date, the row follows it.</p>
     ${Object.values(uniq).length ? `<table class="mini-table">${Object.values(uniq).map(u => `<tr><td>${esc(u.full)}${u.desc ? `<div class="sub" style="margin:0;font-size:12px">${esc(u.desc)} · ${esc(u.v)} · PO ${esc(u.pos.join(', '))}</div>` : ''}</td>
       <td><select class="sel" data-otmap="${esc(u.full)}" style="min-width:220px"><option value="">Link to a tracker item…</option>${opts}<option value="-">Not for the tracker</option></select></td></tr>`).join('')}</table>` : ''}</details>`;
 }
