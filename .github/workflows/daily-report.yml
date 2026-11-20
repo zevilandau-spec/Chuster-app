@@ -26,6 +26,8 @@ jobs:
           # --- salesman coverage config ---
           SALES_REP_CODES: "MH,MHC"          # the route salesman's QuickBooks rep code(s)
           EXCLUDE_AREAS: "Wholesale,Catering,Other,Referral,Country"  # not door-to-door neighborhoods
+          COVERAGE_MIN_STORES: "3"           # an area counts as "worked" only with >= this many covered
+          COVERAGE_MIN_SHARE: "0.25"         # ...and at least this fraction of the area's stores covered
         run: |
           set -e
           python3 - <<'PY'
@@ -254,20 +256,28 @@ jobs:
               if n in ordered_today: how.append('order')
               if visited_today(n): how.append('visit')
               (areas_cov[v['area']]['covered'] if how else areas_cov[v['area']]['notcov']).append({'name': n, 'how': how})
-          # he "worked" an area today if at least one of his stores there was covered
-          worked = []
+          # he "worked" an area today only if he covered a meaningful chunk of it
+          # (so a single stray/wholesale order doesn't flag a whole neighborhood)
+          min_cov = int(os.environ.get('COVERAGE_MIN_STORES') or 3)
+          min_share = float(os.environ.get('COVERAGE_MIN_SHARE') or 0.25)
+          worked = []; incidental = []
           for a, dct in areas_cov.items():
-              if not dct['covered']: continue
-              tot = len(dct['covered']) + len(dct['notcov'])
+              nc = len(dct['covered']); tot = nc + len(dct['notcov'])
+              if nc == 0: continue
+              if nc < min_cov or (tot and nc / tot < min_share):
+                  incidental.append(f"{a} ({nc}/{tot})"); continue
               worked.append({
-                  'area': a, 'covered': len(dct['covered']), 'total': tot,
+                  'area': a, 'covered': nc, 'total': tot,
                   'notCovered': sorted(x['name'] for x in dct['notcov']),
                   'coveredStores': sorted(x['name'] for x in dct['covered']),
               })
           worked.sort(key=lambda x: -x['covered'])
-          report['coverage'] = {'repCodes': codes, 'workedToday': bool(worked), 'areas': worked}
+          report['coverage'] = {'repCodes': codes, 'workedToday': bool(worked), 'areas': worked,
+                                'incidental': incidental}
           for w in worked:
               print(f"::notice::COVERAGE {w['area']}: {w['covered']}/{w['total']} covered; missed: " + (", ".join(w['notCovered']) or 'none'))
+          if incidental:
+              print("::notice::COVERAGE incidental (below threshold, not shown): " + ", ".join(incidental))
           if not worked:
               print("::notice::COVERAGE no areas worked today (no orders/visits from the salesman's stores)")
 
