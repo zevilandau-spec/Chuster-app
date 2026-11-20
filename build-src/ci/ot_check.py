@@ -5,7 +5,7 @@ S = json.loads(os.environ['CHUSTER_SECRETS'])['sync']; url = os.environ['CHUSTER
 EK = hmac.new(k, b'chuster-qb-enc', hashlib.sha256).digest(); MK = hmac.new(k, b'chuster-qb-mac', hashlib.sha256).digest()
 def un(v):
     if not isinstance(v, str): return None
-    if v.startswith('c1:'):
+    if v[:3] in ('c1:', 'c1.'):
         b = base64.b64decode(v[3:]); body, mac = b[:-32], b[-32:]
         if not hmac.compare_digest(hmac.new(MK, body, hashlib.sha256).digest(), mac): return None
         d = Cipher(algorithms.AES(EK), modes.CBC(body[:16])).decryptor(); p = d.update(body[16:]) + d.finalize(); p = p[:-p[-1]]
@@ -28,6 +28,7 @@ print(f"::notice::qx records: {len(recs)}")
 found = None
 for kk, r in recs.items():
     v = un(r.get('v')) if isinstance(r, dict) else None
+    if isinstance(v, dict): print("::notice::qx record keys " + ",".join(list(v.keys())[:8]) + " k=" + str(v.get('k'))[:20])
     if isinstance(v, dict) and v.get('k') == 'openpo': found = v.get('val'); break
     if isinstance(v, dict) and v.get('val') and isinstance(v['val'], dict) and 'l' in v['val']: found = v['val']
 if not found:
