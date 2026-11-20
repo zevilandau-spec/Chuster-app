@@ -7,56 +7,43 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with: { python-version: '3.12' }
-      - uses: actions/setup-node@v4
-        with: { node-version: '20' }
-      - run: pip install cryptography==43.0.3
-      - name: Build data and portals (nothing is published)
+      - name: Film probe (reads only)
         env:
           CHUSTER_DB_URL: ${{ secrets.CHUSTER_DB_URL }}
           CHUSTER_SECRETS: ${{ secrets.CHUSTER_SECRETS }}
         run: |
           cd build-src
-          python3 - <<'PY'
+          python3 - <<'PY2'
           import json, os
           s = json.loads(os.environ['CHUSTER_SECRETS'])
           s['sync']['url'] = os.environ['CHUSTER_DB_URL'].strip().rstrip('/'); json.dump(s['sync'], open('sync.json', 'w'))
-          PY
-          python3 tools/fetch_history.py "$CHUSTER_DB_URL" sync.json raw
-          python3 -I tools/convert_raw.py raw export
-          ASOF=$(python3 -c "import json;print(json.load(open('raw/meta.json'))['asOf'])")
-          FROM=$(python3 -c "import json;print(json.load(open('raw/meta.json'))['from'])")
-          mkdir -p build
-          CHUSTER_NIGHTLY=1 sh tools/build_from.sh export build/data.json "$ASOF" "$FROM" > /dev/null
-          python3 -I tools/build_portal.py raw build/data.json sync.json /tmp/site/c/d
-          cp ../c/index.html ../c/logo.webp /tmp/site/c/; cp ../favicon-32.png /tmp/site/
-          echo "::notice::files $(ls /tmp/site/c/d | wc -l), size $(du -sh /tmp/site/c/d | cut -f1), biggest $(ls -S /tmp/site/c/d | head -1 | xargs -I{} du -h /tmp/site/c/d/{} | cut -f1)"
-          python3 - <<'PY'
-          import base64, hashlib, hmac, json
-          cfg = json.load(open('sync.json')); PS = hmac.new(base64.b64decode(cfg['key']), b'chuster-portal-v1', hashlib.sha256).digest()
-          b64u = lambda b: base64.urlsafe_b64encode(b).decode().rstrip('=')
-          name = 'Schreiber Cataring'
-          fid = b64u(hmac.new(PS, ('id|1|' + name).encode(), hashlib.sha256).digest())[:22]; key = b64u(hmac.new(PS, ('key|1|' + name).encode(), hashlib.sha256).digest())
-          open('/tmp/link.txt', 'w').write(fid + '.' + key)
-          PY
+          PY2
+          python3 tools/fetch_history.py "$CHUSTER_DB_URL" sync.json raw > /dev/null
           rm -f sync.json
-      - name: Pictures
-        run: |
-          cd /tmp && npm init -y > /dev/null && npm i playwright@1.48.2 > /dev/null && npx playwright install --with-deps chromium > /dev/null
-          (cd /tmp/site && python3 -m http.server 8088 > /dev/null 2>&1 &)
-          sleep 2
-          cat > /tmp/shot.js <<'JS'
-          const { chromium } = require('playwright'); const fs = require('fs');
-          (async () => { const b = await chromium.launch(); const link = fs.readFileSync('/tmp/link.txt', 'utf8').trim(); const errs = [];
-            const p = await (await b.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true })).newPage(); p.on('pageerror', e => errs.push(String(e)));
-            await p.goto('http://localhost:8088/c/#' + link); await p.waitForTimeout(2500);
-            await p.screenshot({ path: '/tmp/out/p1-statement.png', fullPage: true });
-            await p.click('[data-tab=iv]'); await p.waitForTimeout(500); await p.screenshot({ path: '/tmp/out/p2-invoices.png', fullPage: true });
-            await p.locator('[data-inv]').first().click(); await p.waitForTimeout(500); await p.screenshot({ path: '/tmp/out/p3-invoice.png' });
-            await p.goto('http://localhost:8088/c/#' + link); await p.waitForTimeout(2000); await p.click('[data-tab=by]'); await p.waitForTimeout(500); await p.screenshot({ path: '/tmp/out/p4-buying.png', fullPage: true });
-            const d = await (await b.newContext({ viewport: { width: 1200, height: 900 }, deviceScaleFactor: 1 })).newPage(); await d.goto('http://localhost:8088/c/#' + link); await d.waitForTimeout(2000); await d.screenshot({ path: '/tmp/out/p5-desktop.png', fullPage: true });
-            const bad = await (await b.newContext({ viewport: { width: 390, height: 700 } })).newPage(); await bad.goto('http://localhost:8088/c/#AAAAAAAAAAAAAAAAAAAAAA.BBBB'); await bad.waitForTimeout(1500); await bad.screenshot({ path: '/tmp/out/p6-badlink.png' });
-            console.log('errors', errs.join(' | ') || 'none'); await b.close(); })();
-          JS
-          mkdir -p /tmp/out && node /tmp/shot.js
-      - uses: actions/upload-artifact@v4
-        with: { name: portal-preview, path: /tmp/out, retention-days: 1 }
+          ls raw | tr '\n' ' '; echo
+          python3 - <<'PY2'
+          import json, glob, re, collections
+          R = re.compile(r'film|roll|wrap|laminat|printed bag|poly', re.I)
+          items = json.load(open('raw/items.json'))
+          print('ITEM keys', sorted(items[0].keys()))
+          for it in items:
+              if R.search(it.get('n','') + ' ' + str(it.get('desc',''))):
+                  print('ITEM', it.get('t'), '|', it.get('n'), '|', it.get('desc'), '| qoh', it.get('qoh'), '| cost', it.get('cost'), '| vendor', it.get('vendor'), '| active', it.get('active'))
+          pur = []
+          for f in sorted(glob.glob('raw/pur_*.json')): pur += json.load(open(f))
+          print('PUR count', len(pur), 'keys', sorted(pur[0].keys()) if pur else '')
+          vend = collections.Counter(); fv = collections.Counter()
+          for t in pur:
+              vend[t.get('v','')] += 1
+              hit = [l for l in t.get('l', []) if R.search(str(l[0]) + ' ' + str(l[1]))] or ([['', t.get('memo','')]] if R.search(str(t.get('memo',''))) else [])
+              if hit:
+                  fv[t.get('v','')] += 1
+                  if t['d'] >= '2025-01-01':
+                      for l in hit: print('PUR', t['d'], t.get('t'), '|', t.get('v'), '|', t.get('n'), '|', json.dumps(l, ensure_ascii=False)[:220])
+          print('FILM VENDORS', fv.most_common(20))
+          print('ALL VENDORS', vend.most_common(80))
+          po = json.load(open('raw/po.json')) if __import__('os').path.exists('raw/po.json') else []
+          for p in po:
+              for l in p.get('l', []):
+                  if R.search(str(l[0]) + ' ' + str(l[1])): print('PO', p['d'], p.get('v'), json.dumps(l)[:200])
+          PY2
