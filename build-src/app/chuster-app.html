@@ -3275,7 +3275,7 @@ function mxWeekVsLy() {
   if (isoOf(lws) < DLY.from) return null;
   // the % compares complete days only (Sunday to yesterday), so it's fair at any hour
   let cur = 0, done = 0; for (let r = ws; r <= TODAY; r++) { const v = Math.max(dly(r), inv[isoOf(r)] || 0); cur += v; if (r < TODAY) done += v; }
-  let same = 0, full = 0; for (let i = 0; i < 7; i++) { const v = dly(lws + i); full += v; if (i < wd) same += v; }
+  let same = 0, full = 0; for (let i = 0; i < 7; i++) { const v = dly(lws + i); full += v; if (i <= wd) same += v; } // includes today: it climbs as orders come in
   return { cur, done, same, full, lws };
 }
 function mxTodayVsLy() {
@@ -3410,7 +3410,7 @@ function renderHomeMix() {
         <svg viewBox="0 0 240 240" role="img" aria-label="${MN} so far ${Math.round(monthF * 100)}% of all of ${MN} ${PY}; this week ${Math.round(weekF * 100)}% of the same week last year; boxes ${Math.round(boxF * 100)}% of a usual day; ${T ? T.done + ' of ' + T.total + ' stops delivered' : 'no deliveries'}"><g transform="rotate(-90 120 120)" fill="none" stroke-linecap="round" stroke-width="20">${arc(108, monthF, 'var(--mx-gold)')}${arc(84, weekF, 'var(--mx-purple)')}${arc(60, boxF, 'var(--mx-blue)')}${arc(36, dlvF, 'var(--mx-green)')}</g></svg>
         <div class="mx-lg">
           <div class="it"><div class="k" style="color:var(--mx-gold)">${MN} so far</div><div class="v">${fm(D.oct.now)}<small> / ${fm(D.oct.prevFull)}</small></div><div class="mx-mut" style="margin:0">all of ${MN} ${PY} · ${mxDiff(mvs)} vs same days</div></div>
-          ${WK ? `<div class="it"><div class="k" style="color:var(--mx-purple)">This week</div><div class="v">${fm(WK.cur)}<small> / ${fm(WK.full)}</small></div><div class="mx-mut" style="margin:0">same week last year${WK.same && WK.done ? ` · ${mxDiff(pct(WK.done, WK.same))} through ${WD[dow(TODAY - 1)]}` : ''}</div></div>` : ''}
+          ${WK ? `<div class="it"><div class="k" style="color:var(--mx-purple)">This week</div><div class="v">${fm(WK.cur)}<small> / ${fm(WK.full)}</small></div><div class="mx-mut" style="margin:0">same week last year${WK.same ? ` · ${mxDiff(pct(WK.cur, WK.same))} vs Sun–${WD[dow(TODAY)].slice(0, 3)}` : ''}</div></div>` : ''}
           <div class="it"><div class="k" style="color:var(--mx-blue)">Boxes packed</div><div class="v">${fn(P.boxes)}${P.usual ? `<small> / ${fn(P.usual)} usual</small>` : ''}</div></div>
           <div class="it"><div class="k" style="color:var(--mx-green)">Delivered</div><div class="v">${T && T.total ? `${T.done}<small> / ${T.total} stops</small>` : '<small>No stops today</small>'}</div>${T && T.total && T.date !== isoOf(TODAY) ? `<div class="mx-mut" style="margin:0">${fmtShort(isoRd(T.date))}</div>` : ''}</div>
         </div>
